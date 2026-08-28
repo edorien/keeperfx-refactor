@@ -1,0 +1,119 @@
+/******************************************************************************/
+// Free implementation of Bullfrog's Dungeon Keeper strategy game.
+/******************************************************************************/
+/** @file player_instances.h
+ *     Header file for player_instances.c.
+ * @par Purpose:
+ *     Player instances support and switching code.
+ * @par Comment:
+ *     Just a header file - #defines, typedefs, function prototypes etc.
+ * @author   Tomasz Lis
+ * @date     10 Mar 2009 - 20 Mar 2009
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+#ifndef DK_PLYR_INSTNC_H
+#define DK_PLYR_INSTNC_H
+
+#include "bflib_basics.h"
+#include "globals.h"
+#include "thing_list.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/******************************************************************************/
+// enum PlayerNames moved to globals.h (stage 13) -- see
+// docs/refactor/stage-13-enforce-and-document.md.
+
+enum PlayerInstanceNum {
+    PI_Unset = 0,
+    PI_Grab,
+    PI_Drop,
+    PI_Whip,
+    PI_WhipEnd,
+    PI_DirctCtrl,
+    PI_PsngrCtrl,
+    PI_DirctCtLeave,
+    PI_PsngrCtLeave,
+    PI_QueryCrtr,
+    PI_UnqueryCrtr,
+    PI_HeartZoom,
+    PI_HeartZoomOut,
+    PI_CrCtrlFade,
+    PI_MapFadeTo,
+    PI_MapFadeFrom,
+    PI_ZoomToPos,
+    PI_UnusedSlot17,
+    PI_UnusedSlot18,
+};
+/******************************************************************************/
+#pragma pack(1)
+
+struct Thing;
+struct PlayerInfo;
+
+typedef long (*InstncInfo_Func)(struct PlayerInfo *player, int32_t *n);
+
+struct PlayerInstanceInfo { // sizeof = 44
+  long length_turns;
+  long instance_state;
+  InstncInfo_Func start_cb;
+  InstncInfo_Func maintain_cb;
+  InstncInfo_Func end_cb;
+  int32_t start_callback_parameters[2];
+  unsigned char extra_callback_data[8];
+  int32_t maintain_end_callback_parameter;
+  int32_t reserved_callback_parameter;
+};
+
+#define PLAYER_INSTANCES_COUNT 19
+#define PLAYER_INSTANCES_COUNT_OLD 17
+
+/******************************************************************************/
+
+#pragma pack()
+/******************************************************************************/
+extern struct PlayerInstanceInfo player_instance_info[PLAYER_INSTANCES_COUNT];
+/******************************************************************************/
+void set_player_instance(struct PlayerInfo *player, long ninum, TbBool force);
+void turn_off_query(PlayerNumber plyr_idx);
+long filter_creatures_owned_by_keepers(const struct Thing *thing, MaxTngFilterParam param, long a3);
+void process_player_instance(struct PlayerInfo *player);
+void process_player_instances(void);
+
+void leave_creature_as_passenger(struct PlayerInfo *player, struct Thing *thing);
+void leave_creature_as_controller(struct PlayerInfo *player, struct Thing *thing);
+#define set_selected_creature(player,thing) set_selected_creature_f(player, thing, __func__)
+TbBool set_selected_creature_f(struct PlayerInfo *player, struct Thing *thing, const char *func_name);
+#define set_selected_thing(player,thing) set_selected_thing_f(player, thing, __func__)
+TbBool set_selected_thing_f(struct PlayerInfo *player, struct Thing *thing, const char *func_name);
+TbBool clear_selected_thing(struct PlayerInfo *player);
+
+TbBool is_thing_directly_controlled(const struct Thing *thing);
+TbBool is_thing_passenger_controlled(const struct Thing *thing);
+TbBool is_thing_some_way_controlled(const struct Thing *thing);
+TbBool is_thing_directly_controlled_by_player(const struct Thing *thing, PlayerNumber plyr_idx);
+TbBool is_thing_passenger_controlled_by_player(const struct Thing *thing, PlayerNumber plyr_idx);
+
+void set_player_zoom_to_position(struct PlayerInfo *player,struct Coord3d *pos);
+
+struct Room *player_build_room_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y, PlayerNumber plyr_idx, RoomKind rkind);
+TbBool player_place_trap_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y, PlayerNumber plyr_idx, ThingModel tngmodel);
+TbBool player_place_trap_without_check_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y, PlayerNumber plyr_idx, ThingModel tngmodel, TbBool free);
+TbBool player_place_door_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y, PlayerNumber plyr_idx, ThingModel tngmodel);
+TbBool player_place_door_without_check_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y, PlayerNumber plyr_idx, ThingModel tngmodel, TbBool free);
+
+void level_lost_go_first_person(PlayerNumber plyr_idx);
+long packet_place_door(MapSubtlCoord stl_x, MapSubtlCoord stl_y, PlayerNumber plyr_idx, ThingModel tngmodel, TbBool allowed);
+
+extern unsigned char zoom_to_heart_palette[768];
+/******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
+#endif

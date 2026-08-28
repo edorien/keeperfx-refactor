@@ -1,0 +1,98 @@
+/******************************************************************************/
+// Free implementation of Bullfrog's Dungeon Keeper strategy game.
+/******************************************************************************/
+/** @file thing_traps.h
+ *     Header file for thing_traps.c.
+ * @par Purpose:
+ *     Traps support functions.
+ * @par Comment:
+ *     Just a header file - #defines, typedefs, function prototypes etc.
+ * @author   Tomasz Lis
+ * @date     17 Jun 2010 - 07 Jul 2010
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+#ifndef DK_THING_TRAPS_H
+#define DK_THING_TRAPS_H
+
+#include "bflib_basics.h"
+#include "globals.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/******************************************************************************/
+struct PlayerInfo;
+
+#pragma pack(1)
+#define INFINITE_CHARGES 255
+
+enum ThingTrapModels {
+    TngTrp_None = 0,
+    TngTrp_Boulder,
+    TngTrp_Alarm,
+    TngTrp_PoisonGas,
+    TngTrp_Lightning,
+    TngTrp_WordOfPower,
+    TngTrp_Lava,
+    TngTrp_Tnt,
+    TngTrp_UnusedSlot08,
+    TngTrp_UnusedSlot09,
+    TngTrp_UnusedSlot10,
+};
+
+// enum TrapTriggerTypes/TrapActivationTypes moved to globals.h (stage
+// 13.3) -- see there.
+
+struct Thing;
+
+#pragma pack()
+
+/******************************************************************************/
+TbBool slab_has_trap_on(MapSlabCoord slb_x, MapSlabCoord slb_y);
+TbBool slab_has_sellable_trap_on(MapSlabCoord slb_x, MapSlabCoord slb_y);
+TbBool player_can_sell_trap_on_slab(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSlabCoord slb_y);
+TbBool subtile_has_sellable_trap_on(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+TbBool subtile_has_trap_on(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+TbBool slab_middle_row_has_trap_on(MapSlabCoord slb_x, MapSlabCoord slb_y);
+TbBool slab_middle_column_has_trap_on(MapSlabCoord slb_x, MapSlabCoord slb_y);
+TbBool can_place_trap_on(PlayerNumber plyr_idx, MapSubtlCoord stl_x, MapSubtlCoord stl_y, ThingModel trpkind);
+
+TbBool destroy_trap(struct Thing *thing);
+struct Thing *create_trap(struct Coord3d *pos, ThingModel trpkind, PlayerNumber plyr_idx);
+struct Thing* activate_trap_spawn_creature(struct Thing* traptng, unsigned char model);
+struct Thing *get_trap_for_position(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+struct Thing *get_trap_for_slab_position(MapSlabCoord slb_x, MapSlabCoord slb_y);
+TbBool trap_is_active(const struct Thing *thing);
+TbBool trap_is_slappable_by_player(const struct Thing *thing, PlayerNumber plyr_idx);
+TbBool thing_is_deployed_trap(const struct Thing *thing);
+short thing_is_destructible_trap(const struct Thing* thing);
+TbBool thing_is_sellable_trap(const struct Thing* thing);
+TbBool trap_on_bridge(ThingModel trpkind);
+TbBool rearm_trap(struct Thing *traptng);
+TngUpdateRet update_trap(struct Thing *thing);
+void init_traps(void);
+void activate_trap(struct Thing *traptng, struct Thing *creatng);
+void activate_trap_by_slap(struct PlayerInfo* player, struct Thing* traptng);
+void process_trap_charge(struct Thing* traptng);
+void script_place_trap(PlayerNumber plyridx, ThingModel trapkind, MapSubtlCoord stl_x, MapSubtlCoord stl_y, TbBool free);
+void set_trap_shots(struct Thing *traptng, int shots);
+void update_trap_draw(struct Thing *traptng);
+void update_all_trap_draws_of_model(int32_t trap_model);
+
+unsigned long remove_trap(struct Thing *traptng, int32_t *sell_value);
+unsigned long remove_trap_on_subtile(MapSubtlCoord stl_x, MapSubtlCoord stl_y, int32_t *sell_value);
+unsigned long remove_traps_around_subtile(MapSubtlCoord stl_x, MapSubtlCoord stl_y, int32_t *sell_value);
+
+void external_activate_trap_shot_at_angle(struct Thing *thing, short angle, struct Thing *trgtng);
+void trap_fire_shot_without_target(struct Thing *firing, ThingModel shot_model, CrtrExpLevel shot_level, short angle_xy);
+
+/******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
+#endif

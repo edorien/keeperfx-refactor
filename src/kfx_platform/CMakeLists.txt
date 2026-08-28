@@ -1,0 +1,52 @@
+# Stage 3 of docs/refactor/: kfx_platform is the first library physically
+# extracted out of src/ (see docs/refactor/stage-03-extract-kfx-platform.md).
+# Unlike the other kfx_* components (still grouped in-place inside src/ via
+# CMakeLists.txt's kfx_add_component() regex partition), this one owns a
+# real directory with its own include/ -- so it globs its own sources
+# directly instead of being carved out of KEEPERFX_SOURCES_C/_CXX.
+#
+# Its two OBJECT library variants (std/hvlog) are appended to
+# KFX_OBJECT_LIBS_STD/_HVLOG in the parent scope, exactly like
+# kfx_add_component()'s components, so the final executables link them the
+# same way.
+
+file(GLOB KFX_PLATFORM_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+file(GLOB KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+# kfx/platform/ (brought in from upstream's SDL3 migration -- see git log)
+# holds the IPlatform/IWindowSystem OOP abstraction that replaced windows.cpp/
+# linux.cpp/cdrom.cpp/steam_api.cpp; not picked up by the plain GLOB above
+# since it's one directory deeper.
+file(GLOB KFX_PLATFORM_SOURCES_CXX_SUB "${CMAKE_CURRENT_SOURCE_DIR}/src/kfx/platform/*.cpp")
+list(APPEND KFX_PLATFORM_SOURCES_CXX ${KFX_PLATFORM_SOURCES_CXX_SUB})
+# kfx/renderer/ (also from upstream's SDL3 migration) is the IRenderer seam
+# (RendererManager facade + RendererSoftware backend) that bflib_video.c
+# calls into for palette/framebuffer/screenshot/present-frame -- a
+# low-level SDL rendering backend with no engine-specific dependencies, so
+# it lives alongside kfx_platform's other bflib_video.c-adjacent code
+# rather than in kfx_render (which is the higher-ranked 3D engine).
+file(GLOB KFX_PLATFORM_SOURCES_CXX_RENDERER "${CMAKE_CURRENT_SOURCE_DIR}/src/kfx/renderer/*.cpp")
+list(APPEND KFX_PLATFORM_SOURCES_CXX ${KFX_PLATFORM_SOURCES_CXX_RENDERER})
+
+# Platform-exclusive exceptions -- PlatformWindows.cpp/PlatformLinux.cpp
+# are each only buildable/relevant for their own OS (matches upstream's
+# BuildTargets.cmake filter logic).
+if(WIN32)
+    list(REMOVE_ITEM KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/kfx/platform/PlatformLinux.cpp")
+else()
+    list(REMOVE_ITEM KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/kfx/platform/PlatformWindows.cpp")
+endif()
+
+set(KFX_PLATFORM_SOURCES ${KFX_PLATFORM_SOURCES_C} ${KFX_PLATFORM_SOURCES_CXX})
+
+add_library(kfx_platform OBJECT ${KFX_PLATFORM_SOURCES})
+target_link_libraries(kfx_platform PRIVATE kfx_common_opts kfx_bfdebug_std)
+target_include_directories(kfx_platform PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+add_library(kfx_platform_hvlog OBJECT ${KFX_PLATFORM_SOURCES})
+target_link_libraries(kfx_platform_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
+target_include_directories(kfx_platform_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+list(APPEND KFX_OBJECT_LIBS_STD kfx_platform)
+set(KFX_OBJECT_LIBS_STD ${KFX_OBJECT_LIBS_STD} PARENT_SCOPE)
+list(APPEND KFX_OBJECT_LIBS_HVLOG kfx_platform_hvlog)
+set(KFX_OBJECT_LIBS_HVLOG ${KFX_OBJECT_LIBS_HVLOG} PARENT_SCOPE)

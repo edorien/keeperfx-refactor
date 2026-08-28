@@ -5,6 +5,22 @@ on:
     types: [ready_for_review, review_requested]
 
 jobs:
+  # Stage 13.4 of docs/refactor/: mandatory, merge-blocking layering check
+  # (see docs/refactor/stage-13-enforce-and-document.md). Needs no C/C++
+  # toolchain -- just walks src/kfx_*/{src,include} -- so it runs standalone
+  # rather than piggybacking on one of the build jobs below.
+  check-layering:
+    name: "Check Library Layering"
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run layering check
+      run: python3 scripts/check_layering.py --strict
+
   build-prototype:
     name: "Build Prototype Windows x86"
     runs-on: ubuntu-24.04
@@ -25,7 +41,7 @@ jobs:
         sudo apt update
         sudo apt install -y build-essential g++-mingw-w64-i686 cmake ninja-build libpng16-16t64 7zip
 
-    - name: Build
+    - name: Configure and build package
       run: |
         set -eux
         BUILD_NUMBER=$(git rev-list --count origin/master)
@@ -55,6 +71,36 @@ jobs:
         name: ${{ env.ZIP_NAME }}
         path: dist/**
 
+  # CMake is the canonical, cross-platform build description (single
+  # GLOB source list for main.cpp/ftests + src/kfx_*/CMakeLists.txt for
+  # everything else -- see build/cmake/modules/Dependencies.cmake and
+  # build/cmake/toolchains/mingw32.cmake). The job above drives packaging
+  # through CMake too, but that goes via the `package` target (CPack), which
+  # doesn't exercise CMake's own native compile of the keeperfx/
+  # keeperfx_hvlog targets directly outside that pipeline. This job does, so
+  # a regression in CMake's own compile still gets caught even though it's
+  # redundant compute today.
+  build-prototype-windows-cmake:
+    name: "Build Prototype Windows x86 (CMake native compile, verification only)"
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Update system
+      run: |
+        set -eux
+        sudo apt update
+        sudo apt install -y build-essential g++-mingw-w64-i686 ninja-build
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=build/cmake/toolchains/mingw32.cmake -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --target keeperfx keeperfx_hvlog -j"$(nproc)"
+
   build-prototype-linux:
     name: "Build Prototype Linux x86_64"
     runs-on: ubuntu-24.04
@@ -72,8 +118,13 @@ jobs:
         set -eux
         sudo apt update
         # SDL3 is not in Ubuntu 24.04 apt, so Dependencies.cmake builds it from
-        # source (FetchContent). The libx11/gl/audio and image/mixer decoder
-        # packages below are SDL3's build deps. SDL_net is gone (native sockets).
+        # source (FetchContent). Wayland-only build (Dependencies.cmake sets
+        # SDL_X11=OFF -- most distros have dropped X11 by default, and it pulls
+        # a whole separate chain of X11 dev headers for a session type fewer
+        # users actually run; SDL3 still auto-detects Wayland vs X11 sessions
+        # at runtime, this just controls what gets compiled in). The wayland/
+        # gl/audio and image/mixer decoder packages below are SDL3's build
+        # deps. SDL_net is gone (native sockets).
         sudo apt install -y \
           build-essential \
           cmake \
@@ -89,14 +140,9 @@ jobs:
           libnatpmp-dev \
           libspng-dev \
           libswresample-dev \
-          libx11-dev \
-          libxext-dev \
-          libxrandr-dev \
-          libxcursor-dev \
-          libxi-dev \
-          libxfixes-dev \
-          libxss-dev \
-          libxtst-dev \
+          libwayland-dev \
+          wayland-protocols \
+          libdecor-0-dev \
           libxkbcommon-dev \
           libgl1-mesa-dev \
           libegl1-mesa-dev \
@@ -121,9 +167,9 @@ jobs:
     - name: Build
       run: |
         set -eux
-        VER_MAJOR=$(grep -E '^VER_MAJOR=' version.mk | cut -d= -f2)
-        VER_MINOR=$(grep -E '^VER_MINOR=' version.mk | cut -d= -f2)
-        VER_RELEASE=$(grep -E '^VER_RELEASE=' version.mk | cut -d= -f2)
+        VER_MAJOR=$(grep -E '^VER_MAJOR=' build/make/version.mk | cut -d= -f2)
+        VER_MINOR=$(grep -E '^VER_MINOR=' build/make/version.mk | cut -d= -f2)
+        VER_RELEASE=$(grep -E '^VER_RELEASE=' build/make/version.mk | cut -d= -f2)
         BUILD_NUMBER=$(git rev-list --count origin/master)
         GITHUB_SHA=$(cat $GITHUB_EVENT_PATH | jq -r .pull_request.head.sha)
         PACKAGE_SUFFIX=Prototype_$(git rev-parse --short=7 "$GITHUB_SHA")

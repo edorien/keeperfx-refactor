@@ -2,22 +2,22 @@
 
 #ifdef FUNCTESTING
 
-#include "../../pre_inc.h"
+#include "pre_inc.h"
 
 #include "../ftest.h"
 #include "../ftest_util.h"
 
 #include "../../game_legacy.h"
-#include "../../keeperfx.hpp"
-#include "../../player_instances.h"
+#include "player_instances.h"
+#include "power_hand.h"
 #include "../../magic.h"
 #include "../../player_states.h"
 #include "../../front_input.h"
 #include "../../frontend.h"
-#include "../../bflib_mouse.h"
-#include "../../bflib_planar.h"
+#include "bflib_mouse.h"
+#include "bflib_planar.h"
 
-#include "../../post_inc.h"
+#include "post_inc.h"
 
 #ifdef __cplusplus
 extern "C" {

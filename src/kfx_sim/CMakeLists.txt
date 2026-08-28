@@ -1,0 +1,25 @@
+# Stage 6 of docs/refactor/: kfx_sim is physically extracted out of src/
+# incrementally, one prefix cluster at a time (see
+# docs/refactor/stage-06-kfx-sim.md's sequencing section), unlike stages 3/4
+# which moved their whole library in one pass. This file globs
+# src/kfx_sim/src/ directly, exactly like kfx_platform/kfx_config's own
+# CMakeLists.txt -- so later clusters just add more files here via `git mv`
+# and shrink their stem list out of the root CMakeLists.txt's
+# kfx_add_component(kfx_sim "...") call; no changes needed in this file.
+
+file(GLOB KFX_SIM_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+file(GLOB KFX_SIM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+set(KFX_SIM_SOURCES ${KFX_SIM_SOURCES_C} ${KFX_SIM_SOURCES_CXX})
+
+add_library(kfx_sim OBJECT ${KFX_SIM_SOURCES})
+target_link_libraries(kfx_sim PRIVATE kfx_common_opts kfx_bfdebug_std)
+target_include_directories(kfx_sim PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+add_library(kfx_sim_hvlog OBJECT ${KFX_SIM_SOURCES})
+target_link_libraries(kfx_sim_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
+target_include_directories(kfx_sim_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+list(APPEND KFX_OBJECT_LIBS_STD kfx_sim)
+set(KFX_OBJECT_LIBS_STD ${KFX_OBJECT_LIBS_STD} PARENT_SCOPE)
+list(APPEND KFX_OBJECT_LIBS_HVLOG kfx_sim_hvlog)
+set(KFX_OBJECT_LIBS_HVLOG ${KFX_OBJECT_LIBS_HVLOG} PARENT_SCOPE)

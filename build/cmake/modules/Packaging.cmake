@@ -54,12 +54,24 @@ endif()
 
 # --- Install rules ---------------------------------------------------------
 
-install(TARGETS keeperfx RUNTIME DESTINATION .)
-install(TARGETS keeperfx_hvlog RUNTIME DESTINATION . OPTIONAL)
+# COMPONENT runtime tags exactly what build-cmake.sh's `cmake --install
+# ... --component runtime` convenience copy (dist/<platform>/) should pull
+# in. Without a --component filter, `cmake --install` runs *every*
+# install() rule in the project graph, including ones SDL3/SDL3_image/
+# SDL3_mixer's own CMakeLists.txt register when FetchContent pulls them in
+# as subdirectories (headers, cmake config, pkgconfig, docs, wayland
+# protocol XML) -- none of which are tagged "runtime", so --component
+# runtime skips them.
+install(TARGETS keeperfx RUNTIME DESTINATION . COMPONENT runtime)
+install(TARGETS keeperfx_hvlog RUNTIME DESTINATION . OPTIONAL COMPONENT runtime)
 
 # The game data assembled by "make pkg-assemble" (configs, campaigns, levels,
 # language/sound .dat files, SDL3 runtime DLLs, docs). Evaluated at pack time so
 # pkg/ is read then, not at configure time. Skips any archive left in pkg/.
+# COMPONENT gamedata -- same reasoning as COMPONENT runtime above: lets
+# build-package.sh request "runtime" + "gamedata" explicitly and skip
+# third-party subprojects' own untagged install() rules, instead of an
+# unfiltered `cmake --install` that would pull those in too.
 install(CODE "
     set(_pkg_src \"${CMAKE_SOURCE_DIR}/pkg\")
     if(EXISTS \"\${_pkg_src}\")
@@ -76,6 +88,6 @@ install(CODE "
             endif()
         endforeach()
     endif()
-")
+" COMPONENT gamedata)
 
 include(CPack)

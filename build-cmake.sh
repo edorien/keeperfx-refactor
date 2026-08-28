@@ -15,7 +15,7 @@
 #   KFX_OS=linux ./build-cmake.sh        # Linux keeperfx
 #   ./build-cmake.sh keeperfx_hvlog      # heavy-log variant
 #   USE_DOCKER=1 ./build-cmake.sh        # build in an Ubuntu 24.04 container
-#   BUILD_DIR=out ./build-cmake.sh       # override the build directory
+#   BUILD_DIR=out/foo ./build-cmake.sh   # override the build directory (default: out/<KFX_OS>/)
 #
 # Requirements (native):
 #   windows: a MinGW-w64 i686 toolchain (Ubuntu: g++-mingw-w64-i686), cmake, ninja
@@ -28,8 +28,11 @@ set -euo pipefail
 
 TARGET="${1:-keeperfx}"
 KFX_OS="${KFX_OS:-windows}"
-# Output goes to out/ (git-ignored); build/ holds tracked CMake modules.
-BUILD_DIR="${BUILD_DIR:-out}"
+# One build tree per platform (out/linux/, out/windows/, git-ignored) --
+# a CMakeCache.txt bakes in its compiler/toolchain, so linux and windows
+# can't share a directory. build/ holds tracked CMake modules, separate
+# from this generated out/ tree.
+BUILD_DIR="${BUILD_DIR:-out/$KFX_OS}"
 
 # Run the whole thing inside a container that mirrors upstream CI (Ubuntu 24.04).
 if [ "${USE_DOCKER:-0}" = "1" ]; then
@@ -73,9 +76,24 @@ fi
 
 cmake --build "$BUILD_DIR" --target "$TARGET" -j"$(nproc 2>/dev/null || echo 4)"
 
+# Copy the binary (+ its runtime SDL3 libs, if any were built from source)
+# to dist/<platform>/ for easy access, alongside whatever's still in
+# $BUILD_DIR from prior variant builds -- reuses the install(TARGETS ...)/
+# install(FILES/DIRECTORY ...) rules in Packaging.cmake/Dependencies.cmake,
+# so this stays in sync with what those actually produce. --component
+# runtime restricts this to exactly the rules tagged COMPONENT runtime --
+# without it, `cmake --install` also runs every install() rule the fetched
+# SDL3/SDL3_image/SDL3_mixer subprojects register for themselves (headers,
+# cmake config, docs, ...), which isn't what "copy the binary somewhere
+# convenient" means.
+DIST_DIR="dist/$KFX_OS"
+cmake --install "$BUILD_DIR" --prefix "$DIST_DIR" --component runtime >/dev/null
+
 echo
 if [ "$KFX_OS" = "linux" ]; then
     echo "Built: $BUILD_DIR/$TARGET"
+    echo "Copied to: $DIST_DIR/$TARGET"
 else
     echo "Built: $BUILD_DIR/$TARGET.exe"
+    echo "Copied to: $DIST_DIR/$TARGET.exe"
 fi

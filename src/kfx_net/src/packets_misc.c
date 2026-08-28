@@ -1,0 +1,426 @@
+/******************************************************************************/
+// Free implementation of Bullfrog's Dungeon Keeper strategy game.
+/******************************************************************************/
+/** @file packets_misc.c
+ *     Processing packets with cheat commands.
+ * @par Purpose:
+ *     Functions for creating and executing packets.
+ * @par Comment:
+ *     None.
+ * @author   KeeperFX Team
+ * @date     20 Sep 2020 - 20 Sep 2020
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+#include "pre_inc.h"
+#include "kfx/renderer/RendererManager.h"
+#include "packets.h"
+
+#include "bflib_fileio.h"
+#include "net_exchange_gameplay.h"
+#include "bflib_datetm.h"
+#include "net_callbacks.h"
+#include "save_catalogue.h"
+#include "config_settings.h"
+#include "kfx_net_state.h"
+#include "kfx_sim_state.h"
+#include "post_inc.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/******************************************************************************/
+#define PACKET_TURN_SIZE (PACKETS_COUNT*sizeof(struct Packet) + sizeof(TbBigChecksum))
+#define MULTIPLAYER_PAUSE_COOLDOWN_MS 500
+struct Packet bad_packet;
+unsigned long initial_replay_seed;
+unsigned long last_pause_toggle_time = 0;
+extern TbBool IMPRISON_BUTTON_DEFAULT;
+extern TbBool FLEE_BUTTON_DEFAULT;
+extern TbBool get_skip_heart_zoom_feature(void);
+extern unsigned long get_host_player_id(void);
+extern TbBool keeper_screen_redraw(void);
+/******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
+
+void set_players_packet_action(struct PlayerInfo *player, unsigned char pcktype,
+        unsigned long par1, unsigned long par2, unsigned short par3, unsigned short par4)
+{
+    struct Packet* pckt = get_packet_direct(player->packet_num);
+    pckt->actn_par1 = par1;
+    pckt->actn_par2 = par2;
+    pckt->actn_par3 = par3;
+    pckt->actn_par4 = par4;
+    pckt->action = pcktype;
+}
+
+unsigned char get_players_packet_action(struct PlayerInfo *player)
+{
+    struct Packet* pckt = get_packet_direct(player->packet_num);
+    return pckt->action;
+}
+
+void set_packet_control(struct Packet *pckt, unsigned long flag)
+{
+  pckt->control_flags |= flag;
+}
+
+void set_players_packet_control(struct PlayerInfo *player, unsigned long flag)
+{
+    struct Packet* pckt = get_packet_direct(player->packet_num);
+    pckt->control_flags |= flag;
+}
+
+void unset_packet_control(struct Packet *pckt, unsigned long flag)
+{
+    pckt->control_flags &= ~flag;
+}
+
+void unset_players_packet_control(struct PlayerInfo *player, unsigned long flag)
+{
+    struct Packet* pckt = get_packet_direct(player->packet_num);
+    pckt->control_flags &= ~flag;
+}
+
+void set_players_packet_position(struct Packet *pckt, long x, long y, unsigned char context)
+{
+    pckt->pos_x = x;
+    pckt->pos_y = y;
+    pckt->control_flags |= PCtr_MapCoordsValid;
+    pckt->additional_packet_values &= ~PCAdV_ContextMask;
+    pckt->additional_packet_values |= (context << 1);
+}
+
+/**
+ * Gives a pointer for the player's packet.
+ * @param plyr_idx The player index for which we want the packet.
+ * @return Returns Packet pointer. On error, returns a dummy structure.
+ */
+struct Packet *get_packet(long plyr_idx)
+{
+    struct PlayerInfo* player = get_player(plyr_idx);
+    if (player_invalid(player))
+        return INVALID_PACKET;
+    if (player->packet_num >= PACKETS_COUNT)
+        return INVALID_PACKET;
+    return &kfx_net_state.packets[player->packet_num];
+}
+/**
+ * Gives a pointer to packet of given index.
+ * @param pckt_idx Packet index in the array. Note that it may differ from player index.
+ * @return Returns Packet pointer. On error, returns a dummy structure.
+ */
+struct Packet *get_packet_direct(long pckt_idx)
+{
+    if ((pckt_idx < 0) || (pckt_idx >= PACKETS_COUNT))
+        return INVALID_PACKET;
+    return &kfx_net_state.packets[pckt_idx];
+}
+
+void clear_packets(void)
+{
+    for (int i = 0; i < PACKETS_COUNT; i++)
+    {
+        memset(&kfx_net_state.packets[i], 0, sizeof(struct Packet));
+    }
+}
+
+TbBool open_packet_file_for_load(char *fname, struct CatalogueEntry *centry)
+{
+    memset(centry, 0, sizeof(struct CatalogueEntry));
+    strcpy(kfx_net_state.packet_fname, fname);
+    kfx_net_state.packet_save_fp = LbFileOpen(kfx_net_state.packet_fname, Lb_FILE_MODE_READ_ONLY);
+    if (!kfx_net_state.packet_save_fp)
+    {
+        ERRORLOG("Cannot open keeper packet file for load");
+        kfx_net_state.packet_fopened = 0;
+        return false;
+    }
+    int i = net_callbacks->load_game_chunks(kfx_net_state.packet_save_fp, centry);
+    if ((i != GLoad_PacketStart) && (i != GLoad_PacketContinue))
+    {
+        LbFileClose(kfx_net_state.packet_save_fp);
+        kfx_net_state.packet_save_fp = NULL;
+        kfx_net_state.packet_fopened = 0;
+        WARNMSG("Couldn't correctly read packet file \"%s\" header.",fname);
+        return false;
+    }
+    kfx_net_state.packet_file_pos = LbFilePosition(kfx_net_state.packet_save_fp);
+    kfx_net_state.turns_stored = (LbFileLengthHandle(kfx_net_state.packet_save_fp) - kfx_net_state.packet_file_pos) / PACKET_TURN_SIZE;
+    if ((kfx_net_state.packet_checksum_verify) && (!kfx_net_state.packet_save_head.chksum_available))
+    {
+        WARNMSG("PacketSave checksum not available, checking disabled.");
+        kfx_net_state.packet_checksum_verify = false;
+    }
+    if (kfx_net_state.log_things_start_turn == -1)
+    {
+        kfx_net_state.log_things_start_turn = 0;
+        kfx_net_state.log_things_end_turn = kfx_net_state.turns_stored + 1;
+    }
+    kfx_net_state.packet_fopened = 1;
+    return true;
+}
+
+void post_init_packets(void)
+{
+    SYNCDBG(6,"Starting");
+    initialize_packet_history();
+    if ((kfx_net_state.packet_load_enable) && (kfx_net_state.packet_load_initialized))
+    {
+        struct CatalogueEntry centry;
+        open_packet_file_for_load(kfx_net_state.packet_fname, &centry);
+        kfx_net_state.pckt_gameturn = 0;
+    }
+    clear_packets();
+}
+
+/**
+ * Computes verification checksum for -packetsave/-packetload replay files.
+ * NOT used for multiplayer - only for single-player replay integrity checking.
+ * Sums position/movement data of all things except ambient sounds and effect elements.
+ *
+ * @return Checksum value for detecting replay file corruption
+ */
+TbBigChecksum compute_replay_integrity(void)
+{
+    TbBigChecksum sum = 0;
+    for (long tng_idx = 0; tng_idx < THINGS_COUNT; tng_idx++)
+    {
+        struct Thing* tng = thing_get(tng_idx);
+        if ((tng->alloc_flags & TAlF_Exists) != 0)
+        {
+            // It would be nice to completely ignore effects, but since
+            // thing indices are used in packets, lack of effect may cause desync too.
+            if (!is_non_synchronized_thing_class(tng->class_id))
+            {
+                sum += (ulong)tng->mappos.x.val + (ulong)tng->mappos.y.val + (ulong)tng->mappos.z.val
+                     + (ulong)tng->move_angle_xy + (ulong)tng->owner;
+            }
+        }
+    }
+    return sum;
+}
+
+short save_packets(void)
+{
+    const int turn_data_size = PACKET_TURN_SIZE;
+    unsigned char pckt_buf[PACKET_TURN_SIZE+4];
+    TbBigChecksum chksum;
+    SYNCDBG(6,"Starting");
+    if (kfx_net_state.packet_checksum_verify)
+        chksum = compute_replay_integrity();
+    else
+        chksum = 0;
+    LbFileSeek(kfx_net_state.packet_save_fp, 0, Lb_FILE_SEEK_END);
+    // Prepare data in the buffer
+    for (int i = 0; i < PACKETS_COUNT; i++)
+        memcpy(&pckt_buf[i*sizeof(struct Packet)], &kfx_net_state.packets[i], sizeof(struct Packet));
+    memcpy(&pckt_buf[PACKETS_COUNT*sizeof(struct Packet)], &chksum, sizeof(TbBigChecksum));
+    // Write buffer into file
+    if (LbFileWrite(kfx_net_state.packet_save_fp, &pckt_buf, turn_data_size) != turn_data_size)
+    {
+        ERRORLOG("Packet file write error");
+    }
+    for (int i = 0; i < PACKETS_COUNT; i++) {
+        if (kfx_net_state.packets[i].action == PckA_PlyrMsgEnd) {
+            if (LbFileWrite(kfx_net_state.packet_save_fp, get_player(i)->mp_pending_message, PLAYER_MP_MESSAGE_LEN) != PLAYER_MP_MESSAGE_LEN) {
+                ERRORLOG("Chat message file write error");
+            }
+        }
+    }
+    if ( !LbFileFlush(kfx_net_state.packet_save_fp) )
+    {
+        ERRORLOG("Unable to flush PacketSave File");
+        return false;
+    }
+    return true;
+}
+
+void close_packet_file(void)
+{
+    if ( kfx_net_state.packet_fopened )
+    {
+        LbFileClose(kfx_net_state.packet_save_fp);
+        kfx_net_state.packet_fopened = 0;
+        kfx_net_state.packet_save_fp = NULL;
+    }
+}
+
+void dump_memory_to_file(const char * fname, const char * buf, size_t len)
+{
+    FILE* file = fopen(fname, "w");
+    fwrite(buf, 1, len, file);
+    fflush(file);
+    fclose(file);
+}
+
+void write_debug_packets(void)
+{
+    //note, changed this to be more general and to handle multiplayer where there can
+    //be several players writing to same directory if testing on local machine
+    char filename[32];
+    snprintf(filename, sizeof(filename), "%s%u.%s", "keeperd", my_player_number, "pck");
+    dump_memory_to_file(filename, (char*) kfx_net_state.packets, sizeof(kfx_net_state.packets));
+}
+
+void write_debug_screenpackets(void)
+{
+    char filename[32];
+    snprintf(filename, sizeof(filename), "%s%u.%s", "keeperd", my_player_number, "spck");
+    dump_memory_to_file(filename, (char*) net_screen_packet, sizeof(net_screen_packet));
+}
+
+TbBool reinit_packets_after_load(void)
+{
+    kfx_net_state.packet_save_enable = false;
+    kfx_net_state.packet_load_enable = false;
+    kfx_net_state.packet_save_fp = NULL;
+    kfx_net_state.packet_fopened = 0;
+    return true;
+}
+
+TbBool open_new_packet_file_for_save(void)
+{
+    // Filling the header
+    SYNCMSG("Starting packet saving, turn %lu",(unsigned long)get_gameturn());
+    kfx_net_state.packet_save_head.game_ver_major = VER_MAJOR;
+    kfx_net_state.packet_save_head.game_ver_minor = VER_MINOR;
+    kfx_net_state.packet_save_head.game_ver_release = VER_RELEASE;
+    kfx_net_state.packet_save_head.game_ver_build = VER_BUILD;
+    kfx_net_state.packet_save_head.level_num = get_loaded_level_number();
+    kfx_net_state.packet_save_head.players_exist = 0;
+    kfx_net_state.packet_save_head.players_comp = 0;
+    kfx_net_state.packet_save_head.chksum_available = kfx_net_state.packet_checksum_verify;
+    kfx_net_state.packet_save_head.isometric_view_zoom_level = settings.isometric_view_zoom_level;
+    kfx_net_state.packet_save_head.frontview_zoom_level = settings.frontview_zoom_level;
+    kfx_net_state.packet_save_head.isometric_tilt = settings.isometric_tilt;
+    kfx_net_state.packet_save_head.video_rotate_mode = settings.video_rotate_mode;
+    kfx_net_state.packet_save_head.action_seed = initial_replay_seed;
+    kfx_net_state.packet_save_head.skip_heart_zoom = get_skip_heart_zoom_feature();
+    kfx_net_state.packet_save_head.default_imprison_tendency = IMPRISON_BUTTON_DEFAULT;
+    kfx_net_state.packet_save_head.default_flee_tendency = FLEE_BUTTON_DEFAULT;
+    kfx_net_state.packet_save_head.highlight_mode = settings.highlight_mode;
+    for (int i = 0; i < PLAYERS_COUNT; i++)
+    {
+        struct PlayerInfo* player = get_player(i);
+        if (player_exists(player))
+        {
+            set_flag(kfx_net_state.packet_save_head.players_exist, to_flag(i));
+            if ((player->allocflags & PlaF_CompCtrl) != 0)
+              set_flag(kfx_net_state.packet_save_head.players_comp, to_flag(i));
+        }
+    }
+    LbFileDelete(kfx_net_state.packet_fname);
+    kfx_net_state.packet_save_fp = LbFileOpen(kfx_net_state.packet_fname, Lb_FILE_MODE_NEW);
+    if (!kfx_net_state.packet_save_fp)
+    {
+        ERRORLOG("Cannot open keeper packet file for save, \"%s\".",kfx_net_state.packet_fname);
+        kfx_net_state.packet_fopened = 0;
+        return false;
+    }
+    struct CatalogueEntry centry;
+    net_callbacks->fill_game_catalogue_entry(&centry, "Packet file");
+    if (!net_callbacks->save_packet_chunks(kfx_net_state.packet_save_fp,&centry))
+    {
+        WARNMSG("Cannot write to packet file, \"%s\".",kfx_net_state.packet_fname);
+        LbFileClose(kfx_net_state.packet_save_fp);
+        kfx_net_state.packet_fopened = 0;
+        kfx_net_state.packet_save_fp = NULL;
+        return false;
+    }
+    kfx_net_state.packet_fopened = 1;
+    return true;
+}
+
+void load_packets_for_turn(GameTurn nturn)
+{
+    SYNCDBG(19,"Starting");
+    const int turn_data_size = PACKET_TURN_SIZE;
+    unsigned char pckt_buf[PACKET_TURN_SIZE+4];
+    if (nturn >= kfx_net_state.turns_stored)
+    {
+        ERRORDBG(18,"Out of turns to load from Packet File");
+        net_callbacks->report_error_stat(ESE_CantReadPackets);
+        return;
+    }
+
+    if (LbFileRead(kfx_net_state.packet_save_fp, &pckt_buf, turn_data_size) == -1)
+    {
+        ERRORDBG(18,"Cannot read turn data from Packet File");
+        net_callbacks->report_error_stat(ESE_CantReadPackets);
+        return;
+    }
+    kfx_net_state.packet_file_pos += turn_data_size;
+    for (long i = 0; i < PACKETS_COUNT; i++)
+        memcpy(&kfx_net_state.packets[i], &pckt_buf[i * sizeof(struct Packet)], sizeof(struct Packet));
+    for (long i = 0; i < PACKETS_COUNT; i++) {
+        if (kfx_net_state.packets[i].action == PckA_PlyrMsgEnd) {
+            if (LbFileRead(kfx_net_state.packet_save_fp, get_player(i)->mp_pending_message, PLAYER_MP_MESSAGE_LEN) == PLAYER_MP_MESSAGE_LEN) {
+                kfx_net_state.packet_file_pos += PLAYER_MP_MESSAGE_LEN;
+            } else {
+                ERRORDBG(18,"Cannot read chat message from Packet File");
+            }
+        }
+    }
+    TbBigChecksum tot_chksum = llong(&pckt_buf[PACKETS_COUNT * sizeof(struct Packet)]);
+    if (kfx_net_state.turns_fastforward > 0)
+        kfx_net_state.turns_fastforward--;
+    if (kfx_net_state.packet_checksum_verify)
+    {
+        if (compute_replay_integrity() != tot_chksum)
+        {
+            ERRORLOG("PacketSave checksum - Out of sync (GameTurn %u)", get_gameturn());
+            if (!net_callbacks->is_onscreen_msg_visible())
+                net_callbacks->show_onscreen_msg(kfx_sim_state.turns_per_second, "Out of sync");
+        }
+    }
+}
+
+void set_packet_pause_toggle()
+{
+    struct PlayerInfo* player = get_my_player();
+    if (player_invalid(player))
+        return;
+    if (player->packet_num >= PACKETS_COUNT)
+        return;
+    if (kfx_sim_state.game_kind != GKind_LocalGame) {
+        unsigned long current_time = LbTimerClock();
+        if (current_time - last_pause_toggle_time < MULTIPLAYER_PAUSE_COOLDOWN_MS) {
+            MULTIPLAYER_LOG("set_packet_pause_toggle: cooldown active, ignoring");
+            return;
+        }
+        last_pause_toggle_time = current_time;
+    }
+    if ((kfx_sim_state.operation_flags & GOF_Paused) == 0) {
+        set_players_packet_action(player, PckA_TogglePause, 1, 0, 0, 0);
+        return;
+    }
+    if (kfx_sim_state.game_kind != GKind_LocalGame) {
+        MULTIPLAYER_LOG("set_packet_pause_toggle: broadcasting unpause");
+        unpausing_in_progress = 1;
+        keeper_screen_redraw();
+        RendererPresentFrame();
+        LbNetwork_BroadcastUnpause();
+        if (my_player_number == get_host_player_id()) {
+            process_pause_packet(0, 0);
+        }
+        unpausing_in_progress = 0;
+        return;
+    }
+    process_pause_packet(0, 0);
+}
+
+void disable_packet_mode(void)
+{
+    close_packet_file();
+    kfx_net_state.packet_load_enable = false;
+    kfx_net_state.packet_save_enable = false;
+    net_callbacks->show_onscreen_msg(2*kfx_sim_state.turns_per_second, "Packet mode disabled");
+    net_callbacks->set_gui_visible(true);
+}

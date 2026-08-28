@@ -2,18 +2,17 @@
 
 #ifdef FUNCTESTING
 
-#include "../../pre_inc.h"
+#include "pre_inc.h"
 
 #include "../ftest.h"
 #include "../ftest_util.h"
 
 #include "../../game_legacy.h"
-#include "../../keeperfx.hpp"
-#include "../../player_instances.h"
-#include "../../player_utils.h"
+#include "player_instances.h"
+#include "player_utils.h"
 #include "../../gui_msgs.h"
 
-#include "../../post_inc.h"
+#include "post_inc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,7 +61,7 @@ FTestActionResult ftest_bug_imp_goldseam_dig_action001__map_setup(struct FTestAc
     ftest_util_replace_slabs(36, 42, 38, 44, SlbT_TREASURE, PLAYER0);
 
     // store/broadcast the gold stored in a single tile
-    vars->game_gold_amount = game.conf.rules.game.gold_per_gold_block;
+    vars->game_gold_amount = kfx_config_state.conf.rules.game.gold_per_gold_block;
     message_add_fmt(MsgType_Player, PLAYER0, "Game gold per gold block: %ld", vars->game_gold_amount);
 
     return FTRs_Go_To_Next_Action;
@@ -86,7 +85,7 @@ FTestActionResult ftest_bug_imp_goldseam_dig_action002__send_imp_to_dig(struct F
 
     // store/report the blocks health to user
     struct SlabAttr *slbattr = get_slab_attrs(slabMapBlock);
-    HitPoints goldBlockHealth = game.block_health[slbattr->block_health_index];
+    HitPoints goldBlockHealth = kfx_sim_state.block_health[slbattr->block_health_index];
     message_add_fmt(MsgType_Player, PLAYER0, "Gold block at (%d,%d) has %d health", slb_x_gold_block, slb_y_gold_block, goldBlockHealth);
 
     // mark the block for digging

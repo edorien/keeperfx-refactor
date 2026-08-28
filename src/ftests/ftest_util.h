@@ -12,11 +12,11 @@
 
 #ifdef FUNCTESTING
 
-#include "../globals.h"
+#include "globals.h"
 
 #include "ftest.h"
 
-#include "../thing_data.h"
+#include "thing_data.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -16,7 +16,17 @@
 #include "platform.h"
 #include "kfx/platform/PlatformManager.h"
 #include "kfx/renderer/RendererManager.h"
-#include "keeperfx.hpp"
+#include "globals.h"
+#include "bflib_sprite.h"
+#include "thing_data.h"
+#include "dungeon_data.h"
+#include "dungeon_availability.h"
+#include "creature_battle.h"
+#include "player_data.h"
+#include "actionpt.h"
+#include "map_data.h"
+#include "net_game.h"
+#include "front_landview.h"
 
 #include "bflib_coroutine.h"
 #include "bflib_math.h"
@@ -45,14 +55,24 @@
 #include "ariadne_update.h"
 #include "api.h"
 #include "custom_sprites.h"
+#include "custom_zip.h"
+#include "sprite_lookup.h"
 #include "version.h"
 #include "front_simple.h"
 #include "frontend.h"
+#include "front_network.h"
 #include "front_input.h"
+#include "net_callbacks.h"
+#include "net_main.h"
+#include "console_cmd.h"
+#include "lua_base.h"
+#include "gui_draw.h"
 #include "frontmenu_net.h"
 #include "gui_parchment.h"
 #include "gui_frontmenu.h"
 #include "gui_msgs.h"
+#include "gui_tooltips.h"
+#include "render_overlay.h"
 #include "scrcapt.h"
 #include "vidmode.h"
 #include "kjm_input.h"
@@ -61,14 +81,16 @@
 #include "config_slabsets.h"
 #include "config_strings.h"
 #include "config_campaigns.h"
-#include "front_landview.h"
 #include "config_terrain.h"
 #include "config_objects.h"
 #include "config_magic.h"
 #include "config_creature.h"
+#include "config_mods.h"
 #include "config_compp.h"
 #include "config_effects.h"
 #include "lua_triggers.h"
+#include "lua_cfg_funcs.h"
+#include "script_hooks.h"
 #include "lvl_script.h"
 #include "lvl_filesdk1.h"
 #include "thing_list.h"
@@ -79,6 +101,7 @@
 #include "game_heap.h"
 #include "game_saves.h"
 #include "engine_render.h"
+#include "cursor_tag.h"
 #include "engine_lenses.h"
 #include "engine_camera.h"
 #include "local_camera.h"
@@ -86,6 +109,9 @@
 #include "engine_textures.h"
 #include "engine_redraw.h"
 #include "front_easter.h"
+#include "front_highscore.h"
+#include "front_lvlstats.h"
+#include "game_callbacks.h"
 #include "front_fmvids.h"
 #include "thing_stats.h"
 #include "thing_physics.h"
@@ -94,6 +120,7 @@
 #include "thing_effects.h"
 #include "thing_doors.h"
 #include "thing_traps.h"
+#include "room_library.h"
 #include "thing_navigate.h"
 #include "thing_shots.h"
 #include "thing_factory.h"
@@ -125,6 +152,8 @@
 #include "frontmenu_ingame_tabs.h"
 #include "frontmenu_ingame_evnt.h"
 #include "sounds.h"
+#include "sim_feedback.h"
+#include "pathfinding_world.h"
 #include "vidfade.h"
 #include "config_settings.h"
 #include "config_keeperfx.h"
@@ -132,69 +161,30 @@
 #include "room_list.h"
 #include "steam_api.hpp"
 #include "game_loop.h"
+#include "main_game.h"
+#include "game_session_loop.h"
+#include "game_lifecycle.h"
 #include "net_input_lag.h"
 #include "moonphase.h"
 #include "frontmenu_ingame_map.h"
 #include "room_library.h"
 #include <cstdint>
-#include "timer.h"
 
 #ifdef FUNCTESTING
   #include "ftests/ftest.h"
 #endif
 
+#include "kfx_frontend_state.h"
+#include "kfx_net_state.h"
+#include "kfx_game_state.h"
 #include "post_inc.h"
 
 #ifdef _MSC_VER
 #define strcasecmp _stricmp
 #endif
 
-
-short default_loc_player = 0;
-struct StartupParameters start_params;
 char autostart_multiplayer_campaign[80] = "";
 int autostart_multiplayer_level = 0;
-int32_t turns_per_second;
-unsigned char *blue_palette;
-unsigned char *red_palette;
-unsigned char *dog_palette;
-unsigned char *vampire_palette;
-unsigned char exit_keeper;
-unsigned char quit_game;
-unsigned char is_running_under_wine = false;
-int continue_game_option_available;
-
-int FatalError;
-int32_t define_key_scroll_offset;
-uint32_t time_last_played_demo;
-short drag_menu_x;
-short drag_menu_y;
-int32_t pointer_x;
-int32_t pointer_y;
-int32_t block_pointed_at_x;
-int32_t block_pointed_at_y;
-int32_t pointed_at_frac_x;
-int32_t pointed_at_frac_y;
-int32_t top_pointed_at_x;
-int32_t top_pointed_at_y;
-int32_t top_pointed_at_frac_x;
-int32_t top_pointed_at_frac_y;
-char level_name[88];
-char top_of_breed_list;
-/** Amount of different creature kinds the local player has. Used for creatures tab in panel menu. */
-char no_of_breeds_owned;
-int32_t optimised_lights;
-int32_t total_lights;
-unsigned char do_lights;
-struct Thing *thing_pointed_at;
-struct Map *me_pointed_at;
-char *level_names_data;
-char *end_level_names_data;
-unsigned char *frontend_backup_palette;
-unsigned char zoom_to_heart_palette[768];
-unsigned char EngineSpriteDrawUsingAlpha;
-unsigned char temp_pal[768];
-unsigned char *lightning_palette;
 
 
 #ifdef __cplusplus
@@ -204,51 +194,6 @@ extern "C" {
 TbBool force_player_num = false;
 
 /******************************************************************************/
-
-
-/******************************************************************************/
-
-int32_t fps_limit_current = 0;
-int32_t fps_limit_main = 0; // -1 if auto
-int32_t fps_limit_secondary = 0;
-long double process_frame_time = 0;
-long double time_since_last_draw = 0;
-long double multiplayer_clock_adjust = 1;
-long double host_packet_received = 1;
-
-/******************************************************************************/
-
-void setup_stuff(void)
-{
-    setup_texture_block_mem();
-    init_fades_table();
-    init_alpha_table();
-}
-
-TbBool all_dungeons_destroyed(const struct PlayerInfo *win_player)
-{
-    long win_plyr_idx;
-    long i;
-    win_plyr_idx = win_player->id_number;
-    for (i=0; i < PLAYERS_COUNT; i++)
-    {
-      if (i == win_plyr_idx)
-        continue;
-      if (!player_is_friendly_or_defeated(i,win_plyr_idx))
-        return false;
-    }
-    SYNCDBG(1,"Returning true for player %ld",win_plyr_idx);
-    return true;
-}
-
-void init_censorship(void)
-{
-  if ( censorship_enabled() )
-  {
-    // Modification for Dark Mistress
-      set_creature_model_graphics(20, 14, 48);
-  }
-}
 
 void init_keeper(void)
 {
@@ -265,18 +210,19 @@ void init_keeper(void)
     check_and_auto_fix_stats();
     init_creature_scores();
     init_top_texture_to_cube_table();
-    game.neutral_player_num = PLAYER_NEUTRAL;
+    kfx_config_state.neutral_player_num = PLAYER_NEUTRAL;
+    kfx_config_state.atmos_sound_frequency = 800;
     poly_pool_end = &poly_pool[sizeof(poly_pool)-128];
     lbDisplay.GlassMap = pixmap.ghost;
-    RendererSetDrawColour(colours[15][15][15]);
-    game.comp_player_aggressive  = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[0]);
-    game.comp_player_defensive   = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[1]);
-    game.comp_player_construct   = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[2]);
-    game.comp_player_creatrsonly = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[3]);
-    game.creatures_tend_imprison = 0;
-    game.creatures_tend_flee = 0;
-    game.operation_flags |= GOF_ShowPanel;
-    game.view_mode_flags |= (GNFldD_StatusPanelDisplay | GNFldD_RoomFlameProcessing);
+    RendererSetDrawColour(kfx_sim_state.colours[15][15][15]);
+    kfx_net_state.comp_player_aggressive  = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[0]);
+    kfx_net_state.comp_player_defensive   = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[1]);
+    kfx_net_state.comp_player_construct   = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[2]);
+    kfx_net_state.comp_player_creatrsonly = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[3]);
+    kfx_sim_state.creatures_tend_imprison = 0;
+    kfx_sim_state.creatures_tend_flee = 0;
+    kfx_sim_state.operation_flags |= GOF_ShowPanel;
+    kfx_sim_state.view_mode_flags |= (GNFldD_StatusPanelDisplay | GNFldD_RoomFlameProcessing);
     init_censorship();
     SYNCDBG(9,"Finished");
 }
@@ -301,6 +247,726 @@ TbBool initial_setup(void)
     clear_game();
     RendererAddDrawFlags(0x4000u);
     return true;
+}
+
+// Wrappers registered with bflib_inputctrl.h's InputFocusPredicates (see
+// docs/refactor/stage-02-decouple-bflib.md); bflib_inputctrl.cpp can't read
+// struct Game directly.
+static TbBool is_game_paused(void)
+{
+    return (kfx_sim_state.operation_flags & GOF_Paused) != 0;
+}
+
+static TbBool is_possession_mode_active(void)
+{
+    return (get_my_player()->view_type == PVT_CreatureContrl) && ((kfx_sim_state.view_mode_flags & GNFldD_CreaturePasngr) == 0);
+}
+
+static TbBool is_packet_load_enabled(void)
+{
+    return kfx_net_state.packet_load_enable != 0;
+}
+
+// Wrappers registered with bflib_sndlib.h's SoundStateCallbacks (see
+// docs/refactor/stage-13-enforce-and-document.md); bflib_sndlib.cpp/
+// sound_manager.cpp can't read struct Game/kfx_*_state directly.
+static char *get_music_track(void)
+{
+    return &kfx_game_state.music_track;
+}
+
+static char *get_music_fname(void)
+{
+    return kfx_game_state.music_fname;
+}
+
+static int32_t get_frame_skip(void)
+{
+    return kfx_net_state.frame_skip;
+}
+
+static TbBool get_easter_eggs_enabled(void)
+{
+    return kfx_sim_state.easter_eggs_enabled;
+}
+
+static short get_last_level(void)
+{
+    return kfx_render_state.last_level;
+}
+
+static long get_creature_model_count(void)
+{
+    return kfx_config_state.conf.crtr_conf.model_count;
+}
+
+static struct CreatureSounds *get_creature_sounds(long crmodel)
+{
+    return &kfx_config_state.conf.crtr_conf.creature_sounds[crmodel];
+}
+
+static const struct ModConfigItem *get_mods_after_map(void)
+{
+    return mods_conf.after_map_item;
+}
+
+static int32_t get_mods_after_map_count(void)
+{
+    return mods_conf.after_map_cnt;
+}
+
+static const struct ModConfigItem *get_mods_after_campaign(void)
+{
+    return mods_conf.after_campaign_item;
+}
+
+static int32_t get_mods_after_campaign_count(void)
+{
+    return mods_conf.after_campaign_cnt;
+}
+
+static const struct ModConfigItem *get_mods_after_base(void)
+{
+    return mods_conf.after_base_item;
+}
+
+static int32_t get_mods_after_base_count(void)
+{
+    return mods_conf.after_base_cnt;
+}
+
+static uint32_t *get_sound_random_seed(void)
+{
+    return &kfx_sim_state.sound_random_seed;
+}
+
+static uint32_t *get_unsync_random_seed(void)
+{
+    return &kfx_sim_state.unsync_random_seed;
+}
+
+// Wrapper registered with config.h's ConfigReloadCallbacks (see
+// docs/refactor/stage-13-enforce-and-document.md); lvl_filesdk1.c can't
+// reach struct LightsShadows (kfx_game-owned) directly.
+static void clear_subtiles_lightness_wrapper(void)
+{
+    clear_subtiles_lightness(&lish);
+}
+
+// Wrappers registered with config.h's ConfigReloadCallbacks; config_creature.c
+// needs a handful of struct Thing/struct CreatureControl fields without
+// either type visible by value.
+static ThingModel config_reload_get_thing_model(const struct Thing *thing)
+{
+    return thing->model;
+}
+static ThingClass config_reload_get_thing_class_id(const struct Thing *thing)
+{
+    return thing->class_id;
+}
+static PlayerNumber config_reload_get_thing_owner(const struct Thing *thing)
+{
+    return thing->owner;
+}
+static uint32_t config_reload_get_thing_creation_turn(const struct Thing *thing)
+{
+    return thing->creation_turn;
+}
+static unsigned short config_reload_get_thing_index(const struct Thing *thing)
+{
+    return thing->index;
+}
+static unsigned char config_reload_get_creature_blood_type(const struct Thing *creatng)
+{
+    return creature_control_get_from_thing(creatng)->blood_type;
+}
+static char *config_reload_get_creature_name_buffer(const struct Thing *creatng)
+{
+    return creature_control_get_from_thing(creatng)->creature_name;
+}
+
+// Wrappers registered with config.h's ConfigReloadCallbacks; config_rules.c
+// reads the current level's map dimensions, owned by kfx_sim_state.h.
+static long config_reload_get_map_subtiles_x(void)
+{
+    return kfx_sim_state.map_subtiles_x;
+}
+
+static long config_reload_get_map_subtiles_y(void)
+{
+    return kfx_sim_state.map_subtiles_y;
+}
+
+// Wrapper registered with render_overlay.h's RenderOverlayCallbacks;
+// gui_parchment.c owns parchment_loaded.
+static TbBool is_parchment_loaded(void)
+{
+    return parchment_loaded;
+}
+
+// Wrapper registered with sim_feedback.h's SimFeedbackCallbacks;
+// engine_lenses.c owns lens_mode.
+static unsigned char get_lens_mode(void)
+{
+    return lens_mode;
+}
+
+// Wrapper registered with sim_feedback.h's SimFeedbackCallbacks;
+// gui_tooltips.c owns tool_tip_box.
+static void hide_tooltip(void)
+{
+    clear_flag(tool_tip_box.flags, TTip_Visible);
+}
+
+// Wrapper registered with sim_feedback.h's SimFeedbackCallbacks;
+// frontmenu_ingame_evnt.c owns TimerTurns.
+static void set_timer_turns(unsigned long turns)
+{
+    TimerTurns = turns;
+}
+
+// Wrapper registered with custom_zip.h's MapZipCallbacks; resolves the
+// already-formatted "mapNNNNN.zip" filename to a full path.
+static char *prepare_map_zip_path(LevelNumber lvnum, const char *fname)
+{
+    return prepare_file_path(get_level_fgroup(lvnum), fname);
+}
+
+// Wrapper registered with config.h's ConfigReloadCallbacks; scrcapt.h's
+// screenshot_format is a kfx_render-owned global.
+static void set_screenshot_format(unsigned char val)
+{
+    screenshot_format = val;
+}
+
+// Wrapper registered with config.h's ConfigReloadCallbacks; power_hand.h's
+// global_hand_scale is a kfx_sim-owned global.
+static void set_hand_scale(float val)
+{
+    global_hand_scale = val;
+}
+
+// Wrapper registered with config.h's ConfigReloadCallbacks; struct Room is
+// a kfx_sim-owned type, so the ->kind read happens here rather than in
+// config_creature.c.
+static RoomKind get_room_kind_thing_is_on(const struct Thing *creatng)
+{
+    struct Room *room = get_room_thing_is_on(creatng);
+    if (room_is_invalid(room))
+        return RoK_NONE;
+    return room->kind;
+}
+
+// Wrapper registered with config.h's ConfigReloadCallbacks; struct Dungeon
+// is a kfx_sim-owned type.
+static unsigned char get_player_color_idx_wrapper(PlayerNumber plyr_idx)
+{
+    return get_player_color_idx(plyr_idx);
+}
+
+// Wrappers registered with config.h's ConfigReloadCallbacks; kfx_sim_state
+// is a kfx_sim-owned global.
+static struct SlabSet *get_slabset_array(void)
+{
+    return kfx_sim_state.slabset;
+}
+static unsigned short *get_slabset_num_ptr(void)
+{
+    return &kfx_sim_state.slabset_num;
+}
+static struct SlabObj *get_slabobjs_array(void)
+{
+    return kfx_sim_state.slabobjs;
+}
+static short *get_slabobjs_idx_array(void)
+{
+    return kfx_sim_state.slabobjs_idx;
+}
+static unsigned short *get_slabobjs_num_ptr(void)
+{
+    return &kfx_sim_state.slabobjs_num;
+}
+static void set_block_health(long idx, long val)
+{
+    kfx_sim_state.block_health[idx] = val;
+}
+static ThingModel get_player_special_digger(PlayerNumber plyr_idx)
+{
+    return get_player(plyr_idx)->special_digger;
+}
+static void set_player_special_digger(PlayerNumber plyr_idx, ThingModel model)
+{
+    get_player(plyr_idx)->special_digger = model;
+}
+
+// Wrappers registered with sim_feedback.h's SimFeedbackCallbacks; kfx_net
+// (and kfx_game/kfx_frontend/kfx_apploop) own this session state.
+static TbBool get_packet_load_enable(void)
+{
+    return kfx_net_state.packet_load_enable;
+}
+
+static PlayerNumber get_local_plyr_idx(void)
+{
+    return kfx_net_state.local_plyr_idx;
+}
+
+static int get_input_lag_turns(void)
+{
+    return kfx_net_state.input_lag_turns;
+}
+
+static void set_active_players_count(int count)
+{
+    kfx_net_state.active_players_count = count;
+}
+static long get_isometric_view_zoom_level(void)
+{
+    return kfx_net_state.packet_save_head.isometric_view_zoom_level;
+}
+static long get_frontview_zoom_level(void)
+{
+    return kfx_net_state.packet_save_head.frontview_zoom_level;
+}
+static TbBool get_player_exists_flag(PlayerNumber plyr_idx)
+{
+    return flag_is_set(kfx_net_state.packet_save_head.players_exist, to_flag(plyr_idx));
+}
+static TbBool get_player_comp_flag(PlayerNumber plyr_idx)
+{
+    return flag_is_set(kfx_net_state.packet_save_head.players_comp, to_flag(plyr_idx));
+}
+static void increment_active_players_count(void)
+{
+    kfx_net_state.active_players_count++;
+}
+static LevelNumber sim_feedback_get_loaded_level_number(void)
+{
+    return kfx_sim_state.loaded_level_number;
+}
+static LevelNumber sim_feedback_get_selected_level_number(void)
+{
+    return get_selected_level_number();
+}
+static LevelNumber sim_feedback_get_level_number(void)
+{
+    return get_level_number();
+}
+static GameTurn sim_feedback_get_play_gameturn(void)
+{
+    return kfx_game_state.play_gameturn;
+}
+static long get_intralvl_next_level(void)
+{
+    return intralvl.next_level;
+}
+static void clear_intralvl_next_level(void)
+{
+    intralvl.next_level = 0;
+}
+
+// Non-variadic wrapper for struct SimFeedbackCallbacks (see
+// docs/refactor/stage-06-kfx-sim.md) -- show_onscreen_msg() itself is
+// printf-style, which a plain C function pointer can't express; kfx_sim's
+// one call site already formats its own message before calling through.
+static TbBool show_onscreen_msg_plain(int nturns, const char *msg)
+{
+    return show_onscreen_msg(nturns, "%s", msg);
+}
+
+// Same reasoning as show_onscreen_msg_plain above -- targeted_message_add()
+// is printf-style.
+static void targeted_message_add_plain(char msg_type, PlayerNumber plyr_idx, PlayerNumber target_idx, unsigned long timeout, const char *msg)
+{
+    targeted_message_add(msg_type, plyr_idx, target_idx, timeout, "%s", msg);
+}
+
+// Wrapper functions for struct RenderOverlayCallbacks (see
+// docs/refactor/stage-07-kfx-render.md) -- bundle multiple gui/frontend
+// calls together where engine_redraw.c always invoked them as one unit,
+// and provide get/set accessors for globals a plain callback can't
+// express directly.
+static void render_overlay_load_and_redraw_minimal_overhead_view(void)
+{
+    load_parchment_file();
+    redraw_minimal_overhead_view();
+}
+
+static void render_overlay_set_parchment_loaded(int val)
+{
+    parchment_loaded = val;
+}
+
+static TbBool render_overlay_game_is_busy_doing_gui(void)
+{
+    return game_is_busy_doing_gui() != 0;
+}
+
+static TbBool render_overlay_game_is_busy_doing_gui_string_input(void)
+{
+    return game_is_busy_doing_gui_string_input() != 0;
+}
+
+static TbBool sim_feedback_is_left_button_held(void)
+{
+    return left_button_held;
+}
+
+// Wrapper functions for struct PathfindingWorldCallbacks (see
+// docs/refactor/stage-06a-ariadne-pathfinding-interface.md, Track 2) --
+// return-type mismatches against the real kfx_sim functions (PlayerNumber
+// vs. long, TbBool vs. long) and the handful of raw field reads that don't
+// have an existing accessor need a thin wrapper; everything else binds
+// directly to its real kfx_sim function in the table below.
+static MapSubtlCoord pathfinding_world_get_map_size_x(void)
+{
+    return kfx_sim_state.map_subtiles_x;
+}
+static MapSubtlCoord pathfinding_world_get_map_size_y(void)
+{
+    return kfx_sim_state.map_subtiles_y;
+}
+static unsigned char pathfinding_world_map_block_flags(const struct Map *mapblk)
+{
+    return mapblk->flags;
+}
+static SlabKind pathfinding_world_slabmap_block_kind(const struct SlabMap *slb)
+{
+    return slb->kind;
+}
+static PlayerNumber pathfinding_world_slabmap_owner(const struct SlabMap *slb)
+{
+    return (PlayerNumber)slabmap_owner(slb);
+}
+static TbBool pathfinding_world_thing_in_wall_at(const struct Thing *thing, const struct Coord3d *pos)
+{
+    return thing_in_wall_at(thing, pos) != 0;
+}
+static TbBool pathfinding_world_door_is_locked(const struct Thing *doortng)
+{
+    return doortng->door.is_locked != 0;
+}
+static PlayerNumber pathfinding_world_thing_get_owner(const struct Thing *thing)
+{
+    return thing->owner;
+}
+static struct Coord3d pathfinding_world_thing_get_position(const struct Thing *thing)
+{
+    return thing->mappos;
+}
+static void pathfinding_world_thing_set_position(struct Thing *thing, const struct Coord3d *pos)
+{
+    thing->mappos = *pos;
+}
+static short pathfinding_world_thing_get_move_angle(const struct Thing *thing)
+{
+    return thing->move_angle_xy;
+}
+static void pathfinding_world_thing_set_move_angle(struct Thing *thing, short angle)
+{
+    thing->move_angle_xy = angle;
+}
+static unsigned short pathfinding_world_thing_get_index(const struct Thing *thing)
+{
+    return thing->index;
+}
+static unsigned short pathfinding_world_thing_get_clipbox_size(const struct Thing *thing)
+{
+    return thing->clipbox_size_xy;
+}
+static struct Navigation *pathfinding_world_creature_get_navigation(struct Thing *creatng)
+{
+    return &creature_control_get_from_thing(creatng)->navi;
+}
+static struct Ariadne *pathfinding_world_creature_get_ariadne_state(struct Thing *creatng)
+{
+    return &creature_control_get_from_thing(creatng)->arid;
+}
+static short pathfinding_world_creature_get_max_speed(const struct Thing *creatng)
+{
+    return creature_control_get_from_thing(creatng)->max_speed;
+}
+static void pathfinding_world_creature_clear_state_flags_for_wallhug_override(struct Thing *creatng)
+{
+    struct CreatureControl *cctrl = creature_control_get_from_thing(creatng);
+    cctrl->creature_state_flags = 0;
+    cctrl->combat_flags = 0;
+}
+static struct Around pathfinding_world_get_small_around(SmallAroundIndex n)
+{
+    return small_around[n];
+}
+static SmallAroundIndex pathfinding_world_get_small_around_length(void)
+{
+    return SMALL_AROUND_LENGTH;
+}
+static MapSubtlCoord pathfinding_world_get_map_size_z(void)
+{
+    return map_subtiles_z;
+}
+static long pathfinding_world_get_owner_player_navigating(void)
+{
+    return owner_player_navigating;
+}
+static void pathfinding_world_set_owner_player_navigating(long plyr_idx)
+{
+    owner_player_navigating = plyr_idx;
+}
+static long pathfinding_world_get_nav_thing_can_travel_over_lava(void)
+{
+    return nav_thing_can_travel_over_lava;
+}
+static void pathfinding_world_set_nav_thing_can_travel_over_lava(long can_travel)
+{
+    nav_thing_can_travel_over_lava = can_travel;
+}
+
+static TbBool sim_feedback_is_best_roomspace_key_pressed(void)
+{
+    return is_game_key_pressed(Gkey_BestRoomSpace, false, true) != 0;
+}
+
+static TbBool sim_feedback_is_square_roomspace_key_pressed(void)
+{
+    return is_game_key_pressed(Gkey_SquareRoomSpace, false, true) != 0;
+}
+
+static TbBool sim_feedback_is_roomspace_incsize_key_pressed(void)
+{
+    return is_game_key_pressed(Gkey_RoomSpaceIncSize, false, true) != 0;
+}
+
+static TbBool sim_feedback_is_roomspace_decsize_key_pressed(void)
+{
+    return is_game_key_pressed(Gkey_RoomSpaceDecSize, false, true) != 0;
+}
+
+static TbBool sim_feedback_is_sell_trap_on_subtile_key_pressed(void)
+{
+    return is_game_key_pressed(Gkey_SellTrapOnSubtile, false, true) != 0;
+}
+
+static void sim_feedback_set_room_type_highlighted(char room_kind)
+{
+    gui_room_type_highlighted = room_kind;
+}
+
+static void sim_feedback_set_visible_event_idx(EventIndex evidx)
+{
+    my_visible_event_idx = evidx;
+}
+
+static void sim_feedback_clear_all_event_button_states(void)
+{
+    memset(my_event_button_state, 0, EVENTS_COUNT);
+}
+
+static void sim_feedback_clear_event_button_state(EventIndex evidx)
+{
+    my_event_button_state[evidx] = 0;
+}
+
+static void sim_feedback_mark_event_button_read(EventIndex evidx)
+{
+    my_event_button_state[evidx] |= EvBtnS_Read;
+}
+
+static TbBool sim_feedback_is_battle_creature_over_active(void)
+{
+    return battle_creature_over > 0;
+}
+
+static void sim_feedback_hide_map_volume_box(void)
+{
+    map_volume_box.visible = 0;
+}
+
+static void sim_feedback_reset_box_lag_compensation(void)
+{
+    box_lag_compensation_x = 0;
+    box_lag_compensation_y = 0;
+}
+
+static long render_overlay_get_main_menu_width(void)
+{
+    struct GuiMenu *gmnu = get_active_menu(menu_id_to_number(GMnu_MAIN));
+    return gmnu->width;
+}
+
+// draw_gui_panel_sprite_left is itself a macro (expands to
+// draw_gui_panel_sprite_left_player(...,my_player_number)), so this
+// wrapper needs a distinct name.
+static void render_overlay_draw_gui_panel_sprite_left(long x, long y, int units_per_px, long spridx)
+{
+    draw_gui_panel_sprite_left(x, y, units_per_px, spridx);
+}
+
+static void render_overlay_sync_cheat_box_3_active_option(CrInstance active_instance_id)
+{
+    if (!gui_box_is_not_valid(kfx_frontend_state.gui_cheat_box_3))
+    {
+        struct GuiBoxOption* guop = kfx_frontend_state.gui_cheat_box_3->optn_list;
+        while (guop->label[0] != '!')
+        {
+            guop->active = (active_instance_id == guop->cb_param1);
+            guop++;
+        }
+    }
+}
+
+static TbBool render_overlay_cheat_or_menu_window_active(void)
+{
+    return cheat_menu_is_active() || a_menu_window_is_active();
+}
+
+static void render_overlay_set_winfont(void)
+{
+    LbTextSetFont(winfont);
+}
+
+static long render_overlay_get_status_panel_width(void)
+{
+    return status_panel_width;
+}
+
+static void render_overlay_draw_debug_overlays(void)
+{
+    if (bonus_timer_enabled())
+    {
+        draw_bonus_timer();
+    }
+    else if (script_timer_enabled())
+    {
+        draw_script_timer(kfx_game_state.script_timer_player, kfx_game_state.script_timer_id, kfx_game_state.script_timer_limit, kfx_game_state.timer_real);
+    }
+    if (gameturn_timer_enabled())
+    {
+        draw_gameturn_timer();
+    }
+    if (display_variable_enabled())
+    {
+        draw_script_variable(kfx_game_state.script_variable_player, kfx_game_state.script_value_type, kfx_game_state.script_value_id, kfx_game_state.script_variable_target, kfx_game_state.script_variable_target_type);
+    }
+    if (timer_enabled())
+    {
+        draw_timer();
+    }
+    if (frametime_enabled())
+    {
+        draw_frametime();
+    }
+    if (debug_display_network_stats != 0)
+    {
+        draw_network_stats();
+    }
+    if (consolelog_enabled())
+    {
+        draw_consolelog();
+    }
+}
+
+static TbBool render_overlay_bonus_script_or_variable_overlay_active(void)
+{
+    return bonus_timer_enabled() || script_timer_enabled() || display_variable_enabled();
+}
+
+static long render_overlay_get_battle_creature_over(void)
+{
+    return battle_creature_over;
+}
+
+static long render_overlay_get_map_diagonal_length(void)
+{
+    return MapDiagonalLength;
+}
+
+static TbBool render_overlay_get_unpausing_in_progress(void)
+{
+    return unpausing_in_progress;
+}
+
+// Wrapper functions for struct NetCallbacks (see
+// src/kfx_config/include/net_callbacks.h and
+// docs/refactor/stage-08-kfx-net.md).
+static void net_callbacks_enter_net_session_screen(void)
+{
+    frontend_set_state(FeSt_NET_SESSION);
+}
+
+static void net_callbacks_set_lobby_button_labels(TbBool is_lan)
+{
+    if (is_lan) {
+        frontend_button_info[11].capstr_idx = GUIStr_MnuLanLobby;
+        frontend_button_info[12].capstr_idx = GUIStr_MnuLanLobbies;
+    } else {
+        frontend_button_info[11].capstr_idx = GUIStr_MnuOnlineLobby;
+        frontend_button_info[12].capstr_idx = GUIStr_MnuOnlineLobbies;
+    }
+}
+
+static unsigned char net_callbacks_get_default_tag_mode(void)
+{
+    return kfx_sim_state.default_tag_mode;
+}
+
+static TbBool net_callbacks_is_frontend_starting_mp_level(void)
+{
+    return frontend_menu_state == FeSt_START_MPLEVEL;
+}
+
+static TbBool net_callbacks_is_frontend_at_initial_state(void)
+{
+    return frontend_menu_state == FeSt_INITIAL;
+}
+
+static TbBool net_callbacks_frontnet_service_selected(int service)
+{
+    return frontnet_service_selected((enum FrontendNetService)service);
+}
+
+static void net_callbacks_clear_player_lightning_palette(struct PlayerInfo *player)
+{
+    PaletteSetPlayerPalette(player, engine_palette);
+    player->additional_flags &= ~PlaAF_LightningPaletteIsActive;
+}
+
+static TbBool net_callbacks_lua_script_active(void)
+{
+    return Lvl_script != NULL;
+}
+
+// Wrapper functions for struct GameCallbacks (see
+// src/kfx_config/include/game_callbacks.h and
+// docs/refactor/stage-09-kfx-game.md).
+static TbBool game_callbacks_is_fe_computer_players_active(void)
+{
+    return fe_computer_players != 0;
+}
+
+static void game_callbacks_set_timer_turns(unsigned long value)
+{
+    TimerTurns = value;
+}
+
+static void game_callbacks_toggle_debug_network_stats(void)
+{
+    debug_display_network_stats = (debug_display_network_stats != 0) ? 0 : 1;
+}
+
+static TbBool game_callbacks_toggle_tooltip_land_coord(void)
+{
+    tool_tip_dbg.land_coord = !tool_tip_dbg.land_coord;
+    return tool_tip_dbg.land_coord;
+}
+
+static void game_callbacks_get_high_score_entry(char *dest, size_t dest_size)
+{
+    snprintf(dest, dest_size, "%s", high_score_entry);
+}
+
+static void game_callbacks_set_high_score_entry(const char *name)
+{
+    snprintf(high_score_entry, sizeof(high_score_entry), "%s", name);
 }
 
 /**
@@ -371,6 +1037,309 @@ short setup_game(void)
 
   // Process CmdLine overrides
   process_cmdline_overrides();
+
+  // Push resolved config/cmdline state down into bflib_* (see
+  // docs/refactor/stage-02-decouple-bflib.md).
+  bf_sprfnt_set_language_lwrstr(get_language_lwrstr(install_info.lang_id));
+  bf_sprfnt_set_fxdata_dir(prepare_file_path(FGrp_FxData, ""));
+  bf_sndlib_set_audio_config(get_language_lwrstr(install_info.lang_id), is_feature_on(Ft_NoCdMusic));
+  bf_sound_set_atmos_config(AtmosStart, AtmosEnd, AtmosRepeat, atmos_sounds_enabled());
+  static const struct InputFocusPredicates input_focus_predicates = {
+      &freeze_game_on_focus_lost, &mute_audio_on_focus_lost,
+      &unlock_cursor_when_game_paused, &lock_cursor_in_possession,
+      &is_game_paused, &is_possession_mode_active, &is_packet_load_enabled,
+      &use_relative_mouse_mode,
+  };
+  set_input_focus_predicates(&input_focus_predicates);
+  static const struct SoundStateCallbacks sound_state_callback_table = {
+      &get_music_track, &get_music_fname, &get_frame_skip,
+      &get_easter_eggs_enabled, &get_last_level,
+      &get_creature_model_count, &get_creature_sounds,
+      &get_mods_after_map, &get_mods_after_map_count,
+      &get_mods_after_campaign, &get_mods_after_campaign_count,
+      &get_mods_after_base, &get_mods_after_base_count,
+      &get_sound_random_seed, &get_unsync_random_seed,
+      &init_sound, &mute_audio,
+      &play_creature_sound,
+  };
+  set_sound_state_callbacks(&sound_state_callback_table);
+  static const struct MapZipCallbacks map_zip_callback_table = {
+      &prepare_map_zip_path,
+  };
+  set_map_zip_callbacks(&map_zip_callback_table);
+  bf_sprfnt_set_font_role_resolver(resolve_font_role);
+  set_config_network_is_active_check(network_is_active);
+  set_power_grant_revoke_callbacks(add_power_to_player, remove_power_from_player);
+  static const struct ConfigReloadCallbacks config_reload_callbacks_impl = {
+      &update_room_tab_to_config, &update_trap_tab_to_config, &update_powers_tab_to_config,
+      &update_creatr_model_activities_list,
+      &update_all_door_stats, &update_all_trap_draws_of_model,
+      &add_research_to_all_players, &clear_research_for_all_players,
+      &panel_map_update, &update_panel_color_player_color, &setup_panel_colors,
+      &clear_subtiles_lightness_wrapper,
+      &get_function_idx,
+      &config_reload_get_map_subtiles_x, &config_reload_get_map_subtiles_y,
+      &thing_is_workshop_crate,
+      &get_wealth_size_of_gold_hoard_model,
+      &set_call_to_arms_graphics,
+      &set_failsafe_vidmode, &set_movies_vidmode, &set_frontend_vidmode,
+      &set_game_vidmode, &set_base_mouse_sensitivity,
+      &thing_is_creature_digger, &creature_is_for_dungeon_diggers_list,
+      &config_reload_get_thing_model, &config_reload_get_thing_class_id, &config_reload_get_thing_owner,
+      &config_reload_get_thing_creation_turn, &config_reload_get_thing_index,
+      &config_reload_get_creature_blood_type, &config_reload_get_creature_name_buffer,
+      &get_slabmap_for_subtile, &slabmap_owner,
+      &thing_create_thing, &thing_create_thing_adv,
+      &set_screenshot_format,
+      &set_hand_scale,
+      &get_room_kind_thing_is_on,
+      &get_player_color_idx_wrapper,
+      &get_slabset_array,
+      &get_slabset_num_ptr,
+      &get_slabobjs_array,
+      &get_slabobjs_idx_array,
+      &get_slabobjs_num_ptr,
+      &set_block_health,
+      &get_player_special_digger, &set_player_special_digger,
+  };
+  set_config_reload_callbacks(&config_reload_callbacks_impl);
+  static const struct ScriptHookCallbacks script_hooks_impl = {
+      &lua_on_power_cast, &lua_on_special_box_activate, &lua_on_creature_death,
+      &lua_on_creature_rebirth, &lua_on_trap_placed, &lua_on_object_destroyed,
+      &lua_on_apply_damage_to_thing, &lua_on_level_up, &lua_on_pick_up, &lua_on_slap,
+      &lua_on_slab_kind_change, &lua_on_slab_owner_change, &lua_on_room_owner_change,
+      &lua_on_shot_hit, &lua_on_dungeon_destroyed, &luafunc_crstate_func, &luafunc_thing_update_func,
+      &luafunc_shot_hit_thing_func, &luafunc_magic_use_power, &luafunc_trap_activation_func, &api_event,
+      &api_event_with_data,
+      &lua_on_game_start, &open_lua_script, &execute_lua_code_from_console,
+      &execute_lua_code_from_script, &generate_lua_types_file,
+      &lua_get_serialised_data, &lua_set_serialised_data, &cleanup_serialized_data,
+  };
+  set_script_hook_callbacks(&script_hooks_impl);
+  static const struct SimFeedbackCallbacks sim_feedback_impl = {
+      &erstat_inc, &show_onscreen_msg_plain, &output_message, &output_room_message,
+      &output_message_far_from_thing, &play_speech_ref, &clear_messages, &process_messages,
+      &clear_messages_from_player, &targeted_message_add_plain,
+      &message_add, &message_add_fmt, &zero_messages, &show_real_time_taken,
+      &thing_play_sample, &stop_thing_playing_sample, &create_ambient_sound,
+      &play_sound_if_close_to_receiver, &play_thing_walking,
+      &sim_feedback_is_best_roomspace_key_pressed, &sim_feedback_is_square_roomspace_key_pressed,
+      &sim_feedback_is_roomspace_incsize_key_pressed, &sim_feedback_is_roomspace_decsize_key_pressed,
+      &sim_feedback_is_sell_trap_on_subtile_key_pressed,
+      &sim_feedback_set_room_type_highlighted, &sim_feedback_set_visible_event_idx,
+      &sim_feedback_clear_all_event_button_states, &sim_feedback_clear_event_button_state,
+      &sim_feedback_mark_event_button_read,
+      &sim_feedback_is_battle_creature_over_active,
+      &sim_feedback_hide_map_volume_box, &sim_feedback_reset_box_lag_compensation,
+      &tag_cursor_blocks_dig,
+      &tag_cursor_blocks_place_door, &tag_cursor_blocks_place_room, &tag_cursor_blocks_sell_area,
+      &set_engine_view, &setup_engine_window,
+      &light_create_light, &light_delete_light, &light_turn_light_off, &light_turn_light_on,
+      &light_get_light_intensity, &light_set_light_intensity, &light_signal_update_in_area,
+      &light_set_light_never_cache, &light_is_light_allocated, &light_set_light_position,
+      &light_get_light_radius, &light_set_light_radius,
+      &light_initialise, &light_count_lights, &light_create_light_adv,
+      &GetMouseX, &GetMouseY, &is_mouse_pressed_lrbutton, &is_key_pressed, &mouse_is_over_panel_map,
+      &sim_feedback_is_left_button_held,
+      &PaletteSetPlayerPalette, &PaletteApplyPainToPlayer,
+      &toggle_status_menu, &turn_off_roaming_menus, &initialise_tab_tags_and_menu,
+      &init_gui, &set_gui_visible, &update_player_objectives, &create_message_box,
+      &turn_on_menu, &turn_off_menu, &turn_off_query_menus, &turn_off_all_menus,
+      &turn_off_all_window_menus, &turn_on_main_panel_menu, &turn_off_all_panel_menus,
+      &turn_off_event_box_if_necessary,
+      &refresh_active_button_sprites_for_player,
+      &find_next_room_of_type,
+      &sync_local_camera, &set_local_camera_destination, &get_local_camera,
+      &get_camera_zoom, &set_camera_zoom, &view_zoom_camera_in, &view_zoom_camera_out,
+      &view_set_camera_move_to_position, &view_move_camera_to_position,
+      &init_player_cameras, &any_player_close_enough_to_see, &lightning_is_close_to_player,
+      &packet_crtr_control_pressed,
+      &output_message_far_from_thing,
+      &get_packet_load_enable, &get_local_plyr_idx, &get_input_lag_turns,
+      &set_active_players_count,
+      &get_isometric_view_zoom_level, &get_frontview_zoom_level,
+      &get_player_exists_flag, &get_player_comp_flag,
+      &increment_active_players_count,
+      &sim_feedback_get_loaded_level_number,
+      &sim_feedback_get_selected_level_number,
+      &sim_feedback_get_level_number,
+      &sim_feedback_get_play_gameturn,
+      &update_time, &get_game_time, &get_zoom_key_room_order,
+      &get_history_packet,
+      &setup_eye_lens, &lens_is_ready, &lens_get_render_target,
+      &lens_get_render_target_width, &lens_get_render_target_height, &draw_lens_effect,
+      &get_td_animation_sprite,
+      &process_keeper_sprite, &engine,
+      &add_transfered_creature, &clear_transfered_creatures,
+      &reset_ambient_sound_thing_idx,
+      &get_lens_mode,
+      &hide_tooltip,
+      &timer_enabled,
+      &set_timer_turns,
+      &get_transferred_creature,
+      &activate_bonus_level_for_singleplayer,
+  };
+  set_sim_feedback_callbacks(&sim_feedback_impl);
+  static const struct PathfindingWorldCallbacks pathfinding_world_impl = {
+      &pathfinding_world_get_map_size_x, &pathfinding_world_get_map_size_y,
+      &get_map_block_at, &get_map_block_at_pos,
+      &pathfinding_world_map_block_flags, &map_block_invalid,
+      &get_floor_filled_subtiles_at, &subtile_is_unsafe,
+      &get_slabmap_block, &pathfinding_world_slabmap_block_kind, &slabmap_block_invalid, &pathfinding_world_slabmap_owner,
+      &is_valid_hug_subtile, &subtile_is_door, &pathfinding_world_thing_in_wall_at,
+      &get_door_for_position, &door_is_hidden_to_player, &door_will_open_for_thing,
+      &pathfinding_world_door_is_locked, &players_are_mutual_allies,
+      &thing_is_invalid, &pathfinding_world_thing_get_owner,
+      &get_thing_height_at, &get_floor_height_under_thing_at,
+      &creature_can_travel_over_lava, &thing_model_name,
+      &pathfinding_world_thing_get_position, &pathfinding_world_thing_set_position,
+      &pathfinding_world_thing_get_move_angle, &pathfinding_world_thing_set_move_angle,
+      &pathfinding_world_thing_get_index, &pathfinding_world_thing_get_clipbox_size,
+      &pathfinding_world_creature_get_navigation, &pathfinding_world_creature_get_ariadne_state,
+      &pathfinding_world_creature_get_max_speed,
+      &pathfinding_world_creature_clear_state_flags_for_wallhug_override,
+      &get_subtile_number, &stl_num_decode_x, &stl_num_decode_y, &stl_slab_center_subtile,
+      &get_slabmap_for_subtile, &hug_can_move_on,
+      &cross_x_boundary_first, &cross_y_boundary_first,
+      &pathfinding_world_get_small_around,
+      &pathfinding_world_get_small_around_length,
+      &small_around_index_in_direction,
+      &pathfinding_world_get_map_size_z,
+      &creature_cannot_move_directly_to,
+      &pathfinding_world_get_owner_player_navigating, &pathfinding_world_set_owner_player_navigating,
+      &pathfinding_world_get_nav_thing_can_travel_over_lava, &pathfinding_world_set_nav_thing_can_travel_over_lava,
+  };
+  set_pathfinding_world_callbacks(&pathfinding_world_impl);
+  static const struct SpriteLookupCallbacks sprite_lookup_impl = {
+      &get_icon_id, &get_anim_id, &get_anim_id_,
+      &get_button_sprite, &get_panel_sprite,
+  };
+  set_sprite_lookup_callbacks(&sprite_lookup_impl);
+  static const struct RenderOverlayCallbacks render_overlay_impl = {
+      &redraw_parchment_view, &render_overlay_load_and_redraw_minimal_overhead_view, &render_overlay_set_parchment_loaded,
+      &is_parchment_loaded, &reload_parchment_file, &point_to_overhead_map,
+      &render_overlay_get_main_menu_width,
+      &render_overlay_draw_gui_panel_sprite_left, &draw_slab64k,
+      &draw_gui_panel_sprite_centered, &draw_button_sprite_left,
+      &message_draw, &gui_draw_all_boxes, &draw_tooltip, &render_overlay_sync_cheat_box_3_active_option, &render_overlay_cheat_or_menu_window_active,
+      &draw_eastegg,
+      &render_overlay_set_winfont, &render_overlay_get_status_panel_width, &draw_gui, &render_overlay_game_is_busy_doing_gui,
+      &render_overlay_game_is_busy_doing_gui_string_input,
+      &draw_whole_status_panel,
+      &render_overlay_draw_debug_overlays, &render_overlay_bonus_script_or_variable_overlay_active, &render_overlay_get_battle_creature_over,
+      &render_overlay_get_map_diagonal_length,
+      &render_overlay_get_unpausing_in_progress,
+      &can_process_creature_input, &process_first_person_look, &process_camera_controls,
+      &process_camera_action,
+      &get_packet, &get_packet_direct, &get_history_packet, &set_packet_control,
+      &frontend_load_data_from_cd, &frontend_load_data_reset, &menu_is_active, &reinit_all_menus,
+      &turn_on_menu,
+      &sync_render_globals,
+      &setup_heap_manager, &reset_heap_manager, &he_alloc,
+      &light_create_light, &light_set_attached_slab, &delete_lights_attached_to_slab_in_area, &light_get_lights_enabled,
+  };
+  set_render_overlay_callbacks(&render_overlay_impl);
+  static const struct DungeonAvailabilityCallbacks dungeon_availability_impl = {
+      &player_has_valid_dungeon, &player_has_valid_dungeon_with_heart,
+      &players_num_dungeon_valid, &players_num_dungeon_valid_with_heart,
+      &set_creature_availability,
+      &try_set_backup_heart_idx,
+      &set_room_resrchable_and_buildable,
+      &get_room_resrchable, &set_all_room_resrchable,
+      &get_room_buildable, &set_all_room_buildable_from_resrchable,
+      &get_magic_resrchable, &set_magic_resrchable, &set_all_magic_resrchable_unchecked, &get_magic_level_gt0,
+      &get_trap_placeable, &get_trap_manufacturable, &get_trap_built,
+      &get_door_placeable, &get_door_manufacturable, &get_door_built,
+  };
+  set_dungeon_availability_callbacks(&dungeon_availability_impl);
+  static const struct NetCallbacks net_callbacks_impl = {
+      &net_callbacks_enter_net_session_screen, &net_callbacks_set_lobby_button_labels,
+      &create_frontend_error_box, &frontend_save_continue_game, &toggle_status_menu,
+      &set_gui_visible,
+      &net_callbacks_get_default_tag_mode, &net_callbacks_is_frontend_starting_mp_level,
+      &net_callbacks_is_frontend_at_initial_state,
+
+      &display_attempting_to_join_message, &attempting_to_join_cancel_requested,
+      &reset_attempting_to_join_cancel, &process_network_error, &net_callbacks_frontnet_service_selected,
+
+      &turn_off_all_menus, &turn_off_query_menus, &turn_on_main_panel_menu,
+      &turn_off_all_panel_menus, &turn_on_menu,
+
+      &panel_map_update,
+
+      &update_trap_tab_to_config, &instant_instance_selected,
+
+      &is_key_pressed, &clear_key_pressed,
+
+      &process_cheat_heart_health_inputs,
+
+      &net_callbacks_clear_player_lightning_palette,
+
+      &cmd_exec,
+
+      &lua_on_chatmsg,
+
+      &net_callbacks_lua_script_active, &lua_resync_export, &lua_resync_import,
+      &lua_set_random_seed, &cleanup_serialized_data,
+
+      &network_yield_draw_gameplay, &network_yield_waiting_gameplay_packets,
+      &network_yield_draw_frontend,
+      &output_message,
+      &erstat_inc, &show_onscreen_msg_plain, &is_onscreen_msg_visible,
+      &winning_player_quitting, &reinit_level_after_load, &complete_level, &lose_level, &resign_level,
+      &load_game_chunks, &fill_game_catalogue_entry, &save_packet_chunks,
+      &draw_out_of_sync_box, &process_frontend_chat_message,
+  };
+  set_net_callbacks(&net_callbacks_impl);
+  static const struct GameCallbacks game_callbacks_impl = {
+      &toggle_main_cheat_menu, &toggle_instance_cheat_menu, &toggle_secondary_cheat_menu,
+      &toggle_creature_cheat_menu, &close_main_cheat_menu, &close_instance_cheat_menu,
+      &close_secondary_cheat_menu, &close_creature_cheat_menu, &create_error_box,
+      &game_callbacks_is_fe_computer_players_active, &set_gui_visible, &menu_is_active,
+
+      &game_callbacks_set_timer_turns, &timer_enabled, &game_callbacks_toggle_debug_network_stats,
+      &bonus_timer_enabled,
+
+      &go_to_my_next_room_of_type, &get_button_designation, &gui_set_button_flashing,
+
+      &gui_create_box,
+
+      &zero_messages, &show_game_time_taken,
+
+      &game_callbacks_toggle_tooltip_land_coord,
+
+      &game_callbacks_get_high_score_entry, &game_callbacks_set_high_score_entry,
+
+      &frontstats_initialise,
+
+      &setup_alliances,
+
+      &clear_messages, &process_messages, &script_play_message,
+
+      &turn_on_menu, &turn_off_menu,
+
+      &erstats_clear,
+
+      &init_gui,
+
+      &set_level_objective, &display_objectives, &display_objectives_with_icon,
+
+      &reset_gui_based_on_player_mode,
+
+      &update_panel_colors,
+      &save_frontend_state, &load_frontend_state, &reset_frontend_state,
+      &get_frontend_state_size,
+      &get_intralvl_next_level, &clear_intralvl_next_level,
+  };
+  set_game_callbacks(&game_callbacks_impl);
+  kfx_config_state.gui_blink_rate = keeperfx_ui_config.gui_blink_rate;
+  kfx_config_state.neutral_flash_rate = keeperfx_ui_config.neutral_flash_rate;
+  creature_status_size = keeperfx_ui_config.creature_status_size;
+  line_box_size = keeperfx_ui_config.line_box_size;
+  right_click_tag_mode_toggle = keeperfx_ui_config.right_click_tag_mode_toggle;
+  kfx_sim_state.default_tag_mode = keeperfx_ui_config.default_tag_mode;
+  zoom_to_mouse_option = (enum ZoomToMouseOptions)keeperfx_ui_config.zoom_to_mouse_option;
+  rotate_around_mouse_option = (enum RotateAroundMouseOptions)keeperfx_ui_config.rotate_around_mouse_option;
 
   LbIKeyboardOpen();
 
@@ -477,7 +1446,7 @@ short setup_game(void)
       }
   }
 
-  game.frame_skip = start_params.frame_skip;
+  kfx_net_state.frame_skip = start_params.frame_skip;
   redetect_screen_refresh_rate_for_draw();
 
   // Intro problems shouldn't force the game to quit,
@@ -517,420 +1486,6 @@ short setup_game(void)
   return result;
 }
 
-/** Returns if cursor for given player is at top of the dungeon in 3D view.
- *  Cursor placed at top of dungeon is marked by green/red "volume box";
- *   if there's no volume box, cursor should be of the field behind it
- *   (the exact field in a line of view through cursor). If cursor is at top
- *   of view, then pointed map field is a bit lower than the line of view
- *   through cursor.
- *
- * @param player
- * @return
- */
-TbBool players_cursor_is_at_top_of_view(struct PlayerInfo *player)
-{
-    switch (player->work_state)
-    {
-    case PSt_BuildRoom:
-    case PSt_PlaceDoor:
-    case PSt_PlaceTrap:
-    case PSt_SightOfEvil:
-    case PSt_Sell:
-    case PSt_PlaceTerrain:
-    case PSt_MkDigger:
-        return true;
-
-    case PSt_OrderCreatr:
-        return (player->controlled_thing_idx > 0);
-
-    case PSt_CtrlDungeon:
-        switch (player->primary_cursor_state)
-        {
-            case CSt_DefaultArrow:
-                return false;
-
-            case CSt_PickAxe:
-            case CSt_DoorKey:
-                return true;
-
-            case CSt_PowerHand:
-                return (player->thing_under_hand == 0)
-                    || (! power_hand_is_empty(player));
-        }
-    }
-    return false;
-}
-
-TbBool engine_point_to_map(struct Camera *camera, long screen_x, long screen_y, int32_t *map_x, int32_t *map_y)
-{
-    struct PlayerInfo *player = get_my_player();
-    *map_x = 0;
-    *map_y = 0;
-    if ( (pointer_x >= 0) && (pointer_y >= 0)
-      && (pointer_x < (player->engine_window_width/pixel_size))
-      && (pointer_y < (player->engine_window_height/pixel_size)) )
-    {
-        if ( players_cursor_is_at_top_of_view(player) )
-        {
-              *map_x = subtile_coord(top_pointed_at_x,top_pointed_at_frac_x);
-              *map_y = subtile_coord(top_pointed_at_y,top_pointed_at_frac_y);
-        } else
-        {
-              *map_x = subtile_coord(block_pointed_at_x,pointed_at_frac_x);
-              *map_y = subtile_coord(block_pointed_at_y,pointed_at_frac_y);
-        }
-        // Clipping coordinates
-        if (*map_y < 0)
-          *map_y = 0;
-        else
-        if (*map_y > subtile_coord(game.map_subtiles_y,-1))
-          *map_y = subtile_coord(game.map_subtiles_y,-1);
-        if (*map_x < 0)
-          *map_x = 0;
-        else
-        if (*map_x > subtile_coord(game.map_subtiles_x,-1))
-          *map_x = subtile_coord(game.map_subtiles_x,-1);
-        return true;
-    }
-    return false;
-}
-
-TbBool screen_to_map(struct Camera *camera, int32_t screen_x, int32_t screen_y, struct Coord3d *mappos)
-{
-    TbBool result;
-    int32_t x;
-    int32_t y;
-    SYNCDBG(19,"Starting");
-    result = false;
-    if (camera != NULL)
-    {
-      switch (camera->view_mode)
-      {
-        case PVM_CreatureView:
-        case PVM_IsoWibbleView:
-        case PVM_FrontView:
-        case PVM_IsoStraightView:
-          // 3D view mode
-          result = engine_point_to_map(camera,screen_x,screen_y,&x,&y);
-          break;
-        case PVM_ParchmentView: //map mode
-          result = point_to_overhead_map(camera,screen_x/pixel_size,screen_y/pixel_size,&x,&y);
-          break;
-        default:
-          result = false;
-          break;
-      }
-    }
-    if ( result )
-    {
-      mappos->x.val = x;
-      mappos->y.val = y;
-    }
-    if ( mappos->x.val > ((game.map_subtiles_x<<8)-1) )
-      mappos->x.val = ((game.map_subtiles_x<<8)-1);
-    if ( mappos->y.val > ((game.map_subtiles_y<<8)-1) )
-      mappos->y.val = ((game.map_subtiles_y<<8)-1);
-    SYNCDBG(19,"Finished");
-    return result;
-}
-
-void update_creatr_model_activities_list(TbBool forced)
-{
-    struct Dungeon *dungeon = get_my_dungeon();
-    ThingModel crmodel;
-    int num_breeds = no_of_breeds_owned;
-    TbBool changed = false;
-
-    // Add to breed activities
-    for (crmodel = 1; crmodel < game.conf.crtr_conf.model_count; crmodel++)
-    {
-        if ((dungeon->owned_creatures_of_model[crmodel] > 0)
-            && (crmodel != get_players_spectator_model(my_player_number)))
-        {
-            TbBool found = false;
-            for (int i = 0; i < num_breeds; i++)
-            {
-                if (breed_activities[i] == crmodel)
-                {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-            {
-                changed = true;
-                breed_activities[num_breeds] = crmodel;
-                num_breeds++;
-            }
-        }
-    }
-
-    // Remove from breed activities
-    for (crmodel = 1; crmodel < game.conf.crtr_conf.model_count; crmodel++)
-    {
-        if ((dungeon->owned_creatures_of_model[crmodel] <= 0)
-          && (crmodel != get_players_special_digger_model(my_player_number)))
-        {
-            for (int i = 0; i < num_breeds; i++)
-            {
-                if (breed_activities[i] == crmodel)
-                {
-                    for (; i < num_breeds-1;  i++) {
-                        breed_activities[i] = breed_activities[i+1];
-                    }
-                    changed = true;
-                    num_breeds--;
-                    breed_activities[i] = 0;
-                    break;
-                }
-            }
-        }
-        no_of_breeds_owned = num_breeds;
-    }
-
-    // Reorder breed activities to ensure diggers are correctly positioned
-    if (changed || forced)
-    {
-        struct CreatureModelConfig* crconf;
-        ThingModel temp;
-        int write_idx = 1;
-        for (int i = 1; i < num_breeds; i++)
-        {
-            crconf = creature_stats_get(breed_activities[i]);
-            if (any_flag_is_set(crconf->model_flags, (CMF_IsDiggingCreature | CMF_IsSpecDigger)))
-            {
-                temp = breed_activities[i];
-                memmove(&breed_activities[write_idx + 1], &breed_activities[write_idx], (i - write_idx) * sizeof(ThingModel));
-                breed_activities[write_idx] = temp;
-                write_idx++;
-            }
-        }
-    }
-}
-
-void toggle_hero_health_flowers(void)
-{
-    const char *statstr;
-    toggle_flag(game.mode_flags, MFlg_NoHeroHealthFlower);
-    if (game.mode_flags & MFlg_NoHeroHealthFlower)
-    {
-      statstr = "off";
-    } else
-    {
-      do_sound_menu_click();
-      statstr = "on";
-    }
-    show_onscreen_msg(2*turns_per_second, "Hero health flowers %s", statstr);
-}
-
-void reset_gui_based_on_player_mode(void)
-{
-    struct PlayerInfo *player = get_my_player();
-    if (player->view_type == PVT_CreatureContrl)
-    {
-        turn_on_menu(vid_change_query_menu);
-        if (player->victory_state == VicS_LostLevel)
-        {
-            turn_off_query_menus();
-        }
-    }
-    else if (player->view_type == PVT_CreaturePasngr)
-    {
-        turn_on_menu(vid_change_query_menu);
-        turn_off_query_menus();
-    }
-    else
-    {
-        turn_on_menu(GMnu_MAIN);
-        if (game.active_panel_mnu_idx > 0)
-        {
-            initialise_tab_tags(game.active_panel_mnu_idx);
-            if ( (player->work_state == PSt_CreatrInfo) || (player->work_state == PSt_CreatrInfoAll) )
-            {
-                turn_on_menu(vid_change_query_menu);
-            }
-            else
-            {
-                turn_on_menu(game.active_panel_mnu_idx);
-            }
-            MenuNumber mnuidx = menu_id_to_number(GMnu_MAIN);
-            if (mnuidx != MENU_INVALID_ID) {
-                setup_radio_buttons(&active_menus[mnuidx]);
-            }
-        }
-        else
-        {
-            turn_on_menu(GMnu_ROOM);
-        }
-    }
-    set_gui_visible(true);
-}
-
-void reinit_tagged_blocks_for_player(PlayerNumber plyr_idx)
-{
-    // Clear tagged blocks
-    MapSubtlCoord stl_x;
-    MapSubtlCoord stl_y;
-    for (stl_y=0; stl_y < game.map_subtiles_y; stl_y++)
-    {
-        for (stl_x=0; stl_x < game.map_subtiles_x; stl_x++)
-        {
-            struct Map *mapblk;
-            mapblk = get_map_block_at(stl_x, stl_y);
-            mapblk->flags &= ~SlbAtFlg_Unexplored;
-            mapblk->flags &= ~SlbAtFlg_TaggedValuable;
-        }
-    }
-    // Reinit with data from current players dungeon
-    struct Dungeon *dungeon;
-    dungeon = get_dungeon(plyr_idx);
-    int task_idx;
-    for (task_idx = 0; task_idx < dungeon->highest_task_number; task_idx++)
-    {
-        struct MapTask  *mtask;
-        mtask = &dungeon->task_list[task_idx];
-        MapSubtlCoord taskstl_x;
-        MapSubtlCoord taskstl_y;
-        taskstl_x = stl_num_decode_x(mtask->coords);
-        taskstl_y = stl_num_decode_y(mtask->coords);
-        switch (mtask->kind)
-        {
-        case 2:
-            for (stl_y = taskstl_y - 1; stl_y <= taskstl_y + 1; stl_y++)
-            {
-                for (stl_x = taskstl_x - 1; stl_x <= taskstl_x + 1; stl_x++)
-                {
-                    struct Map *mapblk;
-                    mapblk = get_map_block_at(stl_x, stl_y);
-                    mapblk->flags |= SlbAtFlg_TaggedValuable;
-                }
-            }
-            break;
-        case 1:
-        case 3:
-            for (stl_y = taskstl_y - 1; stl_y <= taskstl_y + 1; stl_y++)
-            {
-                for (stl_x = taskstl_x - 1; stl_x <= taskstl_x + 1; stl_x++)
-                {
-                    struct Map *mapblk;
-                    mapblk = get_map_block_at(stl_x, stl_y);
-                    mapblk->flags |= SlbAtFlg_Unexplored;
-                }
-            }
-            break;
-        default:
-            break;
-        }
-    }
-}
-
-void instant_instance_selected(CrInstance check_inst_id)
-{
-    struct PlayerInfo *player;
-    player = get_player(my_player_number);
-    struct Thing *ctrltng;
-    ctrltng = thing_get(player->controlled_thing_idx);
-    struct CreatureModelConfig *crconf;
-    crconf = creature_stats_get_from_thing(ctrltng);
-    long i;
-    long k;
-    int avail_pos;
-    int match_avail_pos;
-    avail_pos = 0;
-    match_avail_pos = 0;
-    for (i=0; i < CREATURE_MAX_LEVEL; i++)
-    {
-        k = crconf->learned_instance_id[i];
-        if (creature_instance_is_available(ctrltng, k))
-        {
-            if (k == check_inst_id) {
-                match_avail_pos = avail_pos;
-                break;
-            }
-            avail_pos++;
-        }
-    }
-    first_person_instance_top_half_selected = match_avail_pos < 6 && (first_person_instance_top_half_selected || match_avail_pos < 4);
-}
-
-short zoom_to_next_annoyed_creature(void)
-{
-    struct PlayerInfo *player;
-    struct Dungeon *dungeon;
-    struct Thing *thing;
-    player = get_my_player();
-    dungeon = get_players_num_dungeon(my_player_number);
-    dungeon->zoom_annoyed_creature_idx = find_next_annoyed_creature(player->id_number,dungeon->zoom_annoyed_creature_idx);
-    thing = thing_get(dungeon->zoom_annoyed_creature_idx);
-    if (!thing_exists(thing))
-    {
-      return false;
-    }
-    set_players_packet_action(player, PckA_ZoomToPosition, thing->mappos.x.val, thing->mappos.y.val, 0, 0);
-    return true;
-}
-
-TbBool toggle_computer_player(PlayerNumber plyr_idx)
-{
-    struct PlayerInfo *player = get_player(plyr_idx);
-    struct Dungeon *dungeon = get_players_dungeon(player);
-    if (dungeon_invalid(dungeon)) {
-        ERRORLOG("Player %d has no dungeon",(int)plyr_idx);
-        return false;
-    }
-    if ((dungeon->computer_enabled & 0x01) == 0)
-    {
-        dungeon->computer_enabled |= 0x01;
-    } else
-    {
-        dungeon->computer_enabled &= ~0x01;
-    }
-    struct Computer2 *comp;
-    comp = get_computer_player(player->id_number);
-    computer_force_dump_held_things_on_map(comp, &dungeon->essential_pos);
-    return true;
-}
-
-void reinit_level_after_load(void)
-{
-    struct PlayerInfo *player;
-    int i;
-    SYNCDBG(6,"Starting");
-    // Reinit structures from within the game
-    player = get_my_player();
-    player->lens_palette = 0;
-    player->main_palette = engine_palette;
-    init_navigation();
-    reinit_packets_after_load();
-    game.easter_eggs_enabled = start_params.easter_egg;
-    parchment_loaded = 0;
-    for (i=0; i < PLAYERS_COUNT; i++)
-    {
-        player = get_player(i);
-        if (player_exists(player))
-        {
-            set_engine_view(player, player->view_mode);
-            update_panel_color_player_color(player->id_number, get_dungeon(i)->color_idx);
-        }
-    }
-    start_rooms = &game.rooms[1];
-    end_rooms = &game.rooms[ROOMS_COUNT];
-    update_room_tab_to_config();
-    update_powers_tab_to_config();
-    update_trap_tab_to_config();
-    load_texture_map_file(game.texture_id, get_loaded_level_number(), get_level_fgroup(get_loaded_level_number()));
-    init_animating_texture_maps();
-    init_gui();
-    reset_gui_based_on_player_mode();
-    erstats_clear();
-    player = get_my_player();
-    reinit_tagged_blocks_for_player(player->id_number);
-    restore_computer_player_after_load();
-    sound_reinit_after_load();
-    update_panel_colors();
-    reset_postal_instance_cache();
-}
-
 /**
  * Sets to defaults some basic parameters which are
  * later copied into Game structure.
@@ -948,792 +1503,6 @@ TbBool set_default_startup_parameters(void)
     clear_flag(start_params.mode_flags, MFlg_IsDemoMode);
     set_flag(start_params.mode_flags, MFlg_DemoMode);
     return true;
-}
-
-void clear_map(void)
-{
-    clear_mapmap();
-    clear_slabs();
-    clear_columns();
-}
-
-void clear_things_and_persons_data(void)
-{
-    struct Thing *thing;
-    long i;
-    memset(game.thing_lists, 0, sizeof(game.thing_lists));
-    game.ambient_sound_thing_idx = 0;
-    game.nodungeon_creatr_list_start = 0;
-    for (i=0; i < THINGS_COUNT; i++)
-    {
-        thing = &game.things_data[i];
-        memset(thing, 0, sizeof(struct Thing));
-        thing->owner = PLAYERS_COUNT;
-        thing->mappos.x.val = subtile_coord_center(game.map_subtiles_x/2);
-        thing->mappos.y.val = subtile_coord_center(game.map_subtiles_y/2);
-
-        // Create the list of free indices (skip index 0 since that's INVALID_THING
-        if (i > 0) {
-            if (i < SYNCED_THINGS_COUNT) {
-                game.synced_free_things[SYNCED_THINGS_COUNT-1-i] = i;
-            } else if (i < THINGS_COUNT) {
-                game.unsynced_free_things[THINGS_COUNT-1-i] = i;
-            }
-        }
-    }
-    game.synced_free_things_count = SYNCED_THINGS_COUNT-1; // 1 to 8191. Note: COUNT macros aren't real representations of how many things there should be, all of them are off by 1.
-    game.unsynced_free_things_count = UNSYNCED_THINGS_COUNT-1; // 8192 to 12287
-
-    for (i=0; i < CREATURES_COUNT; i++)
-    {
-      memset(&game.cctrl_data[i], 0, sizeof(struct CreatureControl));
-    }
-}
-
-void clear_computer(void)
-{
-    long i;
-    SYNCDBG(8,"Starting");
-    for (i=0; i < COMPUTER_TASKS_COUNT; i++)
-    {
-        memset(&game.computer_task[i], 0, sizeof(struct ComputerTask));
-    }
-    for (i=0; i < GOLD_LOOKUP_COUNT; i++)
-    {
-        memset(&game.gold_lookup[i], 0, sizeof(struct GoldLookup));
-    }
-    for (i=0; i < PLAYERS_COUNT; i++)
-    {
-        memset(&game.computer[i], 0, sizeof(struct Computer2));
-    }
-}
-
-
-
-void clear_players_for_save(void)
-{
-    struct PlayerInfo *player;
-    unsigned short saved_player_id;
-    unsigned short saved_is_active;
-    unsigned short saved_allocation_flags;
-    struct Camera cammem;
-    int i;
-    for (i=0; i < PLAYERS_COUNT; i++)
-    {
-      player = get_player(i);
-      saved_player_id = player->id_number;
-      saved_is_active = player->is_active;
-      saved_allocation_flags = player->allocflags;
-      memcpy(&cammem,&player->cameras[CamIV_FirstPerson],sizeof(struct Camera));
-      memset(player, 0, sizeof(struct PlayerInfo));
-      player->id_number = saved_player_id;
-      player->is_active = saved_is_active;
-      set_flag_value(player->allocflags, PlaF_Allocated, ((saved_allocation_flags & PlaF_Allocated) != 0));
-      set_flag_value(player->allocflags, PlaF_CompCtrl, ((saved_allocation_flags & PlaF_CompCtrl) != 0));
-      memcpy(&player->cameras[CamIV_FirstPerson],&cammem,sizeof(struct Camera));
-      set_player_active_camera(player, CamIV_FirstPerson);
-    }
-}
-
-void delete_all_thing_structures(void)
-{
-    long i;
-    struct Thing *thing;
-    for (i=1; i < THINGS_COUNT; i++)
-    {
-      thing = thing_get(i);
-      if (thing_exists(thing)) {
-          delete_thing_structure(thing, 1);
-      }
-        if (i < SYNCED_THINGS_COUNT) {
-            game.synced_free_things[SYNCED_THINGS_COUNT-1-i] = i;
-        } else if (i < THINGS_COUNT) {
-            game.unsynced_free_things[THINGS_COUNT-1-i] = i;
-        }
-    }
-    game.synced_free_things_count = SYNCED_THINGS_COUNT-1;
-    game.unsynced_free_things_count = UNSYNCED_THINGS_COUNT-1;
-}
-
-void delete_all_structures(void)
-{
-    SYNCDBG(6,"Starting");
-    delete_all_thing_structures();
-    delete_all_control_structures();
-    delete_all_room_structures();
-    delete_all_action_point_structures();
-    light_initialise();
-    SYNCDBG(16,"Done");
-}
-
-/**
- * Clears game structures at end of level.
- * Also used as part of clearing before new level is loaded.
- */
-void clear_game_for_summary(void)
-{
-    SYNCDBG(6,"Starting");
-    delete_all_structures();
-    clear_shadow_limits(&game.lish);
-    clear_stat_light_map();
-    clear_mapwho();
-    game.entrance_room_id = 0;
-    game.action_random_seed = 0;
-    game.ai_random_seed = 0;
-    game.player_random_seed = 0;
-    game.operation_flags &= ~GOF_Paused;
-    clear_columns();
-    clear_action_points();
-    clear_players();
-    clear_dungeons();
-}
-
-void clear_game(void)
-{
-    SYNCDBG(6,"Starting");
-    clear_game_for_summary();
-    game.music_track = 0;
-    clear_map();
-    clear_computer();
-    clear_script();
-    clear_events();
-    clear_things_and_persons_data();
-    ceiling_set_info(12, 4, 1);
-    init_animating_texture_maps();
-    clear_slabsets();
-    game.skip_initial_input_turns = 0;
-    initialize_packet_history();
-}
-
-void clear_game_for_save(void)
-{
-    SYNCDBG(6,"Starting");
-    delete_all_structures();
-    light_initialise();
-    clear_mapwho();
-    game.entrance_room_id = 0;
-    game.action_random_seed = 0;
-    game.ai_random_seed = 0;
-    game.player_random_seed = 0;
-    clear_columns();
-    clear_players_for_save();
-    clear_dungeons();
-}
-
-void reset_creature_max_levels(void)
-{
-    int i;
-    int k;
-    for (i=0; i < DUNGEONS_COUNT; i++)
-    {
-        struct Dungeon *dungeon;
-        dungeon = get_dungeon(i);
-        for (k=1; k < game.conf.crtr_conf.model_count; k++)
-        {
-            dungeon->creature_max_level[k] = CREATURE_MAX_LEVEL+1;
-        }
-    }
-}
-
-void change_engine_window_relative_size(long w_delta, long h_delta)
-{
-    struct PlayerInfo *myplyr;
-    myplyr=get_my_player();
-    setup_engine_window(myplyr->engine_window_x, myplyr->engine_window_y,
-        myplyr->engine_window_width+w_delta, myplyr->engine_window_height+h_delta);
-}
-
-void PaletteSetPlayerPalette(struct PlayerInfo *player, unsigned char *pal)
-{
-    if (pal == blue_palette) // if the requested palette is the Freeze palette
-    {
-      if ((player->additional_flags & PlaAF_FreezePaletteIsActive) != 0)
-        return; // Freeze palette is already on
-      player->additional_flags |= PlaAF_FreezePaletteIsActive; // flag Freeze palette is active
-    } else
-    {
-      player->additional_flags &= ~PlaAF_FreezePaletteIsActive; // flag Freeze palette is not active
-    }
-    if ( (player->lens_palette == 0) || ((pal != player->main_palette) && (pal == player->lens_palette)) )
-    {
-        player->main_palette = pal;
-        player->palette_fade_step_pain = 0;
-        player->palette_fade_step_possession = 0;
-        if (is_my_player(player))
-        {
-            LbScreenWaitVbi();
-            RendererPaletteSet(pal);
-        }
-    }
-}
-
-TbBool set_gamma(char corrlvl, TbBool do_set)
-{
-    char *fname;
-    TbBool result = true;
-    if (corrlvl < 0)
-      corrlvl = 0;
-    else
-    if (corrlvl > 4)
-      corrlvl = 4;
-    settings.gamma_correction = corrlvl;
-    fname=prepare_file_fmtpath(FGrp_StdData,"pal%05d.dat",settings.gamma_correction);
-    if (!LbFileExists(fname))
-    {
-      WARNMSG("Palette file \"%s\" doesn't exist.", fname);
-      result = false;
-    }
-    if (result)
-    {
-      result = (LbFileLoadAt(fname, engine_palette) != -1);
-    }
-    if ((result) && (do_set))
-    {
-      struct PlayerInfo *myplyr;
-      myplyr=get_my_player();
-      PaletteSetPlayerPalette(myplyr, engine_palette);
-    }
-    if (!result)
-      ERRORLOG("Can't load palette file.");
-    return result;
-}
-
-void centre_engine_window(void)
-{
-    long window_center_x;
-    long window_center_y;
-    struct PlayerInfo *player=get_my_player();
-    if ((game.operation_flags & GOF_ShowGui) != 0)
-      window_center_x = (MyScreenWidth-player->engine_window_width-status_panel_width) / 2 + status_panel_width;
-    else
-      window_center_x = (MyScreenWidth-player->engine_window_width) / 2;
-    window_center_y = (MyScreenHeight-player->engine_window_height) / 2;
-    setup_engine_window(window_center_x, window_center_y, player->engine_window_width, player->engine_window_height);
-}
-
-void turn_off_query(PlayerNumber plyr_idx)
-{
-    struct PlayerInfo *player;
-    player = get_player(plyr_idx);
-    set_player_instance(player, PI_UnqueryCrtr, 0);
-}
-
-long filter_creatures_owned_by_keepers(const struct Thing *thing, MaxTngFilterParam, long)
-{
-    if (player_is_keeper(thing->owner)) {
-        return INT32_MAX;
-    }
-    return -1;
-}
-
-void level_lost_go_first_person(PlayerNumber plyr_idx)
-{
-    struct CreatureControl *cctrl;
-    struct PlayerInfo *player;
-    struct Dungeon *dungeon;
-    struct Thing *thing;
-    ThingModel spectator_breed;
-    SYNCDBG(6,"Starting for player %d",(int)plyr_idx);
-    player = get_player(plyr_idx);
-    dungeon = get_dungeon(player->id_number);
-    if (dungeon_invalid(dungeon)) {
-        ERRORLOG("Unable to get player %d dungeon",(int)plyr_idx);
-        return;
-    }
-    spectator_breed = get_players_spectator_model(plyr_idx);
-    player->dungeon_camera_zoom = get_camera_zoom(get_player_active_camera(player));
-    struct CompoundTngFilterParam param = {};
-    param.class_id = TCls_Creature;
-    struct Thing *spawn_creatng = get_random_thing_of_class_with_filter(filter_creatures_owned_by_keepers, &param, plyr_idx);
-    if (!thing_exists(spawn_creatng)) {
-        return;
-    }
-    struct Coord3d mappos = spawn_creatng->mappos;
-    thing = create_and_control_creature_as_controller(player, spectator_breed, &mappos);
-    if (thing_is_invalid(thing)) {
-        ERRORLOG("Unable to create spectator creature");
-        return;
-    }
-    move_creature_to_nearest_valid_position(thing);
-    cctrl = creature_control_get_from_thing(thing);
-    cctrl->creature_control_flags |= CCFlg_NoCompControl;
-    SYNCDBG(8,"Finished");
-}
-
-void set_general_information(int32_t msg_id, PlayerNumber plyr_idx, TbMapLocation target, MapSubtlCoord x, MapSubtlCoord y)
-{
-    set_general_information_with_icon(
-        msg_id,
-        plyr_idx,
-        target,
-        x,
-        y,
-        -1);
-}
-
-void set_general_information_with_icon(int32_t msg_id, PlayerNumber plyr_idx, TbMapLocation target, MapSubtlCoord x, MapSubtlCoord y, short icon_idx)
-{
-    struct PlayerInfo *player = get_player(plyr_idx);
-    MapCoord pos_x = 0;
-    MapCoord pos_y = 0;
-    find_map_location_coords(target, &x, &y, plyr_idx, __func__);
-    if ((x != 0) || (y != 0))
-    {
-        pos_y = subtile_coord_center(y);
-        pos_x = subtile_coord_center(x);
-    }
-    struct Event* event = event_create_event(pos_x, pos_y, EvKind_Information, player->id_number, -msg_id);
-    if (!event_is_invalid(event))
-        event->icon_idx = icon_idx;
-}
-
-void set_quick_information_with_icon(int32_t msg_id, PlayerNumber plyr_idx, TbMapLocation target, MapSubtlCoord x, MapSubtlCoord y, short icon_idx)
-{
-    struct PlayerInfo *player = get_player(plyr_idx);
-    MapCoord pos_x = 0;
-    MapCoord pos_y = 0;
-    find_map_location_coords(target, &x, &y, plyr_idx, __func__);
-    if ((x != 0) || (y != 0))
-    {
-        pos_y = subtile_coord_center(y);
-        pos_x = subtile_coord_center(x);
-    }
-    struct Event* event = event_create_event(pos_x, pos_y, EvKind_QuickInformation, player->id_number, -msg_id);
-    if (!event_is_invalid(event))
-        event->icon_idx = icon_idx;
-}
-
-void set_quick_information(int32_t msg_id, PlayerNumber plyr_idx, TbMapLocation target, MapSubtlCoord x, MapSubtlCoord y)
-{
-    set_quick_information_with_icon(
-        msg_id,
-        plyr_idx,
-        target,
-        x,
-        y,
-        -1);
-}
-
-void set_general_objective(int32_t msg_id, PlayerNumber plyr_idx, TbMapLocation target, MapSubtlCoord x, MapSubtlCoord y)
-{
-    set_general_objective_with_icon(msg_id, plyr_idx, target, x, y, -1);
-}
-
-void set_general_objective_with_icon(int32_t msg_id, PlayerNumber plyr_idx, TbMapLocation target, MapSubtlCoord x, MapSubtlCoord y, short icon_idx)
-{
-    process_objective_with_icon(get_string(msg_id), plyr_idx, target, x, y, icon_idx);
-}
-
-void process_objective(const char *msg_text, PlayerNumber plyr_idx, TbMapLocation target, MapSubtlCoord x, MapSubtlCoord y)
-{
-    process_objective_with_icon(msg_text, plyr_idx, target, x, y, -1);
-}
-
-void process_objective_with_icon(const char *msg_text, PlayerNumber plyr_idx, TbMapLocation target, MapSubtlCoord x, MapSubtlCoord y, short icon_idx)
-{
-    struct PlayerInfo *player = get_player(plyr_idx);
-    find_map_location_coords(target, &x, &y, plyr_idx, __func__);
-    set_level_objective(player->id_number, msg_text);
-    display_objectives_with_icon(player->id_number, x, y, icon_idx);
-}
-
-short winning_player_quitting(struct PlayerInfo *player, int32_t *plyr_count)
-{
-    struct PlayerInfo *swplyr;
-    int i;
-    int k;
-    int n;
-    if (player->victory_state == VicS_LostLevel)
-    {
-      return 0;
-    }
-    k = 0;
-    n = 0;
-    for (i=0; i < PLAYERS_COUNT; i++)
-    {
-      swplyr = get_player(i);
-      if (player_exists(swplyr))
-      {
-        if (swplyr->is_active == 1)
-        {
-          k++;
-          if (swplyr->victory_state == VicS_LostLevel)
-            n++;
-        }
-      }
-    }
-    *plyr_count = k;
-    return ((k - n) == 1);
-}
-
-short lose_level(struct PlayerInfo *player)
-{
-    if (!is_my_player(player))
-        return false;
-    if (network_is_active())
-    {
-        LbNetwork_Stop();
-    }
-    quit_game = 1;
-    return true;
-}
-
-short resign_level(struct PlayerInfo *player)
-{
-    if (!is_my_player(player))
-        return false;
-    if (network_is_active())
-    {
-        LbNetwork_Stop();
-    }
-    quit_game = 1;
-    return true;
-}
-
-short complete_level(struct PlayerInfo *player)
-{
-    SYNCDBG(6,"Starting");
-    if (!is_my_player(player))
-        return false;
-    if (network_is_active())
-    {
-        LbNetwork_Stop();
-        quit_game = 1;
-        return true;
-    }
-    LevelNumber lvnum;
-    lvnum = get_continue_level_number();
-    if (get_loaded_level_number() == lvnum)
-    {
-        SYNCDBG(7,"Progressing the campaign");
-        move_campaign_to_next_level();
-    }
-    quit_game = 1;
-    return true;
-}
-
-static void set_mouse_light(struct PlayerInfo *player, TbBool valid, struct Coord3d pos)
-{
-    const int idx = player->cursor_light_idx;
-    if (idx == 0)
-        return;
-
-    if (valid)
-    {
-        pos.z.val = get_floor_height_at(&pos);
-        light_turn_light_on(idx);
-        light_set_light_position(idx, &pos);
-
-        if (is_my_player(player))
-            game.mouse_light_pos = pos;
-    }
-    else
-    {
-        light_turn_light_off(idx);
-    }
-}
-
-void update_local_mouse_light(void)
-{
-    SYNCDBG(6,"Starting");
-    struct PlayerInfo *player = get_my_player();
-
-    // Avoid glitching during level intro or possess animation
-    if (player->instance_num != PI_Unset)
-        return;
-    // ... or when watching a replay
-    if (game.packet_load_enable)
-        return;
-    // ... or during text input (save menu)
-    if (game_is_busy_doing_gui_string_input())
-        return;
-
-    struct Camera *cam = get_local_camera(get_player_active_camera(player));
-    struct Coord3d pos;
-    const TbBool valid = screen_to_map(cam, GetMouseX(), GetMouseY(), &pos);
-
-    set_mouse_light(player, valid, pos);
-
-    if (player->cursor_light_idx != 0)
-        light_reset_interpolation(player->cursor_light_idx);
-}
-
-void update_mouse_light(struct PlayerInfo *player)
-{
-    SYNCDBG(6,"Starting");
-    const struct Packet *pckt = nullptr;
-
-    if (is_my_player(player))
-        pckt = get_history_packet(player->packet_num, get_gameturn());
-    if (pckt == nullptr)
-        pckt = get_packet_direct(player->packet_num);
-
-    const TbBool valid = (pckt->control_flags & PCtr_MapCoordsValid) != 0;
-    struct Coord3d pos;
-    pos.x.val = pckt->pos_x;
-    pos.y.val = pckt->pos_y;
-    set_mouse_light(player, valid, pos);
-}
-
-void update_block_pointed(int i,long x, long x_frac, long y, long y_frac)
-{
-    struct Map *mapblk;
-    struct Column *colmn;
-    short visible;
-    unsigned int smask;
-    long k;
-
-    if (i > 0)
-    {
-      mapblk = get_map_block_at(x,y);
-      visible = map_block_revealed(mapblk, my_player_number);
-      if ((!visible) || (get_mapblk_column_index(mapblk) > 0))
-      {
-        if (visible)
-          k = get_mapblk_column_index(mapblk);
-        else
-          k = game.unrevealed_column_idx;
-        colmn = get_column(k);
-        smask = colmn->solidmask;
-        if ((temp_cluedo_mode) && (smask != 0))
-        {
-          if (visible)
-            k = get_mapblk_column_index(mapblk);
-          else
-            k = game.unrevealed_column_idx;
-          colmn = get_column(k);
-          if (colmn->solidmask >= 8)
-          {
-            if ( (!visible) || (((mapblk->flags & SlbAtFlg_IsRoom) == 0)) )
-              smask &= 3;
-          }
-        }
-        if (smask & (1 << (i-1)))
-        {
-          pointed_at_frac_x = x_frac;
-          pointed_at_frac_y = y_frac;
-          block_pointed_at_x = x;
-          block_pointed_at_y = y;
-          me_pointed_at = mapblk;
-        }
-        if (((!temp_cluedo_mode) && (i == 5)) || ((temp_cluedo_mode) && (i == 2)))
-        {
-          top_pointed_at_frac_x = x_frac;
-          top_pointed_at_frac_y = y_frac;
-          top_pointed_at_x = x;
-          top_pointed_at_y = y;
-        }
-      }
-    } else
-    {
-        mapblk = get_map_block_at(x,y);
-        floor_pointed_at_x = x;
-        floor_pointed_at_y = y;
-        block_pointed_at_x = x;
-        block_pointed_at_y = y;
-        pointed_at_frac_x = x_frac;
-        pointed_at_frac_y = y_frac;
-        me_pointed_at = mapblk;
-    }
-}
-
-void update_blocks_pointed(void)
-{
-    int32_t x;
-    int32_t y;
-    int32_t x_frac;
-    int32_t y_frac;
-    int64_t hori_ptr_y;
-    int64_t vert_ptr_y;
-    int64_t hori_hdelta_y;
-    int64_t vert_hdelta_y;
-    int64_t hori_ptr_x;
-    int64_t vert_ptr_x;
-    int64_t hvdiv_x;
-    int64_t hvdiv_y;
-    int64_t lltmp;
-    int64_t k;
-    int i;
-    SYNCDBG(19,"Starting");
-    if ((!vert_offset[1]) && (!hori_offset[1]))
-    {
-        block_pointed_at_x = 0;
-        block_pointed_at_y = 0;
-        me_pointed_at = INVALID_MAP_BLOCK;//get_map_block_at(0,0);
-    } else
-    {
-        hori_ptr_y = (int64_t)hori_offset[0] * (pointer_y - y_init_off);
-        vert_ptr_y = (int64_t)vert_offset[0] * (pointer_y - y_init_off);
-        hori_hdelta_y = (int64_t)hori_offset[0] * ((long)high_offset[1] >> 8);
-        vert_hdelta_y = (int64_t)vert_offset[0] * ((long)high_offset[1] >> 8);
-        vert_ptr_x = ((int64_t)vert_offset[1] * (pointer_x - x_init_off)) >> 1;
-        hori_ptr_x = ((int64_t)hori_offset[1] * (pointer_x - x_init_off)) >> 1;
-        lltmp = hori_offset[0] * (int64_t)vert_offset[1] - vert_offset[0] * (int64_t)hori_offset[1];
-        hvdiv_x = (lltmp >> 11);
-        if (hvdiv_x == 0) hvdiv_x = 1;
-        lltmp = vert_offset[0] * (int64_t)hori_offset[1] - hori_offset[0] * (int64_t)vert_offset[1];
-        hvdiv_y = (lltmp >> 11);
-        if (hvdiv_y == 0) hvdiv_y = 1;
-        for (i=0; i < 8; i++)
-        {
-          k = (vert_ptr_x - (vert_ptr_y >> 1)) / hvdiv_x;
-          x_frac = (k & 3) << 6;
-          x = k >> 2;
-          k = (hori_ptr_x - (hori_ptr_y >> 1)) / hvdiv_y;
-          y_frac = (k & 3) << 6;
-          y = k >> 2;
-          if ((x >= 0) && (x < game.map_subtiles_x) && (y >= 0) && (y < game.map_subtiles_y))
-          {
-              update_block_pointed(i,x,x_frac,y,y_frac);
-          }
-          hori_ptr_y -= hori_hdelta_y;
-          vert_ptr_y -= vert_hdelta_y;
-        }
-    }
-    SYNCDBG(19,"Finished");
-}
-
-void engine(struct PlayerInfo *player, struct Camera *cam)
-{
-    TbGraphicsWindow grwnd;
-    TbGraphicsWindow ewnd;
-    unsigned short flg_mem;
-
-    SYNCDBG(9,"Starting");
-
-    flg_mem = RendererGetDrawFlags();
-    update_engine_settings(player);
-    mx = cam->mappos.x.val;
-    my = cam->mappos.y.val;
-    mz = cam->mappos.z.val;
-    pointer_x = (GetMouseX() - player->engine_window_x) / pixel_size;
-    pointer_y = (GetMouseY() - player->engine_window_y) / pixel_size;
-    lens = cam->horizontal_fov * scale_value_by_horizontal_resolution(4) / pixel_size;
-    if (lens_mode == 0)
-        update_blocks_pointed();
-    update_local_mouse_light();
-    LbScreenStoreGraphicsWindow(&grwnd);
-    store_engine_window(&ewnd,pixel_size);
-    view_height_over_2 = ewnd.height/2;
-    view_width_over_2 = ewnd.width/2;
-    LbScreenSetGraphicsWindow(ewnd.x, ewnd.y, ewnd.width, ewnd.height);
-    setup_vecs(lbDisplay.GraphicsWindowPtr, 0, lbDisplay.GraphicsScreenWidth,
-        ewnd.width, ewnd.height);
-    camera_zoom = scale_camera_zoom_to_screen(cam->zoom);
-    draw_view(cam, 0);
-    RendererSetDrawFlags(flg_mem);
-    thing_being_displayed = 0;
-    LbScreenLoadGraphicsWindow(&grwnd);
-}
-
-void redetect_screen_refresh_rate_for_draw()
-{
-    fps_limit_current = 0;
-
-    if (fps_limit_main == -1) {
-        if (fps_limit_secondary > 0)
-            fps_limit_current = fps_limit_secondary;
-
-        int refresh_rate = PlatformManager_GetDisplayRefreshRate();
-        if (refresh_rate > 0) {
-            fps_limit_current = refresh_rate;
-        }
-
-    } else if (fps_limit_main > 0) {
-        fps_limit_current = fps_limit_main;
-    }
-}
-
-bool use_delta_time()
-{
-    // Always enable interpolation in multiplayer games.
-    return is_feature_on(Ft_DeltaTime) || network_is_active();
-}
-
-void update_frontend_delta_time()
-{
-    static int64_t prev = 0;
-    const int64_t now = get_time_tick_ns();
-    const int64_t ns = now - prev;
-    prev = now;
-    const long double dt = ns / 1e9L * turns_per_second;
-    game.delta_time = min(max(dt, 0.L), 1.L);
-}
-
-void update_gameplay_delta_time()
-{
-    if (use_delta_time()) {
-        static int64_t prev = 0;
-        const int64_t now = get_time_tick_ns();
-        const int64_t ns = now - prev;
-        prev = now;
-
-        const long double seconds = max(ns / 1e9L, 0.L);
-        const long double turns = seconds * turns_per_second;
-        const long double frames = seconds * fps_limit_current;
-
-        game.process_turn_time += turns * multiplayer_clock_adjust * max(game.frame_skip, 1);
-
-        // This sets game.delta_time, which is used to pace locally-displayed
-        // things (eg. tooltip scroll speed).  It should not be affected by
-        // multiplayer clock adjustment or frameskip.
-        time_since_last_draw += turns;
-
-        // Like process_turn_time, but for the video frame rate.
-        process_frame_time += frames;
-    } else {
-        // Set to 1 so that these variables don't affect anything. (if something is multiplied by 1 it doesn't change)
-        time_since_last_draw = 1;
-        game.delta_time = 1;
-        game.process_turn_time = 1;
-        process_frame_time = 1;
-    }
-}
-
-void gameplay_loop_draw();
-
-extern "C" void network_yield_draw_gameplay()
-{
-    gameplay_loop_draw();
-}
-
-extern "C" void update_velocity(void);
-extern "C" void check_mouse_scroll(void);
-extern "C" void fronttorture_update(void);
-
-extern "C" void network_yield_draw_frontend()
-{
-    update_frontend_delta_time();
-    if (frontend_menu_state == FeSt_NETLAND_VIEW) {
-        check_mouse_scroll();
-        update_velocity();
-    }
-    if (frontend_menu_state == FeSt_TORTURE) {
-        fronttorture_update();
-    }
-    if (frontend_menu_state == FeSt_NET_START) {
-        poll_inputs();
-        frontnet_start_input();
-    }
-    frontend_draw();
-    RendererPresentFrame();
-}
-
-TbBool can_thing_be_queried(struct Thing *thing, PlayerNumber plyr_idx)
-{
-    if ( (!thing_is_creature(thing)) || !( (thing->owner == plyr_idx) || (creature_is_kept_in_custody_by_player(thing, plyr_idx)) ) || (thing->alloc_flags & TAlF_IsInLimbo) || (thing->state_flags & TF1_InCtrldLimbo) || (thing->active_state == CrSt_CreatureUnconscious) )
-    {
-        return false;
-    }
-    unsigned char state = (thing->active_state == CrSt_MoveToPosition) ? thing->continue_state : thing->active_state;
-    if ( (state == CrSt_CreatureSacrifice) || (state == CrSt_CreatureBeingSacrificed) || (state == CrSt_CreatureBeingSummoned) )
-    {
-        return false;
-    }
-    else
-    {
-        return true;
-    }
 }
 
 static short process_command_line(unsigned short argc, char *argv[])
@@ -1959,12 +1728,12 @@ static short process_command_line(unsigned short argc, char *argv[])
           game_flags2 |= GF2_Timer;
           if (strcasecmp(pr2str, "game") == 0)
           {
-              TimerGame = true;
+              kfx_sim_state.TimerGame = true;
               narg++;
           }
           else if (strcasecmp(pr2str, "continuous") == 0)
           {
-              TimerNoReset = true;
+              kfx_sim_state.TimerNoReset = true;
               narg++;
           }
       }

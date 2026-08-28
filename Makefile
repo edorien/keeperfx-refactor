@@ -96,6 +96,7 @@ obj/ariadne_regions.o \
 obj/ariadne_tringls.o \
 obj/ariadne_update.o \
 obj/ariadne_wallhug.o \
+obj/kfx_pathfinding_state.o \
 obj/bflib_basics.o \
 obj/bflib_coroutine.o \
 obj/bflib_cpu.o \
@@ -163,6 +164,14 @@ obj/config_translation.o \
 obj/config_trapdoor.o \
 obj/config_spritecolors.o \
 obj/config_sounds.o \
+obj/script_hooks.o \
+obj/sim_feedback.o \
+obj/pathfinding_world.o \
+obj/render_overlay.o \
+obj/net_callbacks.o \
+obj/game_callbacks.o \
+obj/dungeon_availability.o \
+obj/sprite_lookup.o \
 obj/console_cmd.o \
 obj/custom_sprites.o \
 obj/custom_zip.o \
@@ -191,6 +200,7 @@ obj/creature_states_train.o \
 obj/creature_states_tresr.o \
 obj/creature_states_wrshp.o \
 obj/cursor_tag.o \
+obj/game_lifecycle.o \
 obj/dungeon_data.o \
 obj/dungeon_stats.o \
 obj/engine_arrays.o \
@@ -235,10 +245,8 @@ obj/frontmenu_specials.o \
 obj/game_heap.o \
 obj/game_legacy.o \
 obj/game_loop.o \
-obj/game_lghtshdw.o \
 obj/game_merge.o \
 obj/game_saves.o \
-obj/game_update.o \
 obj/gui_boxmenu.o \
 obj/gui_draw.o \
 obj/gui_frontbtns.o \
@@ -250,6 +258,8 @@ obj/gui_tooltips.o \
 obj/gui_topmsg.o \
 obj/highscores.o \
 obj/kfx_memory.o \
+obj/kfx_sim_state.o \
+obj/sim_scratch.o \
 obj/kjm_input.o \
 obj/lens_api.o \
 obj/config_effects.o \
@@ -276,6 +286,7 @@ obj/lua_cfg_funcs.o \
 obj/lua_params.o \
 obj/lua_triggers.o \
 obj/lua_utils.o \
+obj/game_session_loop.o \
 obj/lvl_filesdk1.o \
 obj/lvl_script.o \
 obj/lvl_script_commands.o \
@@ -298,6 +309,9 @@ obj/net_input_lag.o \
 obj/net_checksums.o \
 obj/net_matchmaking.o \
 obj/net_lan.o \
+obj/kfx_net_state.o \
+obj/kfx_game_state.o \
+obj/kfx_frontend_state.o \
 obj/packets.o \
 obj/packets_cheats.o \
 obj/packets_input.o \
@@ -355,11 +369,12 @@ obj/thing_physics.o \
 obj/thing_shots.o \
 obj/thing_stats.o \
 obj/thing_traps.o \
-obj/timer.o \
 obj/value_util.o \
+obj/kfx_config_state.o \
 obj/vidfade.o \
 obj/vidmode_data.o \
 obj/vidmode.o \
+obj/kfx_render_state.o \
 obj/spritesheet.o \
 $(FTEST_OBJS) \
 $(RES)
@@ -367,7 +382,6 @@ $(RES)
 MAIN_OBJ = obj/main.o
 
 TESTS_OBJ = obj/tests/tst_main.o \
-obj/tests/tst_fixes.o \
 obj/tests/001_test.o \
 obj/tests/tst_enet_server.o \
 obj/tests/tst_enet_client.o
@@ -428,7 +442,13 @@ ENABLE_EXTRACT ?= 1
 # flags to generate dependency files
 DEPFLAGS = -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -DSPNG_STATIC=1 -DAL_LIBTYPE_STATIC
 # other flags to include while compiling
-INCFLAGS =
+# src/kfx_platform and src/kfx_config (docs/refactor/stage-0{3,4}-*.md)
+# physically moved out of src/ into their own include/ dirs; everything
+# else still needs to find their headers, and their own src/*.c* files
+# still have a handful of acknowledged residual upward includes back into
+# src/ (see docs/refactor/stage-02-decouple-bflib.md and
+# stage-04-kfx-config.md), hence all three directions here.
+INCFLAGS = -I"src/kfx_platform/include" -I"src/kfx_config/include" -I"src/kfx_pathfinding/include" -I"src/kfx_sim/include" -I"src/kfx_render/include" -I"src/kfx_net/include" -I"src/kfx_game/include" -I"src/kfx_frontend/include" -I"src/kfx_script/include" -I"src/kfx_apploop/include" -I"src"
 # code optimization and debugging flags
 CV2PDB := $(shell PATH=`pwd`:$$PATH command -v cv2pdb.exe 2> /dev/null)
 DEBUG ?= 0
@@ -466,7 +486,7 @@ MAPPACKS = $(patsubst levels/%.cfg,%,$(filter-out %/personal.cfg,$(wildcard leve
 LANGS = eng chi cht cze dut fre ger ita jpn kor lat pol rus spa swe
 
 # load program version
-include version.mk
+include build/make/version.mk
 
 VER_STRING = $(VER_MAJOR).$(VER_MINOR).$(VER_RELEASE).$(BUILD_NUMBER) $(PACKAGE_SUFFIX)
 
@@ -476,7 +496,7 @@ ifndef MAKEFLAGS
 endif
 
 # load depenency packages
-include prebuilds.mk
+include build/make/prebuilds.mk
 
 # name virtual targets
 .PHONY: all docs docsdox clean clean-build deep-clean build-before
@@ -539,7 +559,7 @@ docsdox: docs/doxygen.conf
 	VERSION=$(VER_STRING) $(DOXYTOOL) docs/doxygen.conf
 
 deep-clean: deep-clean-tools deep-clean-package
-	$(MAKE) -f libexterns.mk deep-clean-libexterns
+	$(MAKE) -f obsolete/libexterns.mk deep-clean-libexterns
 
 clean: submodule clean-build clean-tools clean-libexterns clean-package
 
@@ -605,17 +625,17 @@ define BUILD_CPP_FILES_CMD
 	$(CPP) $(CXXFLAGS) -o"$@" "$<"
 endef
 
-# Pattern rules for src/kfx/lense (must come before general src/%.cpp rule)
-obj/std/%.o: src/kfx/lense/%.cpp libexterns $(GENSRC)
-	$(BUILD_CPP_FILES_CMD)
-
-obj/hvlog/%.o: src/kfx/lense/%.cpp libexterns $(GENSRC)
-	$(BUILD_CPP_FILES_CMD)
-
 obj/std/%.o: src/%.cpp libexterns $(GENSRC)
 	$(BUILD_CPP_FILES_CMD)
 
 obj/hvlog/%.o: src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+# src/kfx_platform (stage 3): same rule, second source directory.
+obj/std/%.o: src/kfx_platform/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_platform/src/%.cpp libexterns $(GENSRC)
 	$(BUILD_CPP_FILES_CMD)
 
 
@@ -632,12 +652,155 @@ obj/std/%.o: src/%.c libexterns $(GENSRC)
 obj/hvlog/%.o: src/%.c libexterns $(GENSRC)
 	$(BUILD_CC_FILES_CMD)
 
+# src/kfx_platform (stage 3): same rule, second source directory.
+obj/std/%.o: src/kfx_platform/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_platform/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+# src/kfx_config (stage 4): same rule, third source directory.
+obj/std/%.o: src/kfx_config/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_config/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+# src/kfx_pathfinding (stage 6a): ariadne pathfinding code extracted out of
+# src/kfx_sim, see docs/refactor/stage-06a-ariadne-pathfinding-interface.md.
+obj/std/%.o: src/kfx_pathfinding/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_pathfinding/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+# src/kfx_sim (stage 6): same rule, fourth source directory. Landed
+# incrementally cluster-by-cluster, so both .c and .cpp variants are
+# needed from the start even though cluster 1 is C-only.
+obj/std/%.o: src/kfx_sim/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_sim/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/std/%.o: src/kfx_sim/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_sim/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+# src/kfx_render (stage 7): same rule, fifth source directory. Landed
+# incrementally cluster-by-cluster, so both .c and .cpp variants are
+# needed from the start even though cluster 1 is C-only.
+obj/std/%.o: src/kfx_render/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_render/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/std/%.o: src/kfx_render/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_render/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+# custom_sprites.c hits a GNU Make implicit-rule-resolution quirk: with
+# five candidate `obj/std/%.o: <root>/src/%.c` pattern rules for the
+# same stem, `--debug=implicit` shows make claiming it "successfully
+# remade" the nonexistent src/custom_sprites.c via its built-in %.c:%.y
+# etc. chain search and locking onto the (wrong, first-tried) src/%.c
+# rule instead of falling through to src/kfx_render/src/%.c, where the
+# file actually lives. No other stem in this tree reproduces it. An
+# explicit (non-pattern) rule always wins over pattern rules, so this
+# sidesteps the ambiguity rather than relying on search order.
+obj/std/custom_sprites.o: src/kfx_render/src/custom_sprites.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/custom_sprites.o: src/kfx_render/src/custom_sprites.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+# src/kfx_net (stage 8): same rule, sixth source directory. Created
+# early (stage 8.3) to give kfx_net_state.h/.c a real home; the
+# physical-extraction clusters (stage 8.4) land the rest incrementally,
+# same shape as kfx_render above.
+obj/std/%.o: src/kfx_net/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_net/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/std/%.o: src/kfx_net/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_net/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+# src/kfx_game (stage 9): same rule, seventh source directory. Created
+# early (stage 9.3) to give kfx_game_state.h/.c a real home; the
+# physical-extraction clusters (stage 9.4) land the rest incrementally,
+# same shape as kfx_net above.
+obj/std/%.o: src/kfx_game/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_game/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/std/%.o: src/kfx_game/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_game/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+# src/kfx_frontend (stage 10): same rule, eighth source directory.
+# Created early (stage 10.1) to give kfx_frontend_state.h/.c a real
+# home; the physical-extraction clusters (stage 10.2+) land the rest
+# incrementally, same shape as kfx_game above.
+obj/std/%.o: src/kfx_frontend/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_frontend/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/std/%.o: src/kfx_frontend/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_frontend/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+# src/kfx_script (stage 11): same rule, ninth source directory. Moved
+# in a single pass (no incremental clusters -- see
+# src/kfx_script/CMakeLists.txt's comment for why).
+obj/std/%.o: src/kfx_script/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_script/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/std/%.o: src/kfx_script/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_script/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+# src/kfx_apploop (stage 12.5): top-level game/frontend session loop.
+obj/std/%.o: src/kfx_apploop/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_apploop/src/%.c libexterns $(GENSRC)
+	$(BUILD_CC_FILES_CMD)
+
+obj/std/%.o: src/kfx_apploop/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
+obj/hvlog/%.o: src/kfx_apploop/src/%.cpp libexterns $(GENSRC)
+	$(BUILD_CPP_FILES_CMD)
+
 
 # Windows resources compilation
 
 define BUILD_RESOURCE_CMD
 	-$(ECHO) 'Building resource: $<'
-	$(WINDRES) -i "$<" --input-format=rc -o "$@" -O coff -I"obj/"
+	$(WINDRES) -i "$<" --input-format=rc -o "$@" -O coff -I"obj/" $(INCFLAGS)
 	-$(ECHO) ' '
 endef
 
@@ -654,7 +817,7 @@ res/%.ico: res/%016-08bpp.png res/%032-08bpp.png res/%048-08bpp.png res/%064-08b
 	$(PNGTOICO) "$@" $(word 8,$^) $(word 7,$^) $(word 6,$^) --colors 256 $(word 5,$^) $(word 4,$^) $(word 3,$^) --colors 16 $(word 2,$^) $(word 1,$^)
 	-$(ECHO) ' '
 
-src/ver_defs.h: version.mk Makefile
+src/ver_defs.h: build/make/version.mk Makefile
 	$(ECHO) \#define VER_MAJOR   $(VER_MAJOR) > "$(@D)/tmp"
 	$(ECHO) \#define VER_MINOR   $(VER_MINOR) >> "$(@D)/tmp"
 	$(ECHO) \#define VER_RELEASE $(VER_RELEASE) >> "$(@D)/tmp"
@@ -666,31 +829,31 @@ src/ver_defs.h: version.mk Makefile
 
 tests: std-before $(TEST_BIN)
 
-libexterns: libexterns.mk
-	$(MAKE) -f libexterns.mk
+libexterns: obsolete/libexterns.mk
+	$(MAKE) -f obsolete/libexterns.mk
 
-clean-libexterns: libexterns.mk
-	-$(MAKE) -f libexterns.mk clean-libexterns
+clean-libexterns: obsolete/libexterns.mk
+	-$(MAKE) -f obsolete/libexterns.mk clean-libexterns
 	-$(RM) -rf deps/enet6 deps/zlib deps/spng deps/astronomy deps/centijson deps/luajit deps/miniupnpc deps/libnatpmp deps/libcurl
 	-$(RM) libexterns
 
 deps/enet6 deps/zlib deps/spng deps/astronomy deps/centijson deps/ffmpeg deps/openal deps/luajit deps/miniupnpc deps/libnatpmp deps/libcurl:
 	$(MKDIR) $@
 
-src/api.c: deps/centijson/include/json.h
-src/bflib_enet.cpp: deps/enet6/include/enet6/enet.h
-src/custom_sprites.c: deps/zlib/include/zlib.h deps/spng/include/spng.h deps/centijson/include/json.h
-src/custom_zip.c: deps/zlib/include/zlib.h deps/centijson/include/json.h
-src/moonphase.c: deps/astronomy/include/astronomy.h
+src/kfx_script/src/api.c: deps/centijson/include/json.h
+src/kfx_platform/src/bflib_enet.cpp: deps/enet6/include/enet6/enet.h
+src/kfx_render/src/custom_sprites.c: deps/zlib/include/zlib.h deps/spng/include/spng.h deps/centijson/include/json.h
+src/kfx_platform/src/custom_zip.c: deps/zlib/include/zlib.h deps/centijson/include/json.h
+src/kfx_platform/src/moonphase.c: deps/astronomy/include/astronomy.h
 deps/centitoml/toml_api.c: deps/centijson/include/json.h
 deps/centitoml/toml_conv.c: deps/centijson/include/json.h
-src/bflib_fmvids.cpp: deps/ffmpeg/libavformat/avformat.h
-src/bflib_sndlib.cpp: deps/openal/include/AL/al.h
-src/net_exchange_gameplay.c: deps/zlib/include/zlib.h
-src/net_resync.cpp: deps/zlib/include/zlib.h
-src/console_cmd.c: deps/luajit/include/lua.h
-src/net_portforward.cpp: deps/miniupnpc/include/miniupnpc/miniupnpc.h deps/libnatpmp/include/natpmp/natpmp.h
-src/net_matchmaking.c: deps/libcurl/include/curl/curl.h
+src/kfx_platform/src/bflib_fmvids.cpp: deps/ffmpeg/libavformat/avformat.h
+src/kfx_platform/src/bflib_sndlib.cpp: deps/openal/include/AL/al.h
+src/kfx_net/src/net_exchange_gameplay.c: deps/zlib/include/zlib.h
+src/kfx_net/src/net_resync.cpp: deps/zlib/include/zlib.h
+src/kfx_game/src/console_cmd.c: deps/luajit/include/lua.h
+src/kfx_net/src/net_portforward.cpp: deps/miniupnpc/include/miniupnpc/miniupnpc.h deps/libnatpmp/include/natpmp/natpmp.h
+src/kfx_net/src/net_matchmaking.c: deps/libcurl/include/curl/curl.h
 
 deps/enet6-mingw32.tar.gz:
 	curl -Lso $@ "https://github.com/dkfans/kfx-deps/releases/download/20260212/enet6-mingw32.tar.gz"
@@ -857,18 +1020,18 @@ cppcheck:
 		--suppress=CastIntegerToAddressAtReturn \
 		src 2>cppcheck.log
 
-include tool_png2ico.mk
-include tool_pngpal2raw.mk
-include tool_png2bestpal.mk
-include tool_po2ngdat.mk
-include tool_sndbanker.mk
-include tool_rnctools.mk
-#include tool_dkillconv.mk
+include build/make/tool_png2ico.mk
+include build/make/tool_pngpal2raw.mk
+include build/make/tool_png2bestpal.mk
+include build/make/tool_po2ngdat.mk
+include build/make/tool_sndbanker.mk
+include build/make/tool_rnctools.mk
+#include obsolete/tool_dkillconv.mk
 
-include pkg_lang.mk
-include pkg_gfx.mk
-include pkg_sfx.mk
-include package.mk
+include build/make/pkg_lang.mk
+include build/make/pkg_gfx.mk
+include build/make/pkg_sfx.mk
+include build/make/package.mk
 
 export RM CP MKDIR MV ECHO
 #******************************************************************************

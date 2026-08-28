@@ -2,17 +2,17 @@
 
 #ifdef FUNCTESTING
 
-#include "../pre_inc.h"
+#include "pre_inc.h"
 
 #include "../game_legacy.h"
-#include "../keeperfx.hpp"
-#include "../lvl_filesdk1.h"
-#include "../slab_data.h"
-#include "../room_util.h"
-#include "../player_instances.h"
+#include "config_keeperfx.h"
+#include "lvl_filesdk1.h"
+#include "slab_data.h"
+#include "room_util.h"
+#include "player_instances.h"
 #includw "../gui_msgs.h"
 
-#include "../post_inc.h"
+#include "post_inc.h"
 
 
 #ifdef __cplusplus
@@ -287,7 +287,7 @@ TbBool ftest_setup_test(struct FTestConfig* const test_config)
     }
 
     // set frame skip
-    game.frame_skip = test_config->frame_skip;
+    kfx_net_state.frame_skip = test_config->frame_skip;
 
     // set seed
     start_params.functest_seed = test_config->seed;
@@ -328,20 +328,20 @@ void ftest_srand()
     {
         if(start_params.functest_seed == 0)
         {
-            game.action_random_seed = get_gameturn();
-            game.ai_random_seed = get_gameturn() * 9377 + 9439 + get_gameturn();
-            game.player_random_seed = get_gameturn() * 9439 + 9377 + get_gameturn();
-            game.unsync_random_seed = get_gameturn();
-            game.sound_random_seed = get_gameturn() * 7919 + 7927;
+            kfx_sim_state.action_random_seed = get_gameturn();
+            kfx_sim_state.ai_random_seed = get_gameturn() * 9377 + 9439 + get_gameturn();
+            kfx_sim_state.player_random_seed = get_gameturn() * 9439 + 9377 + get_gameturn();
+            kfx_sim_state.unsync_random_seed = get_gameturn();
+            kfx_sim_state.sound_random_seed = get_gameturn() * 7919 + 7927;
             srand(get_gameturn());
         }
         else
         {
-            game.action_random_seed = start_params.functest_seed;
-            game.ai_random_seed = start_params.functest_seed * 9377 + 9439 + get_gameturn();
-            game.player_random_seed = start_params.functest_seed * 9439 + 9377 + get_gameturn();
-            game.unsync_random_seed = start_params.functest_seed;
-            game.sound_random_seed = start_params.functest_seed * 7919 + 7927;
+            kfx_sim_state.action_random_seed = start_params.functest_seed;
+            kfx_sim_state.ai_random_seed = start_params.functest_seed * 9377 + 9439 + get_gameturn();
+            kfx_sim_state.player_random_seed = start_params.functest_seed * 9439 + 9377 + get_gameturn();
+            kfx_sim_state.unsync_random_seed = start_params.functest_seed;
+            kfx_sim_state.sound_random_seed = start_params.functest_seed * 7919 + 7927;
             srand(start_params.functest_seed);
         }
     }

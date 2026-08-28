@@ -1,0 +1,517 @@
+/******************************************************************************/
+// Free implementation of Bullfrog's Dungeon Keeper strategy game.
+/******************************************************************************/
+/** @file config.h
+ *     Header file for config.c.
+ * @par Purpose:
+ *     Configuration and campaign files support.
+ * @par Comment:
+ *     Just a header file - #defines, typedefs, function prototypes etc.
+ * @author   Tomasz Lis
+ * @date     30 Jan 2009 - 11 Feb 2009
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+
+#ifndef DK_CONFIG_H
+#define DK_CONFIG_H
+
+#include "bflib_basics.h"
+#include "globals.h"
+#include "init_thing.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/******************************************************************************/
+typedef struct VALUE VALUE;
+struct CreditsItem;
+struct GameCampaign;
+/******************************************************************************/
+#define SINGLEPLAYER_FINISHED        -1
+#define SINGLEPLAYER_NOTSTARTED       0
+#define LEVELNUMBER_ERROR            -2
+
+#define MIN_CONFIG_FILE_SIZE          4
+
+#define LANDVIEW_MAP_WIDTH         1280
+#define LANDVIEW_MAP_HEIGHT         960
+
+// enum TbFileGroups moved to kfx_platform's globals.h (stage 13.3,
+// docs/refactor/stage-13-enforce-and-document.md) -- a pure ID
+// vocabulary enum with zero functional coupling, already used by every
+// library including kfx_platform itself, same shape as EventKinds/
+// GameKeys/ShotFireLogics moved there earlier this session.
+
+enum TbExtraLevels {
+    ExLv_None      =  0,
+    ExLv_FullMoon  =  1,
+    ExLv_NewMoon   =  2,
+};
+
+enum TbLevelKinds {
+    LvKind_None      =  0x00,
+    LvKind_IsSingle  =  0x01,
+    LvKind_IsMulti   =  0x02,
+    LvKind_IsBonus   =  0x04,
+    LvKind_IsExtra   =  0x08,
+    LvKind_IsFree    =  0x10,
+};
+
+enum Ensigns {
+    EnsNone         = 0,
+    EnsTutorial     = 2,
+    EnsFullFlag     = 10,
+    EnsBonus        = 18,
+    EnsFullMoon     = 26,
+    EnsNewMoon      = 37,
+    EnsDisTutorial  = 35,
+    EnsDisFull      = 36,
+    EnsDisMoonF     = 34,
+    EnsDisMoonN     = 45,
+    EnsDisMulti2    = 46,
+    EnsDisMulti3    = 47,
+    EnsDisMulti4    = 48,
+    EnsCoop         = 49,
+};
+
+enum TbLevelState {
+    LvSt_Hidden    =  0,
+    LvSt_HalfShow  =  1,
+    LvSt_Visible   =  2,
+};
+
+enum TbLevelLocation {
+    LvLc_VarLevels =  0,
+    LvLc_Campaign  =  1,
+    LvLc_Custom    =  2,
+};
+
+
+
+enum TbConfigLoadFlags {
+    CnfLd_Standard      =  0x00, /**< Standard load, no special behavior. */
+    CnfLd_ListOnly      =  0x01, /**< Load only list of items and their names, don't parse actual options (when applicable). */
+    CnfLd_AcceptPartial =  0x02, /**< Accept partial files (with only some options set), and don't clear previous configuration. */
+    CnfLd_IgnoreErrors  =  0x04, /**< Do not log error message on failures (still, return with error). */
+    CnfLd_PreListed     =  0x08, /**< Already parsed the names. */
+};
+
+#pragma pack(1)
+
+
+/******************************************************************************/
+
+enum confCommandResults
+{
+    ccr_comment = 0,
+    ccr_ok = 1,
+    ccr_endOfFile = -1,
+    ccr_unrecognised = -2,
+    ccr_endOfBlock = -3,
+    ccr_error = -4,
+};
+
+enum confChangeFlags
+{
+    ccf_None           = 0x00,
+    ccf_DuringLevel    = 0x01,
+    ccf_SplitExecution = 0x02,
+};
+
+enum dataTypes
+{
+    dt_default,
+    dt_uchar,
+    dt_schar,
+    dt_char,
+    dt_short,
+    dt_ushort,
+    dt_int,
+    dt_uint,
+    dt_long,
+    dt_ulong,
+    dt_longlong,
+    dt_ulonglong,
+    dt_float,
+    dt_double,
+    dt_longdouble,
+    dt_void,
+    dt_charptr,
+};
+
+#define var_type(expr)\
+    (_Generic((expr),\
+              unsigned char: dt_uchar, \
+              signed char: dt_schar, \
+              short: dt_short, unsigned short: dt_ushort, \
+              int: dt_int, unsigned int: dt_uint, \
+              long: dt_long, unsigned long: dt_ulong, \
+              long long: dt_longlong, unsigned long long: dt_ulonglong, \
+              float: dt_float, \
+              double: dt_double, \
+              long double: dt_longdouble, \
+              void*: dt_void, \
+              char*: dt_charptr, \
+              default: _Generic((expr), \
+                    char: dt_char, \
+                    default: dt_default)))
+
+// field_t: portable, works on all C99+ compilers including MSVC.
+// Takes the struct type name explicitly — produces a compile-time constant offset.
+// Use for simple (non-array-subscript) member paths.
+#include <stddef.h>
+#define field_t(type_name, member_path) \
+    (void*)(ptrdiff_t)offsetof(type_name, member_path), \
+    var_type(((type_name*)0)->member_path)
+
+// field_a: like field_t but for array-element member paths array[idx].
+// offsetof(T, arr) + idx*sizeof(element) is compile-time constant on all compilers,
+// whereas offsetof(T, arr[n]) is a GCC extension rejected by MSVC.
+#define field_a(type_name, array_member, idx) \
+    (void*)(ptrdiff_t)(offsetof(type_name, array_member) + (idx) * sizeof(((type_name*)0)->array_member[0])), \
+    var_type(((type_name*)0)->array_member[idx])
+
+// field: GCC/Clang-only convenience alias that infers the type from an expression
+// using the typeof extension. Do not use in new code — prefer field_t()/field_a().
+#ifndef _MSC_VER
+#define field(elem0_expr, member_path) \
+    field_t(typeof(elem0_expr), member_path)
+#endif
+
+/******************************************************************************/
+struct CommandWord {
+    char text[COMMAND_WORD_LEN];
+};
+
+struct NamedCommand {
+    const char *name;
+    int num;
+};
+
+struct LongNamedCommand {
+    const char* name;
+    long long num;
+};
+
+struct NamedFieldSet;
+
+struct NamedField {
+    const char *name;
+    char argnum; //for fields that assign multiple values, -1 passes full string to assign function
+    void* field;
+    uchar type;
+    int64_t default_value;
+    int64_t min;
+    int64_t max;
+    const struct NamedCommand *namedCommand;
+    int64_t (*parse_func)(const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags); // converts the text to the a number
+    void (*assign_func)(const struct NamedField* named_field, int64_t value, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+};
+
+struct NamedFieldSet {
+    int32_t* (*get_count)(void);
+    const char* block_basename;
+    const struct NamedField* named_fields;
+    struct NamedCommand* names;
+    const int max_count;
+    const size_t struct_size;
+    void* (*get_struct_base)(void);
+};
+
+#define NAMFIELDWRNLOG(format, ...) LbWarnLog("%s(line %lu): " format "\n", src_str , text_line_number, ##__VA_ARGS__)
+#define NAMFIELDERRLOG(format, ...) LbErrorLog("%s(line %lu): " format "\n", src_str , text_line_number, ##__VA_ARGS__)
+
+extern TbBool AssignCpuKeepers;
+
+extern unsigned int vid_scale_flags;
+
+extern const struct NamedCommand logicval_type[];
+
+struct ConfigFileData{
+    const char *filename;
+    TbBool (*load_func)(const char *fname, unsigned short flags);
+    void (*pre_load_func)();
+    TbBool (*post_load_func)();
+};
+
+// Moved from kfx_render's light_data.h (stage 13.3, docs/refactor/
+// stage-13-enforce-and-document.md) -- embedded by value in
+// config_effects.h's EffectConfigStats and config_objects.h's
+// ObjectConfigStats; kfx_config is the lowest-ranked of its real
+// consumers (kfx_render/kfx_sim also read it).
+struct InitLight { // sizeof=0x14
+    short radius;
+    unsigned char intensity;
+    unsigned char flags;
+    struct Coord3d mappos;
+    unsigned char is_dynamic;
+    SlabCodedCoords attached_slb;
+};
+
+struct Thing;
+struct SlabMap;
+struct SlabSet;
+struct SlabObj;
+
+// Injected so config_campaigns.c/config_terrain.c/config_trapdoor.c/
+// config_rules.c don't need frontmenu_ingame_tabs.h/frontmenu_ingame_map.h/
+// thing_doors.h/thing_traps.h/room_library.h directly just to push a
+// just-reloaded value out to the live GUI/sim state that displays it. See
+// docs/refactor/stage-04-kfx-config.md issue A. (config_crtrmodel.c's own
+// live-propagation calls are deeper -- generic per-creature iterators
+// taking further callback arguments -- and are left as a documented
+// residual rather than force-fit into this same shape.)
+struct ConfigReloadCallbacks {
+    void (*update_room_tab_to_config)(void);
+    void (*update_trap_tab_to_config)(void);
+    void (*update_powers_tab_to_config)(void);
+    void (*update_creatr_model_activities_list)(TbBool forced);
+    void (*update_all_door_stats)(void);
+    // thing_traps.h -- config_trapdoor.c's update_all_trap_draws_of_model()
+    // sweeps the live per-class thing list to refresh every placed trap's
+    // draw info after a config reload, same "config needs something from
+    // above" shape as the rest of this struct. See docs/refactor/
+    // stage-13-enforce-and-document.md.
+    void (*update_all_trap_draws_of_model)(int32_t trap_model);
+    TbBool (*add_research_to_all_players)(long rtyp, long rkind, long amount);
+    TbBool (*clear_research_for_all_players)(void);
+    void (*panel_map_update)(long x, long y, long w, long h);
+    void (*update_panel_color_player_color)(PlayerNumber plyr_idx, unsigned char color_idx);
+    void (*setup_panel_colors)(void);
+
+    // light_data.h -- lvl_filesdk1.c's load_map_data_file() resets
+    // every subtile's lightness while loading a level, same as this
+    // function already does. struct LightsShadows is kfx_render-owned
+    // (the lish global embeds it), so kfx_config can't call it directly.
+    // See docs/refactor/stage-13-enforce-and-document.md.
+    void (*clear_subtiles_lightness)(void);
+
+    // lua_cfg_funcs.h -- config-value parsing (value_function()) resolves a
+    // config-file-supplied Lua function name to its registered FuncIdx.
+    // kfx_script-layer lookup needed mid-parse, same "config needs something
+    // from above" shape as the rest of this struct. See
+    // docs/refactor/stage-09-kfx-game.md.
+    FuncIdx (*get_lua_function_idx)(const char *func_name, const struct NamedCommand *named_command);
+
+    // kfx_sim_state.h -- current level's map dimensions, read by
+    // config_rules.c while parsing rules.cfg. kfx_sim is these fields'
+    // true owner (49+ consumers across every layer read them during
+    // simulation); kfx_config only ever reads the value another loader
+    // already set, same "config needs something from above" shape as
+    // the rest of this struct. See docs/refactor/
+    // stage-13-enforce-and-document.md.
+    long (*get_map_subtiles_x)(void);
+    long (*get_map_subtiles_y)(void);
+
+    // thing_objects.h -- config_objects.c's crate_thing_to_workshop_item_class()
+    // queries live thing state while reclassifying already-placed objects,
+    // same "config needs something from above" shape as the rest of this
+    // struct. See docs/refactor/stage-13-enforce-and-document.md.
+    TbBool (*thing_is_workshop_crate)(const struct Thing *thing);
+    int (*get_wealth_size_of_gold_hoard_model)(ThingModel objmodel);
+
+    // thing_objects.h -- config_spritecolors.c writes the per-player Call
+    // to Arms animation indices at config-load time; kfx_sim's
+    // call_to_arms_graphics[] array (thing_objects.c) is the true owner
+    // and only real reader. Same "config writes into a value owned by a
+    // higher layer" shape as sim_feedback.h's other setter-shaped
+    // entries. See docs/refactor/stage-13-enforce-and-document.md.
+    void (*set_call_to_arms_graphics)(PlayerNumber plyr_idx, int birth_anim_idx, int alive_anim_idx, int leave_anim_idx);
+
+    // vidmode.h -- config_keeperfx.c sets these from keeperfx.cfg's
+    // VIDEO_MODE/INGAME_RES/POINTER_SENSITIVITY commands; kfx_render owns
+    // the underlying state (TbScreenMode passed as unsigned short since
+    // kfx_config sits below kfx_render).
+    void (*set_failsafe_vidmode)(unsigned short nmode);
+    void (*set_movies_vidmode)(unsigned short nmode);
+    void (*set_frontend_vidmode)(unsigned short nmode);
+    void (*set_game_vidmode)(unsigned int i, unsigned short nmode);
+    void (*set_base_mouse_sensitivity)(long val);
+
+    // thing_creature.h -- config_creature.c's get_job_for_subtile() queries
+    // live thing state while resolving a creature's job preference, same
+    // "config needs something from above" shape as the rest of this
+    // struct. See docs/refactor/stage-13-enforce-and-document.md.
+    TbBool (*thing_is_creature_digger)(const struct Thing *thing);
+    TbBool (*creature_is_for_dungeon_diggers_list)(const struct Thing *creatng);
+
+    // thing_data.h/creature_control.h -- config_creature.c's
+    // creature_stats_get_from_thing()/get_creature_model_flags()/
+    // creature_own_name() need a handful of struct Thing/struct
+    // CreatureControl fields; narrow accessors instead of exposing
+    // either type by value (both are kfx_sim-owned and much larger).
+    // get_creature_name_buffer() returns a pointer into the live
+    // cctrl->creature_name buffer so creature_own_name()'s name
+    // generator can write the result directly, same shape as this
+    // struct's other pointer-returning entries (e.g. get_slabset_array).
+    ThingModel (*get_thing_model)(const struct Thing *thing);
+    ThingClass (*get_thing_class_id)(const struct Thing *thing);
+    PlayerNumber (*get_thing_owner)(const struct Thing *thing);
+    uint32_t (*get_thing_creation_turn)(const struct Thing *thing);
+    unsigned short (*get_thing_index)(const struct Thing *thing);
+    unsigned char (*get_creature_blood_type)(const struct Thing *creatng);
+    char *(*get_creature_name_buffer)(const struct Thing *creatng);
+
+    // slab_data.h -- config_creature.c's get_job_for_subtile() also
+    // needs live slab-map state, same shape as the entries above.
+    struct SlabMap *(*get_slabmap_for_subtile)(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+    long (*slabmap_owner)(const struct SlabMap *slb);
+
+    // thing_factory.h -- lvl_filesdk1.c's legacy .tng/.tngfx level-file
+    // loaders create things directly, same "config needs something
+    // from above" shape as the rest of this struct.
+    TbBool (*thing_create_thing)(struct InitThing *itng);
+    TbBool (*thing_create_thing_adv)(VALUE *init_data);
+
+    // scrcapt.h -- config_keeperfx.c sets this from keeperfx.cfg's
+    // SCREENSHOT command; kfx_render owns the underlying global.
+    void (*set_screenshot_format)(unsigned char val);
+
+    // power_hand.h -- config_keeperfx.c sets this from keeperfx.cfg's
+    // HAND_SIZE command; kfx_sim owns the underlying global.
+    void (*set_hand_scale)(float val);
+
+    // room_data.h -- config_creature.c's get_job_for_subtile() needs the
+    // RoomKind of the room a creature is standing on (RoK_NONE if none);
+    // kfx_sim owns struct Room, so the room->kind read happens on its side.
+    RoomKind (*get_room_kind_thing_is_on)(const struct Thing *creatng);
+
+    // player_data.h -- config_spritecolors.c needs a player's dungeon
+    // colour index to pick the right sprite/icon/object variant; the
+    // lookup reads kfx_sim's struct Dungeon, so it can't be a local
+    // formula like PLAYER_COLORS_COUNT is.
+    unsigned char (*get_player_color_idx)(PlayerNumber plyr_idx);
+
+    // kfx_sim_state.h -- config_slabsets.c writes parsed slabset/slabobj
+    // data directly into kfx_sim's live slabset[]/slabobjs[] arrays;
+    // those arrays stay kfx_sim-owned (map_blocks.c reads them
+    // pervasively at runtime), reached here via pointer accessors.
+    struct SlabSet *(*get_slabset_array)(void);
+    unsigned short *(*get_slabset_num_ptr)(void);
+    struct SlabObj *(*get_slabobjs_array)(void);
+    short *(*get_slabobjs_idx_array)(void);
+    unsigned short *(*get_slabobjs_num_ptr)(void);
+
+    // kfx_sim_state.h -- config_terrain.c writes a single parsed
+    // BLOCKHEALTH value directly into kfx_sim's live block_health[]
+    // array; the array stays kfx_sim-owned (read pervasively at
+    // runtime), reached here via a narrow single-index setter.
+    void (*set_block_health)(long idx, long val);
+
+    // player_data.h -- config_creature.c's special-digger-breed
+    // get/set needs a single struct PlayerInfo field
+    // (player->special_digger); kfx_sim owns struct PlayerInfo.
+    ThingModel (*get_player_special_digger)(PlayerNumber plyr_idx);
+    void (*set_player_special_digger)(PlayerNumber plyr_idx, ThingModel model);
+};
+void set_config_reload_callbacks(const struct ConfigReloadCallbacks *callbacks);
+extern const struct ConfigReloadCallbacks *config_reload_callbacks;
+
+/******************************************************************************/
+extern char keeper_runtime_directory[152];
+
+#pragma pack()
+/******************************************************************************/
+extern unsigned long text_line_number;
+/******************************************************************************/
+char *prepare_file_path_buf_mod(char *dst, int dst_size, const char *mod_dir, short fgroup, const char *fname);
+char *prepare_file_path_mod(const char *mod_dir, short fgroup, const char *fname);
+char *prepare_file_fmtpath_mod(const char *mod_dir, short fgroup, const char *fmt_str, ...);
+char *prepare_file_path_buf(char *dst, int dst_size, short fgroup, const char *fname);
+char *prepare_file_path(short fgroup, const char *fname);
+char *prepare_file_fmtpath(short fgroup, const char *fmt_str, ...);
+/* New API - self-documenting game vs. mod distinction */
+char *get_game_file_path(short fgroup, const char *fname);
+char *get_mod_file_path(const char *mod_dir, short fgroup, const char *fname);
+char *get_game_file_path_fmt(short fgroup, const char *fmt_str, ...);
+char *get_mod_file_path_fmt(const char *mod_dir, short fgroup, const char *fmt_str, ...);
+unsigned char *load_data_file_to_buffer(int32_t *ldsize, short fgroup, const char *fmt_str, ...);
+/******************************************************************************/
+TbBool load_config(const struct ConfigFileData* file_data, unsigned short flags);
+/******************************************************************************/
+short is_bonus_level(LevelNumber lvnum);
+short is_extra_level(LevelNumber lvnum);
+short is_singleplayer_level(LevelNumber lvnum);
+short is_singleplayer_like_level(LevelNumber lvnum);
+short is_multiplayer_level(LevelNumber lvnum);
+short is_campaign_level(LevelNumber lvnum);
+short is_freeplay_level(LevelNumber lvnum);
+TbBool is_level_in_current_campaign(LevelNumber lvnum);
+int array_index_for_singleplayer_level(LevelNumber sp_lvnum);
+int storage_index_for_bonus_level(LevelNumber bn_lvnum);
+LevelNumber first_singleplayer_level(void);
+LevelNumber last_singleplayer_level(void);
+LevelNumber next_singleplayer_level(LevelNumber sp_lvnum, TbBool ignore);
+LevelNumber prev_singleplayer_level(LevelNumber sp_lvnum);
+LevelNumber bonus_level_for_singleplayer_level(LevelNumber sp_lvnum);
+LevelNumber first_multiplayer_level(void);
+LevelNumber next_multiplayer_level(LevelNumber mp_lvnum);
+LevelNumber first_extra_level(void);
+LevelNumber next_extra_level(LevelNumber ex_lvnum);
+LevelNumber get_extra_level(unsigned short elv_kind);
+// Level info support for active campaign
+struct LevelInformation *get_level_info(LevelNumber lvnum);
+struct LevelInformation *get_or_create_level_info(LevelNumber lvnum, unsigned long lvoptions);
+struct LevelInformation *get_first_level_info(void);
+struct LevelInformation *get_last_level_info(void);
+struct LevelInformation *get_next_level_info(struct LevelInformation *previnfo);
+struct LevelInformation *get_prev_level_info(struct LevelInformation *nextinfo);
+short set_level_info_text_name(LevelNumber lvnum, char *name, unsigned long lvoptions);
+short set_level_info_string_index(LevelNumber lvnum, char *stridx, unsigned long lvoptions);
+short get_level_fgroup(LevelNumber lvnum);
+const char *get_language_lwrstr(int lang_id);
+/******************************************************************************/
+TbBool reset_credits(struct CreditsItem *credits);
+TbBool setup_campaign_credits_data(struct GameCampaign *campgn);
+/******************************************************************************/
+TbBool parameter_is_number(const char* parstr);
+
+short find_conf_block(const char *buf,int32_t *pos,long buflen,const char *blockname);
+TbBool iterate_conf_blocks(const char * buf, int32_t * pos, long buflen, const char ** name, int * namelen);
+int recognize_conf_command(const char *buf,int32_t *pos,long buflen,const struct NamedCommand *commands);
+int get_conf_line(const char *buf, int32_t *pos, long buflen, char *dst, long dstlen);
+TbBool skip_conf_to_next_line(const char *buf,int32_t *pos,long buflen);
+int get_conf_parameter_single(const char *buf,int32_t *pos,long buflen,char *dst,long dstlen);
+int get_conf_parameter_whole(const char *buf,int32_t *pos,long buflen,char *dst,long dstlen);
+
+TbBool parse_named_field_block(const char *buf, long len, const char *config_textname, unsigned short flags,const char* blockname,
+    const struct NamedField named_field[], const struct NamedFieldSet* named_fields_set, int idx);
+TbBool parse_named_field_blocks(char *buf, long len, const char *config_textname, unsigned short flags,
+        const struct NamedFieldSet* named_fields_set);
+int recognize_conf_parameter(const char *buf,int32_t *pos,long buflen,const struct NamedCommand *commands);
+void assign_named_field_value(const struct NamedField* named_field, int64_t value, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+const char *get_conf_parameter_text(const struct NamedCommand commands[],int num);
+long get_named_field_id(const struct NamedField *desc, const char *itmname);
+long get_id(const struct NamedCommand *desc, const char *itmname);
+long long get_long_id(const struct LongNamedCommand* desc, const char* itmname);
+long get_rid(const struct NamedCommand *desc, const char *itmname);
+/******************************************************************************/
+int64_t value_name           (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_default        (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_flagsfield     (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_longflagsfield (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_icon           (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_effOrEffEl     (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_animid         (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_transpflg      (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_stltocoord     (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_function       (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t value_stringId       (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+
+void assign_icon   (const struct NamedField* named_field, int64_t value, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+void assign_default(const struct NamedField* named_field, int64_t value, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+void assign_null   (const struct NamedField* named_field, int64_t value, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+void assign_animid (const struct NamedField* named_field, int64_t value, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+
+int64_t parse_named_field_value(const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
+int64_t get_named_field_value(const struct NamedField* named_field, const struct NamedFieldSet* named_fields_set, int idx);
+
+#ifdef __cplusplus
+}
+#endif
+#endif

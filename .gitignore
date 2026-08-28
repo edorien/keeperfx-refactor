@@ -19,8 +19,23 @@
 # build/cmake/, so ignore only alternative output dirs, not build/).
 /build-*/
 /out/*
+# Ad-hoc/alternate CMake BUILD_DIR overrides (e.g. `BUILD_DIR=out_foo
+# ./build-cmake.sh`, verification builds) -- distinct from /out/* above so
+# these are ignored outright rather than just their contents.
+/out_*/
+# build-cmake.sh's post-build `cmake --install` convenience copy
+# (dist/<platform>/keeperfx[.exe] + runtime libs).
+/dist/
 *.cache
 .vscode
+# JetBrains IDE project state (CLion/IntelliJ) -- same treatment as .vscode
+# above; personal editor config, not shared project config.
+.idea/
+__pycache__/
+*.pyc
+# Scratch/manual build output outside the documented build-cmake.sh/Makefile
+# output dirs.
+/tmp/
 /libexterns
 docs/html
 docs/latex
@@ -42,11 +57,24 @@ res/keeperfx_icon.ico
 /deps/miniupnpc
 /deps/libnatpmp
 /deps/*.tar.gz
+# CMake's own fetches (deps/CMakeLists.txt / CMakeLists.txt): Windows
+# mingw32-suffixed dirs (distinct from the Makefile-fetched ones above so
+# the two can't collide if the same checkout is configured for both
+# platforms) and the SDL2-family mingw-devel tarball staging.
+/deps/*-mingw32
+/deps/*-mingw32.tar.gz
+/deps/*-mingw
+/deps/*-mingw.tar.gz
+/deps/*-lin64.tar.gz
 /cppcheck.cache
 /src/ver_defs.h
+# CMakeLists.txt generates this one at the source root, not src/ (pre-existing
+# behavior, not something this refactor changed) -- distinct path, so it
+# needs its own ignore entry alongside the one above.
+/ver_defs.h
 keeperfx.log
 crash_log.txt
 debug.log
 .local/
 .vscode/compile_and_copy_files.ps1
-/keeperfx_vs2010
+third_party/

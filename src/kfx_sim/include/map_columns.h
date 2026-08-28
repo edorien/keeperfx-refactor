@@ -1,0 +1,102 @@
+/******************************************************************************/
+// Free implementation of Bullfrog's Dungeon Keeper strategy game.
+/******************************************************************************/
+/** @file map_columns.h
+ *     Header file for map_columns.c.
+ * @par Purpose:
+ *     Column and columns array data management functions.
+ * @par Comment:
+ *     Just a header file - #defines, typedefs, function prototypes etc.
+ * @author   Tomasz Lis
+ * @date     27 Oct 2009 - 09 Nov 2009
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+#ifndef DK_MAPCOLUMN_H
+#define DK_MAPCOLUMN_H
+
+#include "globals.h"
+#include "bflib_basics.h"
+// struct Column/COLUMNS_COUNT/COLUMN_STACK_HEIGHT moved to kfx_config's
+// config_slabsets.h (stage 13.3) -- kfx_config embeds struct Column by
+// value and is the lowest-ranked real consumer.
+#include "config_slabsets.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/******************************************************************************/
+#define COLUMN_WALL_HEIGHT         5
+/******************************************************************************/
+#pragma pack(1)
+
+struct Map;
+
+struct Columns {
+    struct Column *lookup[COLUMNS_COUNT];
+    struct Column *end;
+};
+
+enum ColumnFlags {
+    CLF_ACTIVE = 0x01,
+    CLF_CEILING_MASK = 0x0E, // Height of ceiling cube layer.
+    CLF_FLOOR_MASK = 0xF0 // Height of a floor cube layer.
+};
+
+#pragma pack()
+/******************************************************************************/
+#define INVALID_COLUMN (&kfx_sim_state.columns_data[0])
+/******************************************************************************/
+struct Column *get_column_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+struct Column *get_map_column(const struct Map *map);
+struct Column *get_column(long idx);
+TbBool column_invalid(const struct Column *col);
+
+void make_solidmask(struct Column *col);
+void clear_columns(void);
+void init_columns(void);
+long find_column(struct Column *col);
+long create_column(struct Column *col);
+unsigned short find_column_height(struct Column *col);
+void init_whole_blocks(void);
+void init_top_texture_to_cube_table(void);
+
+long get_column_floor_filled_subtiles(const struct Column *col);
+long get_map_floor_filled_subtiles(const struct Map *mapblk);
+long get_floor_filled_subtiles_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+void set_column_floor_filled_subtiles(struct Column *col, MapSubtlCoord n);
+long get_column_ceiling_filled_subtiles(const struct Column *col);
+long get_map_ceiling_filled_subtiles(const struct Map *mapblk);
+TbBool map_pos_solid_at_ceiling(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+
+long get_top_cube_at_pos(SubtlCodedCoords mpos);
+long get_top_cube_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y, int32_t *cube_pos);
+MapCoord get_map_floor_height(const struct Map *mapblk);
+MapCoord get_floor_height(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+MapCoord get_floor_height_at(const struct Coord3d *pos);
+MapCoord get_map_ceiling_height(const struct Map *mapblk);
+MapCoord get_ceiling_height_at(const struct Coord3d *pos);
+MapCoord get_ceiling_height_at_subtile(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+
+TbBool cube_is_lava(long cube_id);
+TbBool cube_is_water(long cube_id);
+TbBool cube_is_sacrificial(long cube_id);
+TbBool cube_is_unclaimed_path(long cube_id);
+
+TbBool subtile_is_unsafe(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+
+TbBool subtile_has_lava_on_top(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+TbBool subtile_has_water_on_top(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+TbBool subtile_has_sacrificial_on_top(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+TbBool subtile_is_liquid(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+TbBool subtile_is_unclaimed_path(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+TbBool subtile_is_wall(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
+/******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
+#endif

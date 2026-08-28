@@ -7,6 +7,7 @@ TOC
 4. Building additional files
 5. Building a package
 6. Make command targets summary
+7. Source tree layout (src/kfx_*/)
 
 1. Downloading the code repository
 
@@ -132,3 +133,28 @@ To prepare a KeeperFX release, run the commands in the following order:
  make standard
  make heavylog
  make package
+
+7. Source tree layout (src/kfx_*/)
+
+The source is split into internal libraries under "src/", each with its
+own "include/" and "src/" (e.g. "src/kfx_sim/include/", "src/kfx_sim/src/").
+Only "src/main.cpp" and "src/ftests/" (functional-test scaffolding) remain
+directly under "src/" -- everything else lives in one of the src/kfx_*/
+library directories, not a separate top-level libs/ tree. Dependencies
+between these libraries are one-directional and enforced in CI -- see
+"docs/data_structure.md"'s "Library architecture" section for the full
+list and dependency order, and "docs/refactor/stage-13-enforce-and-document.md"
+for how the check works.
+
+If you add a new source file, remember it needs to be picked up by both
+independent build definitions, not just one:
+ - CMakeLists.txt / src/kfx_*/CMakeLists.txt (auto-follows via file(GLOB ...),
+   no edit needed as long as the file lands in the right src/kfx_*/src/;
+   this is also what native Linux builds use now -- see
+   build/cmake/modules/Dependencies.cmake for how SDL3 and the rest of
+   the third-party dependencies are resolved, system pkg-config first
+   with a FetchContent-from-source fallback)
+ - Makefile's hand-maintained OBJS list (mingw32 cross-compile, what CI's
+   Windows builds and the release workflows use)
+A file added only under src/kfx_*/src/ without updating Makefile's OBJS
+list will silently be missing from the Windows build.

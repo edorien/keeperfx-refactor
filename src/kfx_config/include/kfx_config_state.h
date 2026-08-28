@@ -1,0 +1,193 @@
+/******************************************************************************/
+// Free implementation of Bullfrog's Dungeon Keeper strategy game.
+/******************************************************************************/
+/** @file kfx_config_state.h
+ *     Header file for kfx_config_state.c.
+ * @par Purpose:
+ *     Holds struct Game's kfx_config-owned field group, migrated out of
+ *     game_legacy.h per docs/refactor/stage-13-enforce-and-document.md
+ *     (mirrors kfx_sim_state.h/kfx_net_state.h/kfx_game_state.h/
+ *     kfx_frontend_state.h/kfx_render_state.h's approach). `struct Game`
+ *     is raw-serialized wholesale (see kfx_net/src/net_resync.cpp,
+ *     kfx_game/src/game_saves.c, kfx_game/src/main_game.c's
+ *     clear_complete_game()); this struct is synced/saved/reset the same
+ *     way, alongside the other five, at all three call sites.
+ * @par Comment:
+ *     Just a header file - #defines, typedefs, function prototypes etc.
+ */
+/******************************************************************************/
+
+#ifndef DK_KFX_CONFIG_STATE_H
+#define DK_KFX_CONFIG_STATE_H
+
+#include "bflib_basics.h"
+#include "globals.h"
+#include "config_magic.h"
+#include "config_trapdoor.h"
+#include "config_objects.h"
+#include "config_cubes.h"
+#include "config_powerhands.h"
+#include "config_creature.h"
+#include "config_effects.h"
+#include "config_rules.h"
+#include "config_players.h"
+#include "config_slabsets.h"
+#include "config_terrain.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/******************************************************************************/
+
+// Mirrors player_data.h's identical #define (kfx_sim, rank2) -- kfx_config
+// can't depend on that header, so the value is duplicated here under the
+// same name (legal for identical macro redefinition). Must stay in sync
+// manually if PLAYERS_COUNT ever changes. Used by config_cubes.c/
+// config_rules.c/config_crtrmodel.c.
+#define PLAYERS_COUNT 9
+
+// Moved from kfx_render's engine_textures.h (stage 13.3, docs/refactor/
+// stage-13-enforce-and-document.md) -- pure texture-count constants
+// with no type dependency on the actual texture-buffer storage that
+// stays in engine_textures.h; kfx_config (config_cubes.c/
+// config_textures.c) is the lowest-ranked of their real consumers
+// (kfx_render/kfx_sim also read them).
+#define TEXTURE_VARIATIONS_COUNT      32
+#define TEXTURE_BLOCKS_STAT_COUNT_A   544
+#define TEXTURE_BLOCKS_STAT_COUNT_B   544
+#define TEX_B_START_POINT             1000
+#define TEXTURE_BLOCKS_STAT_COUNT   (TEXTURE_BLOCKS_STAT_COUNT_A + TEXTURE_BLOCKS_STAT_COUNT_B)
+#define TEXTURE_BLOCKS_ANIM_FRAMES    8
+#define TEXTURE_BLOCKS_ANIM_COUNT    TEX_B_START_POINT - TEXTURE_BLOCKS_STAT_COUNT_A
+#define TEXTURE_BLOCKS_COUNT         (TEXTURE_BLOCKS_STAT_COUNT + TEXTURE_BLOCKS_ANIM_COUNT)
+#define TEXTURE_LAND_MARKED_LAND     578
+#define TEXTURE_LAND_MARKED_GOLD     579
+
+#pragma pack(1)
+
+// Moved from game_legacy.h (stage 13, docs/refactor/
+// stage-13-enforce-and-document.md) alongside the conf field below that
+// embeds Configs by value -- Configs' own sub-structs (SlabsConfig,
+// PowerHandConfig, ...) are all kfx_config-owned types, so this was
+// always really kfx_config's own aggregate type, just homed in
+// game_legacy.h since stage 9.
+#define LUA_FUNCS_MAX       256
+#define LUA_FUNCNAME_LENGTH 256
+
+struct LuaFuncsConf {
+    char lua_funcs[LUA_FUNCS_MAX][LUA_FUNCNAME_LENGTH];
+};
+
+// Moved from kfx_game's game_merge.h (stage 13.3, docs/refactor/
+// stage-13-enforce-and-document.md) -- config_rules.c's
+// PRESERVECLASSICBUGS named-field table is the lowest-ranked of its
+// real consumers (kfx_sim/kfx_game also read it).
+enum ClassicBugFlags {
+    ClscBug_None                          = 0x0000,
+    ClscBug_ResurrectForever              = 0x0001,
+    ClscBug_Overflow8bitVal               = 0x0002,
+    ClscBug_ClaimRoomAllThings            = 0x0004,
+    ClscBug_ResurrectRemoved              = 0x0008,
+    ClscBug_NoHandPurgeOnDefeat           = 0x0010,
+    ClscBug_MustObeyKeepsNotDoJobs        = 0x0020,
+    ClscBug_BreakNeutralWalls             = 0x0040,
+    ClscBug_AlwaysTunnelToRed             = 0x0080,
+    ClscBug_FullyHappyWithGold            = 0x0100,
+    ClscBug_FaintedImmuneToBoulder        = 0x0200,
+    ClscBug_RebirthKeepsSpells            = 0x0400,
+    ClscBug_FriendlyFaint                 = 0x0800,
+    ClscBug_PassiveNeutrals               = 0x1000,
+    ClscBug_NeutralTortureConverts        = 0x2000,
+    ClscBug_ListEnd                       = 0x4000,
+};
+
+struct Configs {
+    struct SlabsConfig slab_conf;
+    struct PowerHandConfig power_hand_conf;
+    struct MagicConfig magic_conf;
+    struct CubesConfig cube_conf;
+    struct TrapDoorConfig trapdoor_conf;
+    struct EffectsConfig effects_conf;
+    struct CreatureConfig crtr_conf;
+    struct ObjectsConfig object_conf;
+    // Sized PLAYERS_COUNT (player_data.h, kfx_sim) -- kfx_config can't
+    // depend on that header, so the value is duplicated here as a
+    // literal. Must stay in sync manually if PLAYERS_COUNT ever changes.
+    struct RulesConfig rules[9];
+    struct PlayerStateConfig plyr_conf;
+    struct ColumnConfig column_conf;
+    struct LuaFuncsConf lua;
+};
+
+struct KfxConfigState {
+    // texture_animation/texture_id: read by kfx_render/kfx_sim/kfx_script
+    // too, but kfx_config (lvl_filesdk1.c) is the lowest-ranked of their
+    // consumer sets. Sized TEXTURE_BLOCKS_ANIM_FRAMES*TEXTURE_BLOCKS_ANIM_COUNT
+    // as a literal, not the macro expression -- TEXTURE_BLOCKS_ANIM_COUNT's
+    // definition lacks parens around its subtraction, so using it directly
+    // in a multiplication would silently compute the wrong value.
+    short texture_animation[3648];
+    unsigned char texture_id;
+
+    // col_static_entries: read by kfx_sim too, kfx_config is lower-ranked.
+    short col_static_entries[18];
+
+    // neutral_player_num/slab_ext_data(_initial): each read by several
+    // other libraries, but kfx_config is the lowest-ranked of every one
+    // of their consumer sets.
+    PlayerNumber neutral_player_num;
+    unsigned char slab_ext_data[MAX_TILES_X*MAX_TILES_Y];
+    unsigned char slab_ext_data_initial[MAX_TILES_X*MAX_TILES_Y];
+
+    // conf/pay_day_progress: moved together (stage 13, docs/refactor/
+    // stage-13-enforce-and-document.md) -- config_rules.c's
+    // PayDayProgress script field computes its offset as
+    // offsetof(_, pay_day_progress) - offsetof(_, conf.rules), which only
+    // works if both stay in the same base struct. Previously that base
+    // was struct Game; now it's this one. get_rules_base() and the
+    // offsetof expressions in config_rules.c were updated to match.
+    struct Configs conf;
+    GameTurnDelta pay_day_progress[9]; // PLAYERS_COUNT (kfx_sim) -- see comment above.
+
+    // Moved from kfx_game's sounds.c (stage 13.3, docs/refactor/
+    // stage-13-enforce-and-document.md) -- only written by kfx_config's
+    // config_keeperfx.c, kfx_game's sounds.c is its only real reader.
+    int atmos_sound_frequency;
+
+    // Moved from kfx_render's engine_camera.c (stage 13.3, docs/refactor/
+    // stage-13-enforce-and-document.md) -- CFG settings, written by
+    // kfx_config's config_keeperfx.c, read by kfx_render's own
+    // engine_camera.c and kfx_net's net_game.c (session sync)/packets.c;
+    // kfx_config is the lowest-ranked of their real consumers.
+    long zoom_distance_setting;
+    long frontview_zoom_distance_setting;
+
+    // Moved from kfx_frontend's gui_draw.c (stage 13.3, docs/refactor/
+    // stage-13-enforce-and-document.md) -- both CFG settings, read
+    // broadly by kfx_frontend/kfx_render, but kfx_config is the
+    // lowest-ranked of their real consumers (engine_render.c reads
+    // both; config_spritecolors.c also reads neutral_flash_rate).
+    int gui_blink_rate;
+    int neutral_flash_rate;
+};
+
+// Moved from kfx_render's engine_camera.h (stage 13.3, docs/refactor/
+// stage-13-enforce-and-document.md) -- read by kfx_config's
+// config_keeperfx.c and kfx_net's packets.c, kfx_config is the
+// lowest-ranked of their real consumers. CAMERA_TILT_*/MINMAX_*/
+// struct MinMax stay in kfx_render's engine_camera.h -- kfx_render is
+// their only real consumer (config_settings.c already locally
+// duplicates the tilt values it needs).
+#define CAMERA_ZOOM_MAX 12000
+#define CAMERA_ZOOM_MIN 520 // Originally 4100, adjusted for view distance
+#define FRONTVIEW_CAMERA_ZOOM_MAX 65536
+#define FRONTVIEW_CAMERA_ZOOM_MIN 3000 // Originally 16384, adjusted for view distance
+
+#pragma pack()
+/******************************************************************************/
+extern struct KfxConfigState kfx_config_state;
+/******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
+#endif

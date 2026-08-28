@@ -1,8 +1,8 @@
-#include "../globals.h"
+#include "globals.h"
 
 #ifdef FUNCTESTING
 
-#include "../pre_inc.h"
+#include "pre_inc.h"
 
 #include "ftest.h"
 
@@ -18,7 +18,7 @@
 #include "tests/ftest_bug_ai_bridge.h"
 // append your test include here, eg: #include "tests/ftest_your_test_header.h"
 
-#include "../post_inc.h"
+#include "post_inc.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,0 +1,261 @@
+/******************************************************************************/
+// Free implementation of Bullfrog's Dungeon Keeper strategy game.
+/******************************************************************************/
+/** @file vidmode.h
+ *     Header file for vidmode.c.
+ *     Note that this file is a C header, while its code is CPP.
+ * @par Purpose:
+ *     Video mode switching/setting function.
+ * @par Comment:
+ *     Just a header file - #defines, typedefs, function prototypes etc.
+ * @author   Tomasz Lis
+ * @date     05 Jan 2009 - 12 Jan 2009
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+
+#ifndef DK_VIDMODE_H
+#define DK_VIDMODE_H
+
+#include "bflib_basics.h"
+#include "globals.h"
+
+#include "bflib_video.h"
+#include "bflib_filelst.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define MAX_GAME_VIDMODE_COUNT 6 /**< the size of the switching_vidmodes array. */
+
+enum MousePointerGraphics {
+    MousePG_Invisible = 0,
+    MousePG_Arrow,
+    MousePG_Pickaxe,
+    MousePG_Sell,
+    MousePG_Query,
+    MousePG_PlaceTrap01,
+    MousePG_PlaceTrap02,
+    MousePG_PlaceTrap03,
+    MousePG_PlaceTrap04,
+    MousePG_PlaceTrap05,
+    MousePG_PlaceTrap06,
+    MousePG_PlaceDoor01,
+    MousePG_PlaceDoor02,
+    MousePG_PlaceDoor03,
+    MousePG_PlaceDoor04,
+    MousePG_DenyMark,
+    MousePG_SpellCharge0,
+    MousePG_SpellCharge1,
+    MousePG_SpellCharge2,
+    MousePG_SpellCharge3,
+    MousePG_SpellCharge4,
+    MousePG_SpellCharge5,
+    MousePG_SpellCharge6,
+    MousePG_SpellCharge7,
+    MousePG_SpellCharge8,
+    MousePG_PlaceRoom01,
+    MousePG_PlaceRoom02,
+    MousePG_PlaceRoom03,
+    MousePG_PlaceRoom04,
+    MousePG_PlaceRoom05,
+    MousePG_PlaceRoom06,
+    MousePG_PlaceRoom07,
+    MousePG_PlaceRoom08,
+    MousePG_PlaceRoom09,
+    MousePG_PlaceRoom10,
+    MousePG_PlaceRoom11,
+    MousePG_PlaceRoom12,
+    MousePG_PlaceRoom13,
+    MousePG_PlaceRoom14,
+    MousePG_LockMark,
+    MousePG_Unkn40,
+    MousePG_Unkn41,
+    MousePG_Unkn42,
+    MousePG_Unkn43,
+    MousePG_Unkn44,
+    MousePG_Unkn45,
+    MousePG_Unkn46,
+    MousePG_Unkn47,
+    MousePG_Unkn48,
+    MousePG_Unkn49,
+    MousePG_PlaceImpRock = 144,
+    MousePG_PlaceGold    = 145,
+    MousePG_PlaceEarth   = 146,
+    MousePG_PlaceWall    = 147,
+    MousePG_PlacePath    = 148,
+    MousePG_PlaceClaimed = 149,
+    MousePG_PlaceLava    = 150,
+    MousePG_PlaceWater   = 151,
+    MousePG_PlaceGems    = 152,
+    MousePG_MkDigger     = 153,
+    MousePG_MkCreature   = 154,
+    MousePG_MvCreature   = 155,
+    MousePG_Mystery      = 156,
+    MousePG_PlaceTrap07  = 157,
+    MousePG_PlaceTrap08  = 158,
+    MousePG_PlaceTrap09  = 159,
+    MousePG_PlaceTrap10  = 160,
+    MousePG_PlaceTrap11  = 161,
+    MousePG_PlaceTrap12  = 162,
+    MousePG_PlaceTrap13  = 163,
+    MousePG_PlaceTrap14  = 164,
+    MousePG_PlaceRoom15  = 165,
+    MousePG_Pickaxe2     = 473,
+};
+/******************************************************************************/
+
+struct TbColorTables {
+  unsigned char fade_tables[64*256];
+  unsigned char ghost[256*256];
+  unsigned char flat_colours_tl[2*256];
+  unsigned char flat_colours_tr[2*256];
+  unsigned char flat_colours_br[2*256];
+  unsigned char flat_colours_bl[2*256];
+  unsigned char robs_bollocks[256];
+};
+
+struct TbAlphaTables {
+    unsigned char void_black[256];
+    unsigned char white[8*256];
+    unsigned char yellow[8*256];
+    unsigned char red[8*256];
+    unsigned char blue[8*256];
+    unsigned char green[8*256];
+    unsigned char purple[8*256];
+    unsigned char black[8*256];
+    unsigned char orange[8*256];
+    // This is to force the array to have 256x256 size
+    unsigned char unused[191*256];
+};
+
+/******************************************************************************/
+extern struct TbSpriteSheet *pointer_sprites;
+extern struct TbLoadFiles legal_load_files[];
+extern struct TbLoadFilesV2 game_load_files[];
+extern unsigned short units_per_pixel_min;
+extern long base_mouse_sensitivity;
+void set_base_mouse_sensitivity(long val);
+
+extern struct TbColorTables pixmap;
+extern struct TbAlphaTables alpha_sprite_table;
+extern unsigned char white_pal[256];
+extern unsigned char red_pal[256];
+
+extern TbBool MinimalResolutionSetup;
+
+// Moved from kfx_frontend's gui_parchment.c/.h -- vidmode_data.cpp's
+// gui_load_files_640[] table (kfx_render's file-loading mechanism) is the
+// real writer of this buffer's storage address via a TbLoadFiles entry,
+// which needs &hires_parchment directly rather than through a callback.
+// gui_parchment.c (kfx_frontend, above kfx_render) remains its real
+// reader/renderer and gets it via a plain downward include. See
+// docs/refactor/stage-13-enforce-and-document.md.
+extern unsigned char *hires_parchment;
+
+// Same shape as hires_parchment above, moved from kfx_frontend's
+// front_landview.c/.h -- front_load_files_minimal_640[] (kfx_render's
+// file-loading mechanism) needs &frontend_backup_palette directly.
+// front_landview.c/front_torture.c (kfx_frontend) remain its real
+// readers/writers and get it via a plain downward include. See
+// docs/refactor/stage-13-enforce-and-document.md.
+extern unsigned char *frontend_backup_palette;
+/******************************************************************************/
+void switch_to_next_video_mode_wrapper(void);
+TbBool switch_to_next_video_mode(void);
+void set_game_vidmode(uint i, TbScreenMode nmode);
+TbScreenMode get_game_vidmode(uint i);
+TbScreenMode reenter_video_mode(void);
+TbScreenMode get_failsafe_vidmode(void);
+TbScreenMode get_movies_vidmode(void);
+TbScreenMode get_frontend_vidmode(void);
+void set_failsafe_vidmode(TbScreenMode nmode);
+void set_movies_vidmode(TbScreenMode nmode);
+void set_frontend_vidmode(TbScreenMode nmode);
+char *get_vidmode_name(TbScreenMode mode);
+
+TbScreenMode setup_screen_mode(TbScreenMode nmode, TbBool failsafe);
+TbScreenMode setup_screen_mode_minimal(TbScreenMode nmode);
+TbScreenMode setup_screen_mode_zero(TbScreenMode nmode);
+
+short LoadMcgaData(void);
+TbBool update_screen_mode_data(long width, long height);
+void load_pointer_file(short hi_res);
+TbBool load_testfont_fonts(void);
+void free_testfont_fonts(void);
+
+TbBool init_fades_table(void);
+TbBool init_alpha_table(void);
+void init_colours(void);
+// Registered with render_overlay.h's RenderOverlayCallbacks; power_hand.c
+// needs bflib's render_fade_tables/render_ghost/render_alpha pointed at
+// kfx_render's pixmap/alpha_sprite_table (see the comment above their
+// first sync site in vidmode.c).
+void sync_render_globals(void);
+
+TbBool set_pointer_graphic_none(void);
+TbBool set_pointer_graphic_menu(void);
+TbBool set_pointer_graphic_spell(long spridx, long frame);
+TbBool set_pointer_graphic(long ptr_idx);
+
+void setup_stuff(void);
+
+// blue_palette/lightning_palette/engine_palette/EngineSpriteDrawUsingAlpha
+// moved to kfx_sim_state.h (stage 13.3, docs/refactor/
+// stage-13-enforce-and-document.md) -- kfx_sim is the lowest-ranked of
+// their real consumers.
+extern unsigned char *red_palette;
+extern unsigned char *dog_palette;
+extern unsigned char *vampire_palette;
+extern unsigned char *scratch;
+
+/* font_sprites/button_sprites/winfont/frontend_font/testfont/
+   testfont_palette moved from kfx_frontend's frontend.h/frontend.cpp
+   (stage 13.3, docs/refactor/stage-13-enforce-and-document.md) --
+   loaded and written here (vidmode.c/vidmode_data.cpp's
+   load_testfont_fonts()), read broadly by kfx_frontend; kfx_render is
+   the lowest-ranked of their real consumers. */
+extern struct TbSpriteSheet *font_sprites;
+extern struct TbSpriteSheet *button_sprites;
+extern struct TbSpriteSheet *winfont;
+#define FRONTEND_FONTS_COUNT 4
+extern struct TbSpriteSheet *frontend_font[FRONTEND_FONTS_COUNT];
+#if (BFDEBUG_LEVEL > 0)
+#define TESTFONTS_COUNT 12
+extern struct TbSpriteSheet *testfont[TESTFONTS_COUNT];
+extern unsigned char *testfont_palette[3];
+#endif
+
+/* frontend_sprite moved from kfx_frontend's gui_draw.h/gui_draw.c (stage
+   13.3, docs/refactor/stage-13-enforce-and-document.md) -- written by
+   kfx_frontend's frontend.cpp, kfx_render is the lowest-ranked of its
+   real consumers (vidmode.c/custom_sprites.c). gui_panel_sprites'
+   extern moves alongside it -- real storage already lives in
+   custom_sprites.c, just declared here so vidmode.c doesn't need
+   gui_draw.h for it either. */
+extern struct TbSpriteSheet *frontend_sprite;
+extern struct TbSpriteSheet *gui_panel_sprites;
+
+/* gui_slab moved from kfx_frontend's gui_draw.h/gui_draw.c (stage 13.3,
+   docs/refactor/stage-13-enforce-and-document.md) -- written by
+   vidmode_data.cpp's load-file tables, kfx_render is the lowest-ranked
+   of its real consumers (gui_draw.c also reads it). */
+extern unsigned char *gui_slab;
+
+/* vid_change_query_menu moved from kfx_frontend's frontend.h/frontend.cpp
+   (stage 13.3, docs/refactor/stage-13-enforce-and-document.md) -- written
+   here (vidmode.c's video-mode-switch handling), read by kfx_frontend's
+   gui_frontmenu.c; kfx_render is the lowest-ranked of its real
+   consumers. */
+extern MenuID vid_change_query_menu;
+
+/******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
+#endif

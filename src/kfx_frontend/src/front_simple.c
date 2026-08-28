@@ -1,0 +1,446 @@
+/******************************************************************************/
+// Free implementation of Bullfrog's Dungeon Keeper strategy game.
+/******************************************************************************/
+/** @file front_simple.c
+ *     Simple frontend screens support.
+ * @par Purpose:
+ *     Displays simple bitmap screens, like loading, no CD or startup screens.
+ * @par Comment:
+ *     None.
+ * @author   Tomasz Lis
+ * @date     11 Mar 2009 - 23 Mar 2009
+ * @par  Copying and copyrights:
+ *     This program is free software; you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation; either version 2 of the License, or
+ *     (at your option) any later version.
+ */
+/******************************************************************************/
+#include "pre_inc.h"
+#include "kfx/renderer/RendererManager.h"
+#include "front_simple.h"
+#include "vidmode.h"
+
+#include <math.h>
+
+#include "globals.h"
+#include "bflib_basics.h"
+#include "bflib_keybrd.h"
+#include "bflib_inputctrl.h"
+#include "bflib_datetm.h"
+#include "bflib_video.h"
+#include "bflib_fileio.h"
+#include "bflib_dernc.h"
+#include "bflib_filelst.h"
+
+#include "config.h"
+#include "kjm_input.h"
+#include "scrcapt.h"
+#include "gui_draw.h"
+#include "vidfade.h"
+
+#include "post_inc.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/******************************************************************************/
+#ifdef SPRITE_FORMAT_V2
+
+// Format: <name> <width> <height> <bits per pixel> <file load location> <raw file> <palette file>
+struct RawBitmap bitmaps_1280[] = {
+  {"Empty Image",                   1280,  960, 8, FGrp_Main,    NULL,                   NULL},
+  {"Loading Image",                 1280,  960, 8, FGrp_StdData, "loading-128.raw",      "loading-128.pal",},
+  {"NoCD Image",                     320,  200, 8, FGrp_StdData, "nocd-32.raw",          "nocd-32.pal",},
+  {"DK Legal Splash",               1280,  960, 8, FGrp_StdData, "legal-128.raw",        "legal-128.pal",},
+  {"KeeperFX Splash",               1280,  960, 8, FGrp_StdData, "startfx-128.raw",      "startfx-128.pal",},
+  {"DK Legal Splash (Wide Screen)", 1920, 1080, 8, FGrp_StdData, "legal-1080p-wide.raw", "legal-1080p-wide.pal",},
+};
+
+// Format: <name> <width> <height> <bits per pixel> <file load location> <raw file> <palette file>
+struct RawBitmap bitmaps_640[] = {
+  {"Empty Image",                    640, 480, 8, FGrp_Main,    NULL,                  NULL},
+  {"Loading Image",                  640, 480, 8, FGrp_StdData, "loading-64.raw",      "loading-64.pal",},
+  {"NoCD Image",                     320, 200, 8, FGrp_StdData, "nocd-32.raw",         "nocd-32.pal",},
+  {"DK Legal Splash",                640, 480, 8, FGrp_StdData, "legal-64.raw",        "legal-64.pal",},
+  {"KeeperFX Splash",                640, 480, 8, FGrp_StdData, "startfx-64.raw",      "startfx-64.pal",},
+  {"DK Legal Splash (Wide Screen)", 1280, 720, 8, FGrp_StdData, "legal-720p-wide.raw", "legal-720p-wide.pal",},
+};
+
+// Format: <name> <width> <height> <bits per pixel> <file load location> <raw file> <palette file>
+struct RawBitmap bitmaps_320[] = {
+  {"Empty Image",                    320, 200, 8, FGrp_Main,    NULL,                  NULL},
+  {"Loading Image",                  320, 200, 8, FGrp_StdData, "loading-32.raw",      "loading-32.pal",},
+  {"NoCD Image",                     320, 200, 8, FGrp_StdData, "nocd-32.raw",         "nocd-32.pal",},
+  {"DK Legal Splash",                320, 200, 8, FGrp_StdData, "legal-32.raw",        "legal-32.pal",},
+  {"KeeperFX Splash",                320, 200, 8, FGrp_StdData, "startfx-32.raw",      "startfx-32.pal",},
+  {"DK Legal Splash (Wide Screen)", 1280, 720, 8, FGrp_StdData, "legal-720p-wide.raw", "legal-720p-wide.pal",},
+};
+#else
+
+// Format: <name> <width> <height> <bits per pixel> <file load location> <raw file> <palette file>
+struct RawBitmap bitmaps_1280[] = {
+  {"Empty Image",                    640,  480, 8, FGrp_Main,    NULL,                   NULL},
+  {"Loading Image",                  640,  480, 8, FGrp_StdData, "loading64.raw",        "loading64.pal",},
+  {"NoCD Image",                     320,  200, 8, FGrp_StdData, "nocd.raw",             "nocd.pal",},
+  {"DK Legal Splash",                640,  480, 8, FGrp_StdData, "legal64.raw",          "legal64.pal",},
+  {"KeeperFX Splash",                640,  480, 8, FGrp_StdData, "startfx64.raw",        "startfx64.pal",},
+  {"DK Legal Splash (Wide Screen)", 1920, 1080, 8, FGrp_StdData, "legal-1080p-wide.raw", "legal-1080p-wide.pal",},
+};
+
+// Format: <name> <width> <height> <bits per pixel> <file load location> <raw file> <palette file>
+struct RawBitmap bitmaps_640[] = {
+  {"Empty Image",                    640, 480, 8, FGrp_Main,    NULL,                  NULL},
+  {"Loading Image",                  640, 480, 8, FGrp_StdData, "loading64.raw",       "loading64.pal",},
+  {"NoCD Image",                     320, 200, 8, FGrp_StdData, "nocd.raw",            "nocd.pal",},
+  {"DK Legal Splash",                640, 480, 8, FGrp_StdData, "legal64.raw",         "legal64.pal",},
+  {"KeeperFX Splash",                640, 480, 8, FGrp_StdData, "startfx64.raw",       "startfx64.pal",},
+  {"DK Legal Splash (Wide Screen)", 1280, 720, 8, FGrp_StdData, "legal-720p-wide.raw", "legal-720p-wide.pal",},
+};
+
+// Format: <name> <width> <height> <bits per pixel> <file load location> <raw file> <palette file>
+struct RawBitmap bitmaps_320[] = {
+  {"Empty Image",                    320, 200, 8, FGrp_Main,    NULL,                  NULL},
+  {"Loading Image",                  320, 200, 8, FGrp_StdData, "loading32.raw",       "loading32.pal",},
+  {"NoCD Image",                     320, 200, 8, FGrp_StdData, "nocd.raw",            "nocd.pal",},
+  {"DK Legal Splash",                320, 200, 8, FGrp_StdData, "legal32.raw",         "legal32.pal",},
+  {"KeeperFX Splash",                320, 200, 8, FGrp_StdData, "startfx32.raw",       "startfx32.pal",},
+  {"DK Legal Splash (Wide Screen)", 1280, 720, 8, FGrp_StdData, "legal-720p-wide.raw", "legal-720p-wide.pal",},
+};
+
+#endif
+struct ActiveBitmap astd_bmp;
+struct ActiveBitmap nocd_bmp;
+/******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
+/******************************************************************************/
+
+// copy_raw8_image_buffer() moved to gui_draw.c (stage 10,
+// docs/refactor/stage-10-kfx-frontend.md) -- gui_draw.c/gui_parchment.c
+// (kfx_frontend's lower internal sub-layer) needed it without depending
+// on front_simple.h.
+
+/**
+ * Copies the given RAW image to the center of the screen buffer and swaps video
+ * buffers to make the image visible.
+ *
+ * This function will also scale the image while maintaing its aspect ratio.
+ *
+ * @param buf Pointer to the RAW image data.
+ * @param img_width Width of the RAW image.
+ * @param img_height Height of the RAW image.
+ *
+ * @return Returns true if the operation succeeds.
+ */
+TbBool copy_raw8_image_to_screen_center(const unsigned char *buf, const int img_width, const int img_height)
+{
+    // Only 8bpp supported for now
+    if (LbGraphicsScreenBPP() != 8)
+        return false;
+
+    // Get screen dimensions
+    int screen_width = LbScreenWidth();
+    int screen_height = LbScreenHeight();
+
+    // Get the scaling ratios
+    float width_ratio = (float)screen_width / (float)img_width;
+    float height_ratio = (float)screen_height / (float)img_height;
+
+    // Choose the smaller ratio to maintain the aspect ratio and fit the entire image
+    float ratio = width_ratio < height_ratio ? width_ratio : height_ratio;
+
+    // Calculate the scaled dimensions and round up
+    int scaled_width = ceil(img_width * ratio);
+    int scaled_height = ceil(img_height * ratio);
+
+    // Calculate starting point coordinates to center the image
+    int coord_x = (screen_width - scaled_width) >> 1;
+    int coord_y = (screen_height - scaled_height) >> 1;
+
+    // Debuglog
+    SYNCDBG(18, "Starting; src %d,%d dest %d,%d pos %d,%d",
+        (int)img_width, (int)img_height,
+        (int)scaled_width,  (int)scaled_height,
+        (int)coord_x,  (int)coord_y);
+
+    // Lock the screen
+    if (RendererLockFramebuffer() != Lb_SUCCESS)
+        return false;
+
+    // Copy image buffer to screen buffer
+    copy_raw8_image_buffer(lbDisplay.WScreen, LbGraphicsScreenWidth(), LbGraphicsScreenHeight(),
+                           scaled_width, scaled_height, coord_x, coord_y, buf, img_width, img_height);
+
+    // Perform any screen capturing
+    perform_any_screen_capturing();
+
+    // Unlock the screen
+    RendererUnlockFramebuffer();
+
+    // Swap video buffers to make the image visible
+    RendererPresentFrame();
+
+    return true;
+}
+
+TbBool show_rawimage_screen(unsigned char *raw,unsigned char *pal,int width,int height,TbClockMSec tmdelay)
+{
+    RendererPaletteSet(pal);
+    TbClockMSec end_time = LbTimerClock() + tmdelay;
+    TbClockMSec tmdelta = tmdelay / 100;
+    if (tmdelta > 100)
+        tmdelta = 100;
+    if (tmdelta < 10)
+        tmdelta = 10;
+    while (LbTimerClock() < end_time)
+    {
+        poll_inputs();
+        copy_raw8_image_to_screen_center(raw, width, height);
+        if (is_key_pressed(KC_SPACE, KMod_DONTCARE)
+         || is_key_pressed(KC_ESCAPE, KMod_DONTCARE)
+         || is_key_pressed(KC_RETURN, KMod_DONTCARE)
+         || is_mouse_pressed_lrbutton())
+        {
+            clear_key_pressed(KC_SPACE);
+            clear_key_pressed(KC_ESCAPE);
+            clear_key_pressed(KC_RETURN);
+            clear_mouse_pressed_lrbutton();
+            break;
+        }
+        LbSleepFor(tmdelta);
+    }
+    return true;
+}
+
+/**
+ * Resets bitmap screen structure to zero without freeing.
+ * @return Returns true on success.
+ */
+short clear_bitmap_screen(struct ActiveBitmap *actv_bmp)
+{
+  memset(actv_bmp, 0, sizeof(struct ActiveBitmap));
+  return true;
+}
+
+/**
+ * Frees memory used by bitmap screen and zeroes the data.
+ * @return Returns true on success.
+ */
+short free_bitmap_screen(struct ActiveBitmap *actv_bmp)
+{
+  free(actv_bmp->raw_data);
+  free(actv_bmp->pal_data);
+  return clear_bitmap_screen(actv_bmp);
+}
+
+/**
+ * Initializes bitmap screen. Loads all files and sets variables.
+ * @return Returns true on success.
+ */
+TbBool init_bitmap_screen(struct ActiveBitmap *actv_bmp,int stype)
+{
+  struct RawBitmap *rbmp;
+
+  // Decide best image to show based on the width of the screen
+  if (LbGraphicsScreenWidth() >= 1280)
+    rbmp = &bitmaps_1280[stype];
+  else if (LbGraphicsScreenWidth() >= 640)
+    rbmp = &bitmaps_640[stype];
+  else
+    rbmp = &bitmaps_320[stype];
+
+  clear_bitmap_screen(actv_bmp);
+  actv_bmp->name = rbmp->name;
+  actv_bmp->width = rbmp->width;
+  actv_bmp->height = rbmp->height;
+  actv_bmp->bpp = rbmp->bpp;
+  actv_bmp->start_tm = LbTimerClock();
+  SYNCDBG(18,"Starting; src %d,%d bpp %d",(int)actv_bmp->width,(int)actv_bmp->height,(int)actv_bmp->bpp);
+  // Load PAL
+  int32_t ldsize = PALETTE_SIZE;
+  unsigned char* buf = load_data_file_to_buffer(&ldsize, rbmp->fgroup, rbmp->pal_fname);
+  if (buf == NULL)
+  {
+    ERRORLOG("Couldn't load palette file for %s screen",rbmp->name);
+    clear_bitmap_screen(actv_bmp);
+    return false;
+  }
+  actv_bmp->pal_data = (unsigned char *)buf;
+  // Load RAW
+  ldsize = actv_bmp->width*actv_bmp->height*((actv_bmp->bpp >> 3) + ((actv_bmp->bpp%8)>0));
+  buf = load_data_file_to_buffer(&ldsize, rbmp->fgroup, rbmp->raw_fname);
+  if (buf == NULL)
+  {
+    ERRORLOG("Couldn't load raw bitmap file for %s screen",rbmp->name);
+    free(actv_bmp->pal_data);
+    clear_bitmap_screen(actv_bmp);
+    return false;
+  }
+  actv_bmp->raw_data = (TbPixel *)buf;
+  return true;
+}
+
+/** Draws active bitmap on screen.
+ *
+ * @param actv_bmp The active bitmap structure to be drawn.
+ * @return Returns true on success.
+ */
+TbBool draw_bitmap_screen(struct ActiveBitmap *actv_bmp)
+{
+    if (actv_bmp->pal_data == NULL)
+      return false;
+    RendererPaletteSet(actv_bmp->pal_data);
+    if (actv_bmp->raw_data == NULL)
+      return false;
+    copy_raw8_image_to_screen_center(actv_bmp->raw_data,actv_bmp->width,actv_bmp->height);
+    return true;
+}
+
+/** Draws active bitmap on screen, without setting palette.
+ *
+ * @param actv_bmp The active bitmap structure to be re-drawn.
+ * @return Returns true on success.
+ */
+short redraw_bitmap_screen(struct ActiveBitmap *actv_bmp)
+{
+    if (actv_bmp->raw_data == NULL)
+      return false;
+    copy_raw8_image_to_screen_center(actv_bmp->raw_data,actv_bmp->width,actv_bmp->height);
+    return true;
+}
+
+/**
+ * Shows active bitmap screen for specific time.
+ * @return Returns true on success.
+ */
+short show_bitmap_screen(struct ActiveBitmap *actv_bmp,TbClockMSec tmdelay)
+{
+    if (actv_bmp->pal_data == NULL)
+      return false;
+    if (actv_bmp->raw_data == NULL)
+      return false;
+    show_rawimage_screen(actv_bmp->raw_data,actv_bmp->pal_data,actv_bmp->width,actv_bmp->height,tmdelay);
+    return true;
+}
+
+/**
+ * Clears the screen and its palette.
+ * @return Returns true on success.
+ */
+TbBool draw_clear_screen(void)
+{
+    LbPaletteDataFillBlack(palette_buf);
+    RendererPaletteSet(palette_buf);
+    RendererClearScreen(0);
+    RendererPresentFrame();
+    return true;
+}
+
+/** Initializes bitmap screen on static struct.
+ *  Loads all files and sets variables.
+ *
+ * @param stype Bitmap screen type selector.
+ * @return Returns true on success.
+ */
+TbBool init_actv_bitmap_screen(int stype)
+{
+    return init_bitmap_screen(&astd_bmp,stype);
+}
+
+/**
+ * Frees static active bitmap struct.
+ */
+TbBool free_actv_bitmap_screen(void)
+{
+  return free_bitmap_screen(&astd_bmp);
+}
+
+/**
+ * Shows active bitmap screen from static struct for specific time.
+ * @return Returns true on success.
+ */
+TbBool show_actv_bitmap_screen(TbClockMSec tmdelay)
+{
+  return show_bitmap_screen(&astd_bmp,tmdelay);
+}
+
+/**
+ * Displays the loading screen.
+ * Will work properly only on any resolutions.
+ * @return Returns true on success.
+ */
+TbBool display_loading_screen(void)
+{
+    draw_clear_screen();
+    TbBool done = init_bitmap_screen(&astd_bmp, RBmp_WaitLoading);
+    if (done)
+    {
+      redraw_bitmap_screen(&astd_bmp);
+      LbPaletteStopOpenFade();
+      ProperForcedFadePalette(astd_bmp.pal_data, 8, Lb_PALETTE_FADE_CLOSED);
+    }
+    if (done)
+      free_bitmap_screen(&astd_bmp);
+    return done;
+}
+
+TbBool wait_for_installation_files(void)
+{
+  char ffullpath[2048];
+  short was_locked = LbScreenIsLocked();
+  prepare_file_path_buf(ffullpath, sizeof(ffullpath), FGrp_StdData, "bluepal.dat");
+  if ( LbFileExists(ffullpath) )
+    return true;
+  if ( was_locked )
+    RendererUnlockFramebuffer();
+  SYNCMSG("Installation file not found, waiting");
+  if (!init_bitmap_screen(&nocd_bmp,RBmp_WaitNoCD))
+  {
+      ERRORLOG("Unable to display CD wait splash");
+      return false;
+  }
+  draw_bitmap_screen(&nocd_bmp);
+  unsigned long counter = 0;
+  while ( !exit_keeper )
+  {
+      if ( LbFileExists(ffullpath) )
+        break;
+      for (unsigned int i = 0; i < 10; i++)
+      {
+        redraw_bitmap_screen(&nocd_bmp);
+        do
+        {
+            if (!poll_inputs())
+                exit_keeper = 1;
+            if ((exit_keeper) || (quit_game))
+              break;
+        } while (!LbIsActive());
+        if (is_key_pressed(KC_Q,KMod_DONTCARE) || is_key_pressed(KC_X,KMod_DONTCARE) || is_key_pressed(KC_ESCAPE, KMod_DONTCARE))
+        {
+          ERRORLOG("User requested quit, giving up");
+          clear_key_pressed(KC_Q);
+          clear_key_pressed(KC_X);
+          clear_key_pressed(KC_ESCAPE);
+          exit_keeper = 1;
+          break;
+        }
+        LbSleepFor(100);
+      }
+      // One 'counter' cycle lasts approx. 1 second.
+      counter++;
+      if (counter > 5)
+      {
+          ERRORLOG("Wait time too long, giving up");
+          exit_keeper = 1;
+      }
+  }
+  SYNCMSG("Finished waiting for installation after %lu seconds",counter);
+  free_bitmap_screen(&nocd_bmp);
+  if ( was_locked )
+    RendererLockFramebuffer();
+  return (!exit_keeper);
+}
+
+/******************************************************************************/
