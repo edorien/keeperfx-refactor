@@ -31,11 +31,10 @@
 #include "config_terrain.h"
 #include "kfx_config_state.h"
 #include "config_strings.h"
-// Bare extern for kfx_sim's thing_data.h thing_is_invalid() (see
-// config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- struct Thing itself stays hidden behind
-// ConfigReloadCallbacks' narrow accessors.
-extern short thing_is_invalid(const struct Thing *thing);
+// thing_is_invalid() (kfx_sim's thing_data.h) is reached through
+// config_reload_callbacks instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -206,7 +205,7 @@ ThingClass crate_thing_to_workshop_item_class(const struct Thing *thing)
 
 ThingModel crate_thing_to_workshop_item_model(const struct Thing *thing)
 {
-    if (thing_is_invalid(thing) || (config_reload_callbacks->get_thing_class_id(thing) != TCls_Object))
+    if (config_reload_callbacks->thing_is_invalid(thing) || (config_reload_callbacks->get_thing_class_id(thing) != TCls_Object))
         return kfx_config_state.conf.object_conf.object_to_door_or_trap[0];
     ThingModel tngmodel = config_reload_callbacks->get_thing_model(thing);
     if ((tngmodel <= 0) || (tngmodel >= kfx_config_state.conf.object_conf.object_types_count))

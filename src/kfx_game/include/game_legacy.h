@@ -294,6 +294,7 @@ struct Game {
 #pragma pack()
 /******************************************************************************/
 extern struct Game game;
+GameTurn game_legacy_get_gameturn(void);
 // turns_per_second moved to kfx_sim_state.h (stage 13.3, docs/refactor/
 // stage-13-enforce-and-document.md).
 // fps_limit_current/main/secondary moved to kfx_platform's bflib_video.h

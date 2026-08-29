@@ -22,8 +22,10 @@
 #include "globals.h"
 
 #include <string.h>
+#include <strings.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <SDL3/SDL.h>
 
@@ -49,7 +51,54 @@ int FatalError;
 extern "C" {
 #endif
 /******************************************************************************/
-extern TbBool emulate_integer_overflow(unsigned short nbits);
+// See EmulateIntegerOverflowFunc (bflib_basics.h) and docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static TbBool default_emulate_integer_overflow(unsigned short nbits) { return false; }
+EmulateIntegerOverflowFunc emulate_integer_overflow_provider = &default_emulate_integer_overflow;
+
+void set_emulate_integer_overflow_provider(EmulateIntegerOverflowFunc provider)
+{
+    emulate_integer_overflow_provider = provider ? provider : &default_emulate_integer_overflow;
+}
+
+// See get_gameturn()/GetGameTurnFunc (globals.h) and docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static GameTurn default_get_gameturn(void) { return 0; }
+static GetGameTurnFunc get_gameturn_provider = &default_get_gameturn;
+
+void set_get_gameturn_provider(GetGameTurnFunc provider)
+{
+    get_gameturn_provider = provider ? provider : &default_get_gameturn;
+}
+
+GameTurn get_gameturn(void)
+{
+    return get_gameturn_provider();
+}
+
+/**
+ * Returns ID of given item using NamedCommands list, or any item if the string is 'RANDOM'.
+ * Similar to recognize_conf_parameter(), but for use only if the buffer stores
+ * one word, ended with "\0".
+ * If not found, returns -1.
+ */
+long get_rid(const struct NamedCommand *desc, const char *itmname)
+{
+  long i;
+  if ((desc == NULL) || (itmname == NULL))
+    return -1;
+  for (i=0; desc[i].name != NULL; i++)
+  {
+    if (strcasecmp(desc[i].name, itmname) == 0)
+      return desc[i].num;
+  }
+  if (strcasecmp("RANDOM", itmname) == 0)
+  {
+      i = (rand() % i);
+      return desc[i].num;
+  }
+  return -1;
+}
 
 // Functions which were previously defined as Inline,
 // but redefined for compatibility with both Ansi-C and C++.
@@ -97,7 +146,7 @@ long saturate_set_signed(long long val,unsigned short nbits)
 unsigned long saturate_set_unsigned(unsigned long long val,unsigned short nbits)
 {
     unsigned long long maximum_value = (1 << (nbits)) - 1;
-    if (emulate_integer_overflow(nbits))
+    if (emulate_integer_overflow_provider(nbits))
         return (val & maximum_value);
     if (val >= maximum_value)
         return maximum_value;

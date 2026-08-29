@@ -89,6 +89,36 @@ unsigned short pixel_size;
 unsigned short pixels_per_block;
 unsigned short units_per_pixel;
 
+// Owned here (not vidmode.c, kfx_render) because their only writers,
+// calculate_landview_upp() and calculate_aspect_ratio_factor() below, are
+// themselves defined in this file -- vidmode.c only calls into them, it
+// never reads or writes these directly. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+unsigned short units_per_pixel_landview;
+unsigned short units_per_pixel_landview_frame;
+unsigned long aspect_ratio_factor_HOR_PLUS;
+unsigned long aspect_ratio_factor_HOR_PLUS_AND_VERT_PLUS;
+unsigned long first_person_vertical_fov;
+unsigned long landview_frame_movement_scale_x;
+unsigned long landview_frame_movement_scale_y;
+
+// See VideoScaleCallbacks (bflib_video.h) and docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static const struct VideoScaleValues default_video_scale_values = {16, 16, 16, 16, 16};
+static const struct VideoScaleValues *default_get_video_scale_values(void)
+{
+    return &default_video_scale_values;
+}
+static const struct VideoScaleCallbacks default_video_scale_callbacks = {
+    &default_get_video_scale_values,
+};
+const struct VideoScaleCallbacks *video_scale_callbacks = &default_video_scale_callbacks;
+
+void set_video_scale_callbacks(const struct VideoScaleCallbacks *callbacks)
+{
+    video_scale_callbacks = callbacks ? callbacks : &default_video_scale_callbacks;
+}
+
 /**
   * The id number of the current display that the game renders to, defaults to 0.
   * id 0 is the first (or only) screen, id 1 is the second screen, etc.
@@ -1127,8 +1157,9 @@ long scale_value_for_resolution_with_upp(long base_value, long units_per_px)
  */
 long scale_value_by_horizontal_resolution(long base_value)
 {
+    unsigned short upp_width = video_scale_callbacks->get_video_scale_values()->units_per_pixel_width;
     // return value is equivalent to: round(base_value * units_per_pixel_width /16)
-    long value = ((((units_per_pixel_width * base_value) >> 3) + (((units_per_pixel_width * base_value) >> 3) & 1)) >> 1);
+    long value = ((((upp_width * base_value) >> 3) + (((upp_width * base_value) >> 3) & 1)) >> 1);
     return value;
 }
 
@@ -1140,8 +1171,9 @@ long scale_value_by_horizontal_resolution(long base_value)
  */
 long scale_value_by_vertical_resolution(long base_value)
 {
+    unsigned short upp_height = video_scale_callbacks->get_video_scale_values()->units_per_pixel_height;
     // return value is equivalent to: round(base_value * units_per_pixel_height /16)
-    long value = ((((units_per_pixel_height * base_value) >> 3) + (((units_per_pixel_height * base_value) >> 3) & 1)) >> 1);
+    long value = ((((upp_height * base_value) >> 3) + (((upp_height * base_value) >> 3) & 1)) >> 1);
     return value;
 }
 
@@ -1153,8 +1185,9 @@ long scale_value_by_vertical_resolution(long base_value)
  */
 long scale_ui_value(long base_value)
 {
+    unsigned short upp_ui = video_scale_callbacks->get_video_scale_values()->units_per_pixel_ui;
     // return value is equivalent to: round(base_value * units_per_pixel_ui /16)
-    long value = ((((units_per_pixel_ui * base_value) >> 3) + (((units_per_pixel_ui * base_value) >> 3) & 1)) >> 1);
+    long value = ((((upp_ui * base_value) >> 3) + (((upp_ui * base_value) >> 3) & 1)) >> 1);
     return value; // can return zero
 }
 
@@ -1187,8 +1220,9 @@ long scale_ui_value_lofi(long base_value)
  */
 long scale_fixed_DK_value(long base_value)
 {
+    unsigned short upp_best = video_scale_callbacks->get_video_scale_values()->units_per_pixel_best;
     // return value is equivalent to: round(base_value * units_per_pixel_best /16)
-    long value = ((((units_per_pixel_best * base_value) >> 3) + (((units_per_pixel_best * base_value) >> 3) & 1)) >> 1);
+    long value = ((((upp_best * base_value) >> 3) + (((upp_best * base_value) >> 3) & 1)) >> 1);
     return value;
 }
 
@@ -1205,8 +1239,9 @@ long scale_fixed_DK_value(long base_value)
  */
 long scale_value_menu(long base_value)
 {
+    unsigned short upp_menu = video_scale_callbacks->get_video_scale_values()->units_per_pixel_menu;
     // return value is equivalent to: round(base_value * units_per_pixel_menu /16)
-    long value = ((((units_per_pixel_menu * base_value) >> 3) + (((units_per_pixel_menu * base_value) >> 3) & 1)) >> 1);
+    long value = ((((upp_menu * base_value) >> 3) + (((upp_menu * base_value) >> 3) & 1)) >> 1);
     return value;
 }
 

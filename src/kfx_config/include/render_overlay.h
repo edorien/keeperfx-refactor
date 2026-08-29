@@ -124,6 +124,13 @@ struct RenderOverlayCallbacks {
         MapSubtlCoord start_stl_x, MapSubtlCoord start_stl_y,
         MapSubtlCoord end_stl_x, MapSubtlCoord end_stl_y);
     TbBool (*get_lights_enabled)(void);
+
+    /* game_session_loop.h (kfx_apploop) -- engine_render.c's
+       interpolate()/interpolate_angle() need the current frame's
+       interpolation fraction, computed once per frame by kfx_apploop's
+       main loop. Found via scripts/check_layering_symbols.py
+       (docs/refactor/todo/check-layering-symbol-level-blind-spot.md). */
+    float (*get_interpolate_time)(void);
 };
 void set_render_overlay_callbacks(const struct RenderOverlayCallbacks *callbacks);
 extern const struct RenderOverlayCallbacks *render_overlay;

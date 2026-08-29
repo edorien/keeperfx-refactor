@@ -36,6 +36,8 @@ extern const struct NamedCommand orientation_desc[];
 
 
 long get_condition_value(PlayerNumber plyr_idx, unsigned char valtype, short validx);
+TbBool condition_inactive(long cond_idx);
+TbBool get_condition_status(unsigned char opkind, long left_value, long right_value);
 void process_conditions(void);
 long pop_condition(void);
 

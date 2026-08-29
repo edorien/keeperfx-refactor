@@ -137,6 +137,15 @@ struct NetCallbacks {
        (stage 13.3); both are genuine kfx_net -> kfx_frontend calls. */
     void (*draw_out_of_sync_box)(long a1, long a2, long box_width);
     void (*process_frontend_chat_message)(int player_id, const char *message);
+
+    /* game_session_loop.h (kfx_apploop) -- net_exchange_common.c updates
+       the host-packet-received timestamp kfx_apploop's multiplayer
+       clock-adjust logic reads each frame; same same-file-bare-extern
+       violation shape as network_yield_draw_gameplay above, found by
+       scripts/check_layering_symbols.py (docs/refactor/todo/
+       check-layering-symbol-level-blind-spot.md) rather than by
+       inspection like the rest of this struct. */
+    void (*set_host_packet_received)(long double value);
 };
 void set_net_callbacks(const struct NetCallbacks *callbacks);
 extern const struct NetCallbacks *net_callbacks;

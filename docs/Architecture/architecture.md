@@ -714,6 +714,10 @@ entry when a future change actually resolves it.
   **exempt tier** in the layering check (test code may depend on anything).
 - **`tests/`** — standalone CUnit test programs: `tst_main`, `tst_enet_client`,
   `tst_enet_server`, `001_test`.
+- **The `KFX_BUILD_TESTS` unit-test harness** — one Catch2 binary per
+  `src/kfx_*/` library (`kfx_sim_utest`, `kfx_config_utest`, …), opt-in,
+  native Linux only, with an opt-in `gcov`/`lcov` coverage report layered
+  on top. Full description: [`testing-harness.md`](testing-harness.md).
 
 ---
 
@@ -880,4 +884,5 @@ variants — which the current setup already supports.
 | Map / thing / slab data structures                | [`docs/data_structure.md`](../data_structure.md)                                          |
 | How to build (all three build paths)              | [`docs/build_instructions.txt`](../build_instructions.txt) §7                             |
 | How to write a functional test                    | [`src/ftests/README.md`](../../src/ftests/README.md)                                      |
+| How the `KFX_BUILD_TESTS` unit-test/coverage harness works | [`testing-harness.md`](testing-harness.md)                                       |
 |                                                   |                                                                                           |

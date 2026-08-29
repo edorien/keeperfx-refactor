@@ -533,14 +533,17 @@ static void calculate_hud_scale(struct Camera *cam) {
     hud_scale = ((range_input - range_min)) / (range_max - range_min);
 }
 
-extern float interpolate_time;  // main.cpp
+// interpolate_time (kfx_apploop's game_session_loop.cpp) is reached
+// through render_overlay instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 float interpolate(float previous, float current)
 {
     if (! is_feature_on(Ft_DeltaTime))
         return current;
 
-    return LbLerp(previous, current, interpolate_time);
+    return LbLerp(previous, current, render_overlay->get_interpolate_time());
 }
 
 float interpolate_angle(float previous, float current)
@@ -548,7 +551,7 @@ float interpolate_angle(float previous, float current)
     if (! is_feature_on(Ft_DeltaTime))
         return current;
 
-    return lerp_angle(previous, current, interpolate_time);
+    return lerp_angle(previous, current, render_overlay->get_interpolate_time());
 }
 
 // For things that stop moving when the game is paused.

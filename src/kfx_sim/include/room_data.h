@@ -57,6 +57,13 @@ struct Dungeon;
 
 typedef void (*Room_Update_Func)(struct Room *);
 
+// Moved from kfx_config's config_terrain.h/.c (see docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md): every element is a
+// kfx_sim function, and kfx_config never read these arrays itself, only
+// defined them for this file's own room_data.c to read.
+extern Room_Update_Func terrain_room_total_capacity_func_list[13];
+extern Room_Update_Func terrain_room_used_capacity_func_list[10];
+
 struct Room {
     unsigned char alloc_flags;
     RoomIndex index; // index in the rooms array
@@ -135,6 +142,13 @@ TbBool room_is_invalid(const struct Room *room);
 TbBool room_exists(const struct Room *room);
 
 unsigned long compute_room_max_health(unsigned short slabs_count,unsigned short efficiency);
+void count_slabs_all_only(struct Room *room);
+void count_slabs_all_wth_effcncy(struct Room *room);
+void count_slabs_no_min_wth_effcncy(struct Room *room);
+void count_slabs_div2_wth_effcncy(struct Room *room);
+void count_slabs_div2_nomin_effcncy(struct Room *room);
+void count_slabs_mul2_wth_effcncy(struct Room *room);
+void count_slabs_pow2_wth_effcncy(struct Room *room);
 void set_room_efficiency(struct Room *room);
 void do_room_recalculation(struct Room* room);
 long get_room_slabs_count(PlayerNumber plyr_idx, RoomKind rkind);

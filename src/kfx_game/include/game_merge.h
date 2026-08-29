@@ -43,6 +43,7 @@ extern "C" {
 #define PLAYERS_FOR_CAMPAIGN_FLAGS    5
 #define CAMPAIGN_FLAGS_PER_PLAYER     8
 #define TRANSFER_CREATURE_STORAGE_COUNT     255
+#define ENSIGN_OVERRIDES_COUNT       64
 
 // THING_RANDOM/GAME_RANDOM/UNSYNC_RANDOM/SOUND_RANDOM/AI_RANDOM/
 // PLAYER_RANDOM moved to kfx_sim_state.h (stage 13.3, docs/refactor/
@@ -85,6 +86,11 @@ enum GameFlags2 {
 // docs/refactor/stage-10-kfx-frontend.md) -- only ever embedded by
 // value in evntbox_scroll_window, moved there too.
 
+struct LevelEnsignOverride {
+    LevelNumber lvnum;
+    TbBool active;
+    unsigned short ensign_type;
+};
 /**
  * Structure which stores data copied between levels.
  * This data is not lost between levels of a campaign.
@@ -94,6 +100,7 @@ struct IntralevelData {
     struct CreatureStorage transferred_creatures[PLAYERS_COUNT][TRANSFER_CREATURE_STORAGE_COUNT];
     long campaign_flags[PLAYERS_FOR_CAMPAIGN_FLAGS][CAMPAIGN_FLAGS_PER_PLAYER];
     char next_level;
+    struct LevelEnsignOverride ensign_overrides[ENSIGN_OVERRIDES_COUNT];
 };
 
 
@@ -122,6 +129,9 @@ void update_extra_levels_visibility(void);
 TbBool set_bonus_level_visibility_for_singleplayer_level(struct PlayerInfo *player, unsigned long sp_lvnum, short visible);
 TbBool set_bonus_level_visibility(LevelNumber bn_lvnum, TbBool visible);
 TbBool emulate_integer_overflow(unsigned short nbits);
+TbBool update_or_create_level_ensign_override(LevelNumber lvnum, short ensign_type);
+struct LevelEnsignOverride *get_level_ensign_override(LevelNumber lvnum);
+TbBool set_level_ensign(LevelNumber lvnum, short ensign_id);
 /******************************************************************************/
 
 #ifdef __cplusplus

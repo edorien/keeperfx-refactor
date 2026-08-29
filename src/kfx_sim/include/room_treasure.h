@@ -35,6 +35,7 @@ extern "C" {
 /******************************************************************************/
 void count_gold_slabs_wth_effcncy(struct Room *room);
 void count_gold_slabs_full(struct Room *room);
+void count_gold_slabs_div2(struct Room *room);
 struct Thing *find_gold_hoarde_at(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
 struct Thing *treasure_room_eats_gold_piles(struct Room *room, MapSlabCoord slb_x, MapSlabCoord slb_y, struct Thing *hoardtng);
 void count_gold_hoardes_in_room(struct Room *room);

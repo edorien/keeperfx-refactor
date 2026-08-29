@@ -1604,7 +1604,15 @@ enum GameKeys {
  */
 typedef long MenuNumber;
 
-extern GameTurn get_gameturn();
+// get_gameturn() itself (bflib_basics.c) is a thin wrapper over a
+// registered provider -- kfx_game's game_legacy.c owns the real
+// kfx_game_state read and is wired up as that provider from main.cpp.
+// Every ERRORLOG/WARNLOG/etc. call site above is unaffected: they still
+// just call get_gameturn(). See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+GameTurn get_gameturn(void);
+typedef GameTurn (*GetGameTurnFunc)(void);
+void set_get_gameturn_provider(GetGameTurnFunc provider);
 #ifdef __cplusplus
 }
 #endif

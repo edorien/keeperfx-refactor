@@ -20,3 +20,9 @@ list(APPEND KFX_OBJECT_LIBS_STD kfx_config)
 set(KFX_OBJECT_LIBS_STD ${KFX_OBJECT_LIBS_STD} PARENT_SCOPE)
 list(APPEND KFX_OBJECT_LIBS_HVLOG kfx_config_hvlog)
 set(KFX_OBJECT_LIBS_HVLOG ${KFX_OBJECT_LIBS_HVLOG} PARENT_SCOPE)
+
+# docs/refactor/testing/stage-01-framework-and-scaffold.md: opt-in Catch2
+# unit tests, gated the same way as the FetchContent(Catch2) block itself.
+if(KFX_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()

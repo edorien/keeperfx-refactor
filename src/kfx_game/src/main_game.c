@@ -81,7 +81,9 @@
 
 #include "post_inc.h"
 
-extern TbBool force_player_num;
+// force_player_num now lives in kfx_config's struct StartupParameters
+// (start_params). See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 extern TbBool IMPRISON_BUTTON_DEFAULT;
 extern TbBool FLEE_BUTTON_DEFAULT;
 extern unsigned long features_enabled;
@@ -578,7 +580,7 @@ void startup_network_game(CoroutineLoop *context, TbBool local)
     setup_count_players();
     player = get_my_player();
     flgmem = player->is_active;
-    if (local && (campaign.human_player >= 0) && (!force_player_num))
+    if (local && (campaign.human_player >= 0) && (!start_params.force_player_num))
     {
         default_loc_player = campaign.human_player;
         kfx_net_state.local_plyr_idx = default_loc_player;

@@ -37,11 +37,10 @@
 extern "C" {
 #endif
 /******************************************************************************/
-// Bare extern for kfx_sim's lvl_filesdk1.h global (see config_terrain.c's
-// terrain_room_*_capacity_func_list for the same established pattern) --
-// lvl_filesdk1.c/.h moved from kfx_config to kfx_sim in stage 13.3
-// (docs/refactor/stage-13-enforce-and-document.md).
-extern char *level_strings[];
+// level_strings[] (kfx_sim's lvl_filesdk1.h) is reached through
+// config_reload_callbacks instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 char *gui_strings_data_list[MOD_ITEM_MAX*MOD_ITEM_TYPE_CNT+1] = {0};
 int gui_strings_data_count = 0;
@@ -420,6 +419,7 @@ const char * get_string(TextStringId stridx)
     }
     if (stridx < TRANSLATION_STRINGS_START)
     {
+        char **level_strings = config_reload_callbacks->get_level_strings();
         if (level_strings[stridx] != NULL)
         {
             if (*level_strings[stridx] != '\0')

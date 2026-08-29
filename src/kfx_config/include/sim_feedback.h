@@ -42,6 +42,7 @@ struct PlayerInfo;
 struct Packet;
 struct RoomSpace;
 struct Camera;
+struct EventTypeInfo;
 typedef struct VALUE VALUE;
 
 // Physically split out of kfx_frontend's front_input.h (camera_data.h/
@@ -125,6 +126,7 @@ struct SimFeedbackCallbacks {
        player_instances.c/room_jobs.c) and kfx_config (config_objects.c/
        lvl_filesdk1.c, at config-reload/level-load time). */
     long (*light_create_light)(struct InitLight *ilght);
+    void (*light_init_dungeon_heart)(long lgt_id, long min_radius, long min_intensity);
     void (*light_delete_light)(long idx);
     void (*light_turn_light_off)(long num);
     void (*light_turn_light_on)(long num);
@@ -139,6 +141,33 @@ struct SimFeedbackCallbacks {
     void (*light_initialise)(void);
     int (*light_count_lights)(void);
     TbBool (*light_create_light_adv)(VALUE *init_data);
+
+    /* game_loop.h -- kfx_sim's thing_objects.c (dungeon heart destruction)
+       triggers kfx_game's top-level dungeon-destroyed/devastate-from-heart
+       orchestration; found via scripts/check_layering_symbols.py
+       (docs/refactor/todo/check-layering-symbol-level-blind-spot.md). */
+    void (*process_dungeon_destroy)(struct Thing *heartng);
+    void (*initialise_devastate_dungeon_from_heart)(PlayerNumber plyr_idx);
+
+    /* engine_textures.h -- kfx_sim's lvl_filesdk1.c triggers loading the
+       level's texture map at level-load time; kfx_render owns the
+       texture data. Found via scripts/check_layering_symbols.py
+       (docs/refactor/todo/check-layering-symbol-level-blind-spot.md). */
+    TbBool (*load_texture_map_file)(unsigned long tmapidx, LevelNumber lvnum, short fgroup);
+
+    /* frontend.h -- kfx_sim's map_events.c reads two fields
+       (turns_between_events/lifespan_turns) of this per-event-kind
+       table; the table itself mixes UI fields (button sprite/tooltip,
+       kfx_render-owned enum values) with these sim fields, so it stays
+       kfx_frontend-owned rather than moving down. Found via
+       scripts/check_layering_symbols.py (docs/refactor/todo/
+       check-layering-symbol-level-blind-spot.md). */
+    const struct EventTypeInfo *(*get_event_button_info)(EventKind evkind);
+
+    /* front_lvlstats.h -- kfx_sim's player_utils.c triggers
+       (re)initialising the level-stats screen at level end; kfx_frontend
+       owns that screen's state. */
+    void (*frontstats_initialise)(void);
 
     /* kjm_input.h -- raw mouse/keyboard query functions, called from
        kfx_render (engine_redraw.c/engine_render.c/vidfade.c) and

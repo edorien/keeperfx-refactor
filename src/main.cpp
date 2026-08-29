@@ -88,10 +88,12 @@
 #include "config_mods.h"
 #include "config_compp.h"
 #include "config_effects.h"
+#include "config_rules.h"
 #include "lua_triggers.h"
 #include "lua_cfg_funcs.h"
 #include "script_hooks.h"
 #include "lvl_script.h"
+#include "lvl_script_lib.h"
 #include "lvl_filesdk1.h"
 #include "thing_list.h"
 #include "player_instances.h"
@@ -135,6 +137,7 @@
 #include "map_blocks.h"
 #include "creature_control.h"
 #include "creature_states.h"
+#include "creature_jobs.h"
 #include "creature_instances.h"
 #include "creature_graphics.h"
 #include "creature_states_combt.h"
@@ -183,15 +186,14 @@
 #define strcasecmp _stricmp
 #endif
 
-char autostart_multiplayer_campaign[80] = "";
-int autostart_multiplayer_level = 0;
-
+// autostart_multiplayer_campaign/autostart_multiplayer_level/
+// force_player_num moved into kfx_config's struct StartupParameters
+// (start_params) -- see config_keeperfx.h and docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-TbBool force_player_num = false;
 
 /******************************************************************************/
 
@@ -343,6 +345,19 @@ static uint32_t *get_sound_random_seed(void)
 static uint32_t *get_unsync_random_seed(void)
 {
     return &kfx_sim_state.unsync_random_seed;
+}
+
+// Wrapper registered with bflib_sndlib.h's SoundStateCallbacks; config.c's
+// creature_desc[] is a plain array, not a function, so it needs a getter
+// to be passed through the callback table. prepare_file_path/_mod/_buf,
+// prepare_file_fmtpath, creature_code_name, and thing_is_invalid are
+// passed by direct reference below -- their real (config.c/
+// config_creature.c/thing_data.c) signatures already match the callback
+// fields exactly. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static const struct NamedCommand *get_creature_desc(void)
+{
+    return creature_desc;
 }
 
 // Wrapper registered with config.h's ConfigReloadCallbacks (see
@@ -498,6 +513,51 @@ static void set_player_special_digger(PlayerNumber plyr_idx, ThingModel model)
 {
     get_player(plyr_idx)->special_digger = model;
 }
+
+// Wrappers registered with config.h's ConfigReloadCallbacks (see
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md);
+// my_player_number is a plain kfx_sim global, and the *_func_type/
+// *_func_commands/level_strings entries are kfx_sim arrays -- both need
+// a getter to be passed through a callback table. Everything else this
+// batch of ConfigReloadCallbacks fields backs is passed by direct
+// reference in config_reload_callbacks_impl below, since their real
+// (kfx_sim) signatures already match the callback fields exactly.
+static unsigned char get_my_player_number(void) { return my_player_number; }
+static const struct NamedCommand *get_computer_process_func_type(void) { return computer_process_func_type; }
+static const struct NamedCommand *get_computer_check_func_type(void) { return computer_check_func_type; }
+static const struct NamedCommand *get_computer_event_func_type(void) { return computer_event_func_type; }
+static const struct NamedCommand *get_computer_event_test_func_type(void) { return computer_event_test_func_type; }
+static const struct NamedCommand *get_creature_instances_func_type(void) { return creature_instances_func_type; }
+static const struct NamedCommand *get_creature_instances_validate_func_type(void) { return creature_instances_validate_func_type; }
+static const struct NamedCommand *get_creature_instances_search_targets_func_type(void) { return creature_instances_search_targets_func_type; }
+static const struct NamedCommand *get_creature_job_player_assign_func_type(void) { return creature_job_player_assign_func_type; }
+static const struct NamedCommand *get_creature_job_player_check_func_type(void) { return creature_job_player_check_func_type; }
+static const struct NamedCommand *get_creature_job_coords_check_func_type(void) { return creature_job_coords_check_func_type; }
+static const struct NamedCommand *get_creature_job_coords_assign_func_type(void) { return creature_job_coords_assign_func_type; }
+static const struct NamedCommand *get_process_func_commands(void) { return process_func_commands; }
+static const struct NamedCommand *get_cleanup_func_commands(void) { return cleanup_func_commands; }
+static const struct NamedCommand *get_move_from_slab_func_commands(void) { return move_from_slab_func_commands; }
+static const struct NamedCommand *get_move_check_func_commands(void) { return move_check_func_commands; }
+static char **get_level_strings(void) { return level_strings; }
+static void set_speech_queue_limit(int limit) { g_speech_queue_limit = limit; }
+
+// Wrapper registered with kfx_config's NetCallbacks (net_callbacks.h);
+// net_exchange_common.c can't reach kfx_apploop's host_packet_received
+// directly. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static void set_host_packet_received(long double value) { host_packet_received = value; }
+
+// Wrapper registered with kfx_config's RenderOverlayCallbacks
+// (render_overlay.h); engine_render.c can't reach kfx_apploop's
+// interpolate_time directly. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static float get_interpolate_time(void) { return interpolate_time; }
+
+// Wrapper registered with kfx_config's SimFeedbackCallbacks
+// (sim_feedback.h); map_events.c can't reach kfx_frontend's
+// event_button_info[] directly. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static const struct EventTypeInfo *get_event_button_info(EventKind evkind) { return &event_button_info[evkind]; }
 
 // Wrappers registered with sim_feedback.h's SimFeedbackCallbacks; kfx_net
 // (and kfx_game/kfx_frontend/kfx_apploop) own this session state.
@@ -1061,8 +1121,18 @@ short setup_game(void)
       &get_sound_random_seed, &get_unsync_random_seed,
       &init_sound, &mute_audio,
       &play_creature_sound,
+      &prepare_file_path, &prepare_file_path_mod,
+      &prepare_file_path_buf, &prepare_file_fmtpath,
+      &creature_code_name, &get_creature_desc,
+      &thing_is_invalid,
   };
   set_sound_state_callbacks(&sound_state_callback_table);
+  static const struct VideoScaleCallbacks video_scale_callback_table = {
+      &get_video_scale_values,
+  };
+  set_video_scale_callbacks(&video_scale_callback_table);
+  set_emulate_integer_overflow_provider(&emulate_integer_overflow);
+  set_get_gameturn_provider(&game_legacy_get_gameturn);
   static const struct MapZipCallbacks map_zip_callback_table = {
       &prepare_map_zip_path,
   };
@@ -1101,6 +1171,38 @@ short setup_game(void)
       &get_slabobjs_num_ptr,
       &set_block_health,
       &get_player_special_digger, &set_player_special_digger,
+      &get_computer_player_f,
+      &reactivate_build_process,
+      &reinitialise_rooms_of_kind,
+      &recalculate_effeciency_for_rooms_of_kind,
+      &slabmap_block_invalid,
+      &slabmap_kind,
+      &find_and_load_lif_files, &find_and_load_lof_files,
+      &get_computer_process_func_type, &get_computer_check_func_type,
+      &get_computer_event_func_type, &get_computer_event_test_func_type,
+      &get_my_player_number,
+      &player_is_roaming,
+      &slab_is_area_inner_fill,
+      &thing_class_and_model_name,
+      &get_creature_instances_func_type, &get_creature_instances_validate_func_type,
+      &get_creature_instances_search_targets_func_type,
+      &get_creature_job_player_assign_func_type, &get_creature_job_player_check_func_type,
+      &get_creature_job_coords_check_func_type, &get_creature_job_coords_assign_func_type,
+      &remove_creature_lair, &update_creature_health_to_max, &update_relative_creature_health,
+      &do_to_players_all_creatures_of_model,
+      &do_to_all_things_of_class_and_model,
+      &recalculate_all_creature_digger_lists,
+      &update_speed_of_player_creatures_of_model,
+      &creature_increase_available_instances, &process_job_stress_and_going_postal,
+      &get_process_func_commands, &get_cleanup_func_commands,
+      &get_move_from_slab_func_commands, &get_move_check_func_commands,
+      &player_has_heart,
+      &thing_is_invalid,
+      &setup_excess_creatures_to_leave_or_die,
+      &get_level_strings,
+      &set_door_buildable_and_add_to_amount, &set_trap_buildable_and_add_to_amount,
+      &set_speech_queue_limit,
+      &script_strdup, &script_strval,
   };
   set_config_reload_callbacks(&config_reload_callbacks_impl);
   static const struct ScriptHookCallbacks script_hooks_impl = {
@@ -1134,11 +1236,16 @@ short setup_game(void)
       &tag_cursor_blocks_dig,
       &tag_cursor_blocks_place_door, &tag_cursor_blocks_place_room, &tag_cursor_blocks_sell_area,
       &set_engine_view, &setup_engine_window,
-      &light_create_light, &light_delete_light, &light_turn_light_off, &light_turn_light_on,
+      &light_create_light, &light_init_dungeon_heart,
+      &light_delete_light, &light_turn_light_off, &light_turn_light_on,
       &light_get_light_intensity, &light_set_light_intensity, &light_signal_update_in_area,
       &light_set_light_never_cache, &light_is_light_allocated, &light_set_light_position,
       &light_get_light_radius, &light_set_light_radius,
       &light_initialise, &light_count_lights, &light_create_light_adv,
+      &process_dungeon_destroy, &initialise_devastate_dungeon_from_heart,
+      &load_texture_map_file,
+      &get_event_button_info,
+      &frontstats_initialise,
       &GetMouseX, &GetMouseY, &is_mouse_pressed_lrbutton, &is_key_pressed, &mouse_is_over_panel_map,
       &sim_feedback_is_left_button_held,
       &PaletteSetPlayerPalette, &PaletteApplyPainToPlayer,
@@ -1213,6 +1320,7 @@ short setup_game(void)
   static const struct SpriteLookupCallbacks sprite_lookup_impl = {
       &get_icon_id, &get_anim_id, &get_anim_id_,
       &get_button_sprite, &get_panel_sprite,
+      &get_ensign_id, &init_custom_campaign_sprites,
   };
   set_sprite_lookup_callbacks(&sprite_lookup_impl);
   static const struct RenderOverlayCallbacks render_overlay_impl = {
@@ -1237,6 +1345,7 @@ short setup_game(void)
       &sync_render_globals,
       &setup_heap_manager, &reset_heap_manager, &he_alloc,
       &light_create_light, &light_set_attached_slab, &delete_lights_attached_to_slab_in_area, &light_get_lights_enabled,
+      &get_interpolate_time,
   };
   set_render_overlay_callbacks(&render_overlay_impl);
   static const struct DungeonAvailabilityCallbacks dungeon_availability_impl = {
@@ -1289,6 +1398,7 @@ short setup_game(void)
       &winning_player_quitting, &reinit_level_after_load, &complete_level, &lose_level, &resign_level,
       &load_game_chunks, &fill_game_catalogue_entry, &save_packet_chunks,
       &draw_out_of_sync_box, &process_frontend_chat_message,
+      &set_host_packet_received,
   };
   set_net_callbacks(&net_callbacks_impl);
   static const struct GameCallbacks game_callbacks_impl = {
@@ -1598,7 +1708,7 @@ static short process_command_line(unsigned short argc, char *argv[])
       {
           narg++;
           default_loc_player = atoi(pr2str);
-          force_player_num = true;
+          start_params.force_player_num = true;
       } else
       if (strcasecmp(parstr, "vidsmooth") == 0)
       {
@@ -1608,13 +1718,13 @@ static short process_command_line(unsigned short argc, char *argv[])
       {
         set_flag(start_params.operation_flags, GOF_SingleLevel);
         level_num = atoi(pr2str);
-        autostart_multiplayer_level = atoi(pr2str);
+        start_params.autostart_multiplayer_level = atoi(pr2str);
         narg++;
       } else
       if ( strcasecmp(parstr,"campaign") == 0 )
       {
         strcpy(start_params.selected_campaign, pr2str);
-        strcpy(autostart_multiplayer_campaign, pr2str);
+        strcpy(start_params.autostart_multiplayer_campaign, pr2str);
         narg++;
       } else
       if ( strcasecmp(parstr,"altinput") == 0 )

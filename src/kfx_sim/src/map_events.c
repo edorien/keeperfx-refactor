@@ -218,7 +218,7 @@ struct Event *event_create_event(MapCoord map_x, MapCoord map_y, EventKind evkin
     i = dungeon->event_last_run_turn[evkind];
     if (i != 0)
     {
-        long k = event_button_info[evkind].turns_between_events;
+        long k = sim_feedback->get_event_button_info(evkind)->turns_between_events;
         if ((k != 0) && (i+k >= get_gameturn()))
         {
           return INVALID_EVENT;
@@ -255,7 +255,7 @@ void event_initialise_event(struct Event *event, MapCoord map_x, MapCoord map_y,
     event->mappos_y = map_y;
     event->kind = evkind;
     event->owner = dngn_id;
-    event->lifespan_turns = event_button_info[evkind].lifespan_turns;
+    event->lifespan_turns = sim_feedback->get_event_button_info(evkind)->lifespan_turns;
     event->target = target;
     event->icon_idx = -1;
     event->flags |= EvF_BtnFirstFall;
@@ -320,12 +320,12 @@ void event_add_to_event_buttons_list_or_replace_button(struct Event *event, stru
     if (dungeon->owner != event->owner) {
       ERRORLOG("Illegal my_event player allocation");
     }
-    if (event_button_info[event->kind].bttn_sprite == 0)
+    if (sim_feedback->get_event_button_info(event->kind)->bttn_sprite == 0)
     {
         //Event without a button
         return;
     }
-    EventKind replace_evkind = event_button_info[event->kind].replace_event_kind_button;
+    EventKind replace_evkind = sim_feedback->get_event_button_info(event->kind)->replace_event_kind_button;
     long i;
     EventIndex evidx;
     if (replace_evkind != EvKind_Nothing)
@@ -391,7 +391,7 @@ void activate_event_box(EventIndex evidx)
     SYNCDBG(6,"Starting for event kind %d",event->kind);
     sim_feedback->set_visible_event_idx(evidx);
     sim_feedback->mark_event_button_read(evidx);
-    i = event_button_info[event->kind].msg_stridx;
+    i = sim_feedback->get_event_button_info(event->kind)->msg_stridx;
     strcpy(kfx_sim_state.evntbox_scroll_window.text, get_string(i));
     if ((event->kind == EvKind_FriendlyFight) || (event->kind == EvKind_EnemyFight)) {
         dungeon->visible_battles[0] = find_first_battle_of_mine(plyr_idx);

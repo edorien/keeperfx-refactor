@@ -47,7 +47,6 @@
 #include "light_data.h"
 #include "bflib_video.h"
 #include "game_merge.h"
-#include "game_session_loop.h"
 #include "lvl_script_lib.h"
 #include "map_blocks.h"
 #include "map_columns.h"

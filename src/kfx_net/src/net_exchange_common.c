@@ -42,7 +42,10 @@
 // 2 duplicate and 3 redundant = Micro stutter
 // 3 duplicate and 2 redundant = Micro stutter
 
-extern long double host_packet_received;
+// host_packet_received (kfx_apploop's game_session_loop.cpp) is reached
+// through net_callbacks instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 void send_to_active_peers(int send_count, enum NetworkPeerSendMode send_mode, const char *buffer, size_t msg_size, NetUserId first_skip_id, NetUserId second_skip_id)
 {
@@ -120,7 +123,7 @@ static TbError handle_exchange_message(NetUserId source, void *server_buf, size_
             && packets[0].turn == get_gameturn()
             && get_history_packet((PlayerNumber)peer_id, packets[0].turn) == NULL)
         {
-            host_packet_received = kfx_net_state.process_turn_time;
+            net_callbacks->set_host_packet_received(kfx_net_state.process_turn_time);
         }
         for (unsigned char i = 0; i < packet_count; i += 1) {
             if (is_packet_empty(&packets[i])) {

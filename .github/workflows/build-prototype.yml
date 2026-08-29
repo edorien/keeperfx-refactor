@@ -21,6 +21,155 @@ jobs:
     - name: Run layering check
       run: python3 scripts/check_layering.py --strict
 
+  # docs/refactor/testing/: opt-in Catch2 unit-test harness for src/kfx_*/
+  # libraries (stage 3: CI integration -- see
+  # docs/refactor/testing/stage-01-framework-and-scaffold.md). Native Linux
+  # only -- no Windows runner/Wine step exists to execute a mingw-cross-
+  # compiled test binary (stage-01 §1). Reuses build-prototype-linux's apt
+  # package list below so -DKFX_BUILD_TESTS=ON doesn't fall back to slow
+  # FetchContent-from-source builds of SDL3/openal/luajit/etc. in CI --
+  # kfx_common_opts (and therefore every kfx_*_utest target) always needs
+  # the full dependency chain regardless of which single library is under
+  # test.
+  unit-tests:
+    name: "Unit Tests"
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Update system
+      run: |
+        set -eux
+        sudo apt update
+        sudo apt install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          pkg-config \
+          curl \
+          libavcodec-dev \
+          libavformat-dev \
+          libavutil-dev \
+          libopenal-dev \
+          libluajit-5.1-dev \
+          libminizip-dev \
+          libnatpmp-dev \
+          libspng-dev \
+          libswresample-dev \
+          libwayland-dev \
+          wayland-protocols \
+          libdecor-0-dev \
+          libxkbcommon-dev \
+          libgl1-mesa-dev \
+          libegl1-mesa-dev \
+          libdrm-dev \
+          libgbm-dev \
+          libasound2-dev \
+          libpulse-dev \
+          libdbus-1-dev \
+          libudev-dev \
+          libpng-dev \
+          libjpeg-dev \
+          libogg-dev \
+          libvorbis-dev \
+          libflac-dev \
+          libmpg123-dev \
+          libopusfile-dev \
+          libminiupnpc-dev \
+          libssl-dev \
+          libzstd-dev \
+          zlib1g-dev
+
+    - name: Configure and build
+      run: |
+        set -eux
+        cmake -S . -B out -G Ninja -DCMAKE_BUILD_TYPE=Debug -DKFX_BUILD_TESTS=ON
+        cmake --build out --target kfx_platform_utest kfx_config_utest kfx_pathfinding_utest kfx_sim_utest kfx_render_utest kfx_net_utest kfx_game_utest kfx_frontend_utest kfx_script_utest kfx_apploop_utest -j"$(nproc)"
+
+    - name: Run tests
+      run: ctest --test-dir out --output-on-failure
+
+  # docs/refactor/testing/comprehensive/stage-05-coverage-tooling.md:
+  # informational only (no coverage floor -- see that document §5), so
+  # this doesn't gate merging, just makes a report available on every PR.
+  # A separate job, not a step tacked onto unit-tests above: it needs its
+  # own build tree (out/coverage, not out) since --coverage-instrumented
+  # objects behave differently under a debugger than the plain ones
+  # unit-tests' fast iteration loop relies on -- see that stage's §4.
+  coverage:
+    name: "Coverage Report"
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Update system
+      run: |
+        set -eux
+        sudo apt update
+        sudo apt install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          pkg-config \
+          curl \
+          libavcodec-dev \
+          libavformat-dev \
+          libavutil-dev \
+          libopenal-dev \
+          libluajit-5.1-dev \
+          libminizip-dev \
+          libnatpmp-dev \
+          libspng-dev \
+          libswresample-dev \
+          libwayland-dev \
+          wayland-protocols \
+          libdecor-0-dev \
+          libxkbcommon-dev \
+          libgl1-mesa-dev \
+          libegl1-mesa-dev \
+          libdrm-dev \
+          libgbm-dev \
+          libasound2-dev \
+          libpulse-dev \
+          libdbus-1-dev \
+          libudev-dev \
+          libpng-dev \
+          libjpeg-dev \
+          libogg-dev \
+          libvorbis-dev \
+          libflac-dev \
+          libmpg123-dev \
+          libopusfile-dev \
+          libminiupnpc-dev \
+          libssl-dev \
+          libzstd-dev \
+          zlib1g-dev
+
+    - name: Configure and build (instrumented)
+      run: |
+        set -eux
+        cmake -S . -B out/coverage -G Ninja -DKFX_OS=linux -DCMAKE_BUILD_TYPE=Debug \
+          -DKFX_BUILD_TESTS=ON -DKFX_TEST_COVERAGE=ON
+        cmake --build out/coverage --target kfx_platform_utest kfx_config_utest kfx_pathfinding_utest kfx_sim_utest kfx_render_utest kfx_net_utest kfx_game_utest kfx_frontend_utest kfx_script_utest kfx_apploop_utest -j"$(nproc)"
+
+    - name: Run tests
+      run: ctest --test-dir out/coverage --output-on-failure
+
+    - name: Generate report
+      run: cmake --build out/coverage --target coverage
+
+    - name: Upload report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: out/coverage/coverage-html/**
+
   build-prototype:
     name: "Build Prototype Windows x86"
     runs-on: ubuntu-24.04

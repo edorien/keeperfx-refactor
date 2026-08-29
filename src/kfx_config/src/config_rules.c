@@ -32,14 +32,11 @@
 #include "config_magic.h"
 #include "config_creature.h"
 #include "config_players.h"
-// Bare extern for kfx_sim's thing_list.h setup_excess_creatures_to_leave_or_die()
-// (see config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- plain scalar-in/scalar-out function, no struct
-// exposure needed.
-extern unsigned short setup_excess_creatures_to_leave_or_die(short max_remain);
-// Bare extern for kfx_sim's thing_stats.h thing_class_and_model_name() --
-// same pattern as above, plain scalar-in/string-out debug-name lookup.
-extern const char *thing_class_and_model_name(ThingClass class_id, ThingModel model);
+// setup_excess_creatures_to_leave_or_die() (kfx_sim's thing_list.h) and
+// thing_class_and_model_name() (kfx_sim's thing_stats.h) are reached
+// through config_reload_callbacks instead of same-file bare-extern
+// forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -287,7 +284,7 @@ static void assign_MapCreatureLimit_script(const struct NamedField* named_field,
     if (flag_is_set(flags,ccf_DuringLevel))
     {
 
-        short count = setup_excess_creatures_to_leave_or_die(kfx_config_state.conf.rules[idx].gameplay.creatures_count);
+        short count = config_reload_callbacks->setup_excess_creatures_to_leave_or_die(kfx_config_state.conf.rules[idx].gameplay.creatures_count);
         if (count > 0)
         {
             SCRPTLOG("Map creature limit reduced, causing %d creatures to leave or die",count);
@@ -543,7 +540,7 @@ static void mark_cheaper_diggers_sacrifice(void)
             }
         }
     }
-    SYNCDBG(4,"Marked sacrifice of %s",thing_class_and_model_name(TCls_Creature, kfx_config_state.conf.rules[0].sacrifices.cheaper_diggers_sacrifice_model));
+    SYNCDBG(4,"Marked sacrifice of %s",config_reload_callbacks->thing_class_and_model_name(TCls_Creature, kfx_config_state.conf.rules[0].sacrifices.cheaper_diggers_sacrifice_model));
 }
 
 TbBool parse_rules_sacrifices_blocks(char *buf, long len, const char *config_textname, unsigned short flags)

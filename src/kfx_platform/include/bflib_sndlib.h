@@ -119,6 +119,28 @@ struct SoundStateCallbacks {
     // creature_control.h (kfx_sim) -- SoundManager::playCreatureSound()
     // bridges to kfx_sim's own creature-sound-index-to-sample resolution.
     void (*play_creature_sound)(struct Thing *thing, long snd_idx, long priority, long use_flags);
+
+    // config.h (kfx_config) file-path resolution -- both this file and
+    // sound_manager.cpp need to locate sound/level/config asset files,
+    // which requires kfx_config's install_info/mods-list state they
+    // can't otherwise reach. Replaces a same-file bare-extern
+    // forward-declaration precedent. See docs/refactor/todo/
+    // check-layering-symbol-level-blind-spot.md.
+    char *(*prepare_file_path)(short fgroup, const char *fname);
+    char *(*prepare_file_path_mod)(const char *mod_dir, short fgroup, const char *fname);
+    char *(*prepare_file_path_buf)(char *dst, int dst_size, short fgroup, const char *fname);
+    char *(*prepare_file_fmtpath)(short fgroup, const char *fmt_str, ...);
+
+    // config_creature.h (kfx_config) -- creature model name lookup and
+    // the creature-model name registry, used by sound_manager.cpp's
+    // per-creature sound override commands and error logging.
+    const char *(*creature_code_name)(ThingModel crmodel);
+    const struct NamedCommand *(*get_creature_desc)(void);
+
+    // thing_data.h (kfx_sim) -- bounds-checks a Thing pointer against
+    // kfx_sim_state.things_data; sound_manager.cpp can't reach
+    // kfx_sim_state directly.
+    short (*thing_is_invalid)(const struct Thing *thing);
 };
 void set_sound_state_callbacks(const struct SoundStateCallbacks *callbacks);
 extern const struct SoundStateCallbacks *sound_state_callbacks;

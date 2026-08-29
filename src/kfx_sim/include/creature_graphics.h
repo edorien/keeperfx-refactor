@@ -79,7 +79,16 @@ struct KeeperSpriteDisk {
 /******************************************************************************/
 //extern unsigned short creature_graphics[][22];
 extern struct KeeperSprite *creature_table;
+// creature_table_add[] (unlike creature_table above) is really defined
+// and populated in kfx_render's custom_sprites.c -- creature_graphics.c
+// dereferences struct KeeperSprite fields directly and pervasively, so
+// the type has to live at or below kfx_sim's own layer (same shape as
+// packet_data.h's struct Packet split from kfx_net's packets.h); "a
+// higher-ranked library implementing a lower-ranked interface is fine --
+// only the reverse is a violation." See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 extern struct KeeperSprite creature_table_add[];
+extern size_t creature_table_length;
 /******************************************************************************/
 
 #pragma pack()

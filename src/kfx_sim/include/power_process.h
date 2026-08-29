@@ -66,6 +66,13 @@ unsigned char general_expand_check(void);
 unsigned char sight_of_evil_expand_check(void);
 unsigned char call_to_arms_expand_check(void);
 void lightning_modify_palette(struct Thing *thing);
+
+// Moved from kfx_config's config_magic.c/.h (see docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md): every element is a
+// kfx_sim function above, and kfx_config never read the array itself,
+// only defined it for kfx_render's engine_redraw.c to read.
+typedef unsigned char (*Expand_Check_Func)(void);
+extern const Expand_Check_Func powermodel_expand_check_func_list[];
 /******************************************************************************/
 #ifdef __cplusplus
 }

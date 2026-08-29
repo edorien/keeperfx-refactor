@@ -11,17 +11,11 @@
 // kfx_config-owned config_mods.h directly. See docs/refactor/
 // stage-13-enforce-and-document.md.
 #include "mod_config_types.h"
-//
-// prepare_file_path()/prepare_file_fmtpath() (config.h) are declared
-// locally instead of including config.h -- plain functions, used by
-// direct call only, same bare-extern shape as config_terrain.c's
-// terrain_room_*_capacity_func_list precedent (stage 13.3).
-extern "C" {
-char *prepare_file_path(short fgroup, const char *fname);
-char *prepare_file_path_buf(char *dst, int dst_size, short fgroup, const char *fname);
-char *prepare_file_path_mod(const char *mod_dir, short fgroup, const char *fname);
-char *prepare_file_fmtpath(short fgroup, const char *fmt_str, ...);
-}
+// prepare_file_path()/prepare_file_path_buf()/prepare_file_path_mod()/
+// prepare_file_fmtpath() (config.h) are reached through
+// SoundStateCallbacks below instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
@@ -79,6 +73,13 @@ const struct ModConfigItem *default_get_mods_after_campaign(void) { return nullp
 int32_t default_get_mods_after_campaign_count(void) { return 0; }
 const struct ModConfigItem *default_get_mods_after_base(void) { return nullptr; }
 int32_t default_get_mods_after_base_count(void) { return 0; }
+char *default_prepare_file_path(short fgroup, const char *fname) { return nullptr; }
+char *default_prepare_file_path_mod(const char *mod_dir, short fgroup, const char *fname) { return nullptr; }
+char *default_prepare_file_path_buf(char *dst, int dst_size, short fgroup, const char *fname) { if (dst && dst_size > 0) dst[0] = '\0'; return dst; }
+char *default_prepare_file_fmtpath(short fgroup, const char *fmt_str, ...) { return nullptr; }
+const char *default_creature_code_name(ThingModel crmodel) { return ""; }
+const struct NamedCommand *default_get_creature_desc(void) { return nullptr; }
+short default_thing_is_invalid(const struct Thing *thing) { return thing == nullptr; }
 
 const SoundStateCallbacks default_sound_state_callbacks = {
     &default_get_music_track, &default_get_music_fname, &default_get_frame_skip,
@@ -90,6 +91,10 @@ const SoundStateCallbacks default_sound_state_callbacks = {
     &default_get_sound_random_seed, &default_get_unsync_random_seed,
     &default_init_sound, &default_mute_audio,
     &default_play_creature_sound,
+    &default_prepare_file_path, &default_prepare_file_path_mod,
+    &default_prepare_file_path_buf, &default_prepare_file_fmtpath,
+    &default_creature_code_name, &default_get_creature_desc,
+    &default_thing_is_invalid,
 };
 
 } // namespace
@@ -570,16 +575,16 @@ static void apply_duck_gain(SoundSmplTblID smptbl_id) {
 
 void load_sound_banks() {
 	char snd_fname[2048];
-	prepare_file_path_buf(snd_fname, sizeof(snd_fname), FGrp_LrgSound, "sound.dat");
+	sound_state_callbacks->prepare_file_path_buf(snd_fname, sizeof(snd_fname), FGrp_LrgSound, "sound.dat");
 	// language-specific speech file
-	char * spc_fname = prepare_file_fmtpath(FGrp_LrgSound, "speech_%s.dat", g_audio_language_lwrstr);
+	char * spc_fname = sound_state_callbacks->prepare_file_fmtpath(FGrp_LrgSound, "speech_%s.dat", g_audio_language_lwrstr);
 	// default speech file
 	if (!LbFileExists(spc_fname)) {
-		spc_fname = prepare_file_path(FGrp_LrgSound, "speech.dat");
+		spc_fname = sound_state_callbacks->prepare_file_path(FGrp_LrgSound, "speech.dat");
 	}
 	// speech file for english
 	if (!LbFileExists(spc_fname)) {
-		spc_fname = prepare_file_fmtpath(FGrp_LrgSound, "speech_%s.dat", "eng");
+		spc_fname = sound_state_callbacks->prepare_file_fmtpath(FGrp_LrgSound, "speech_%s.dat", "eng");
 	}
 	g_banks[0] = load_sound_bank(snd_fname);
 	g_banks[1] = load_sound_bank(spc_fname);
@@ -801,7 +806,7 @@ static const char * find_music_file_for_mod_list(short fgroup, const char * fnam
         char mod_dir[256] = {0};
         sprintf(mod_dir, "%s/%s", MODS_DIR_NAME, mod_item->name);
 
-        const char *fpath = prepare_file_path_mod(mod_dir, fgroup, fname);
+        const char *fpath = sound_state_callbacks->prepare_file_path_mod(mod_dir, fgroup, fname);
         if (fpath[0] != 0 && LbFileExists(fpath))
             return fpath;
     }
@@ -830,7 +835,7 @@ extern "C" TbBool play_music_fgroup(short fgroup, const char * fname) {
     }
 
     if (fpath == NULL)
-        fpath = prepare_file_fmtpath(fgroup, "%s", fname);
+        fpath = sound_state_callbacks->prepare_file_fmtpath(fgroup, "%s", fname);
 
     return play_music(fpath);
 }
@@ -865,7 +870,7 @@ static TbBool resolve_track_music_path(int track, char *dst, int dst_size) {
 	const int wanted = track - 2; // 0-based position within the chosen format's files
 
 	char filespec[2048];
-	prepare_file_path_buf(filespec, sizeof(filespec), FGrp_Music, "*");
+	sound_state_callbacks->prepare_file_path_buf(filespec, sizeof(filespec), FGrp_Music, "*");
 	if (filespec[0] == '\0') {
 		return false;
 	}
@@ -901,7 +906,7 @@ static TbBool resolve_track_music_path(int track, char *dst, int dst_size) {
 			continue;
 		}
 		if (index == wanted) {
-			prepare_file_path_buf(dst, dst_size, FGrp_Music, f.second.c_str());
+			sound_state_callbacks->prepare_file_path_buf(dst, dst_size, FGrp_Music, f.second.c_str());
 			return (dst[0] != '\0');
 		}
 		index++;

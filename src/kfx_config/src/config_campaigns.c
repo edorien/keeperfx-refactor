@@ -33,21 +33,16 @@
 #include "sound_manager.h"
 #include "config_translation.h"
 #include "highscores.h"
+#include "sprite_lookup.h"
 
 // Literal-dup of kfx_sim's map_data.h DEFAULT_MAP_SIZE (only reachable
 // transitively). See docs/refactor/stage-13-enforce-and-document.md.
 #define CAMPAIGNS_DEFAULT_MAP_SIZE 85
 
-// Bare externs for kfx_sim's lvl_filesdk1.h functions (see
-// config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- plain void-void functions, no type-level
-// dependency on the rest of that header. lvl_filesdk1.c/.h moved from
-// kfx_config to kfx_sim in stage 13.3 (docs/refactor/
-// stage-13-enforce-and-document.md) since its actual job is loading
-// level binary files into kfx_sim's live map state, not parsing
-// human-authored config files.
-extern TbBool find_and_load_lif_files(void);
-extern TbBool find_and_load_lof_files(void);
+// find_and_load_lif_files()/find_and_load_lof_files() (kfx_sim's
+// lvl_filesdk1.h) are reached through config_reload_callbacks instead of
+// same-file bare-extern forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 #include "post_inc.h"
 
@@ -957,9 +952,16 @@ short parse_campaign_map_block(long lvnum, unsigned long lvoptions, char *buf, l
                     lvinfo->ensign_type = k;
                 }
                 else
-                {
-                    CONFWRNLOG("Invalid value '%s' for \"%s\" in [%s] block of '%s' file.", word_buf,
-                        COMMAND_TEXT(cmd_num), block_buf, config_textname);
+                {   
+                    k = sprite_lookup->get_ensign_id(word_buf);
+
+                    if (k >= 0)
+                    {
+                        lvinfo->ensign_type = CUSTOM_ENSIGN_BASE + k;
+                    } else {
+                        CONFWRNLOG("Invalid value '%s' for \"%s\" in [%s] block of '%s' file.", word_buf,
+                            COMMAND_TEXT(cmd_num), block_buf, config_textname);
+                    }
                 }
             }
             break;
@@ -1022,7 +1024,7 @@ short parse_campaign_map_block(long lvnum, unsigned long lvoptions, char *buf, l
               CONFWRNLOG("Couldn't recognize \"%s\" mapsize in [%s] block of '%s' file.",
                     COMMAND_TEXT(cmd_num),block_buf,config_textname);
             }
-            break;
+            break;       
         case ccr_comment:
             break;
         case ccr_endOfFile:
@@ -1113,7 +1115,10 @@ TbBool load_campaign(const char *cmpgn_fname,struct GameCampaign *campgn,unsigne
           WARNMSG("Parsing campaign file \"%s\" common blocks failed.",cmpgn_fname);
     }
     if ((result) && ((flags & CnfLd_ListOnly) == 0)) // This block doesn't have anything we'd like to parse in list mode
-    {
+    {            
+        // Loading campaign sprites, we know config location after parse_campaign_common_blocks, need to be loaded before parse_campaign_map_blocks
+        char *dname = prepare_file_path(FGrp_CmpgConfig, NULL);
+        sprite_lookup->init_custom_campaign_sprites(dname, "Main CmpgConfig dir");
         result = parse_campaign_strings_blocks(campgn, buf, len, fname);
         if (!result)
           WARNMSG("Parsing campaign file \"%s\" strings block failed.",cmpgn_fname);
@@ -1195,8 +1200,8 @@ TbBool change_campaign(uint8_t pack, const char *cmpgn_fname)
         campaign_fgroup = fgroup;
     }
     if (fgroup != FGrp_Campgn) {
-        find_and_load_lof_files();
-        find_and_load_lif_files();
+        config_reload_callbacks->find_and_load_lof_files();
+        config_reload_callbacks->find_and_load_lif_files();
     }
     load_or_create_high_score_table();
     // Update GUI arrays to new config
@@ -1475,8 +1480,8 @@ static TbBool check_lif_files_in_mappack(struct GameCampaign *campgn,unsigned lo
     struct GameCampaign campbuf;
     memcpy(&campbuf, &campaign, sizeof(struct GameCampaign));
     memcpy(&campaign, campgn, sizeof(struct GameCampaign));
-    find_and_load_lif_files();
-    find_and_load_lof_files();
+    config_reload_callbacks->find_and_load_lif_files();
+    config_reload_callbacks->find_and_load_lof_files();
     TbBool result  = (*out_count != 0);
     if (!result) {
         // Could be either: no valid levels in LEVELS_LOCATION, no LEVELS_LOCATION specified, or LEVELS_LOCATION does not exist

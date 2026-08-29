@@ -58,21 +58,17 @@
 #include "power_process.h"
 // initialise_devastate_dungeon_from_heart() (kfx_game's game_loop.h)
 // and light_create_light()/light_set_light_never_cache() (kfx_render's
-// light_data.h) declared locally -- plain functions, used by direct
-// call only, same bare-extern shape as config_terrain.c's
-// terrain_room_*_capacity_func_list precedent.
-void initialise_devastate_dungeon_from_heart(PlayerNumber plyr_idx);
-struct InitLight;
-long light_create_light(struct InitLight *ilght);
-void light_set_light_never_cache(long lgt_id);
+// light_data.h) are reached through sim_feedback instead of same-file
+// bare-extern forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 #include "post_inc.h"
 
 /******************************************************************************/
 
-// Bare extern for kfx_frontend's front_lvlstats.h function (see
-// config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- plain void-void function.
-extern void frontstats_initialise(void);
+// frontstats_initialise() (kfx_frontend's front_lvlstats.h) is reached
+// through sim_feedback instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 TbBool player_has_lost(PlayerNumber plyr_idx)
 {
@@ -114,7 +110,7 @@ void set_player_as_won_level(struct PlayerInfo *player)
   if (my_player)
   {
       script_hooks->api_event("WIN_GAME");
-      frontstats_initialise();
+      sim_feedback->frontstats_initialise();
       if ( sim_feedback->timer_enabled() )
       {
         if (kfx_sim_state.TimerGame)
@@ -166,7 +162,7 @@ void set_player_as_lost_level(struct PlayerInfo *player)
     if (is_my_player(player))
     {
         script_hooks->api_event("LOSE_GAME");
-        frontstats_initialise();
+        sim_feedback->frontstats_initialise();
     }
     player->victory_state = VicS_LostLevel;
     struct Dungeon* dungeon = get_dungeon(player->id_number);
@@ -776,10 +772,10 @@ void init_player_as_single_keeper(struct PlayerInfo *player)
     ilght.intensity = 48;
     ilght.flags = 5;
     ilght.is_dynamic = 1;
-    unsigned short idx = light_create_light(&ilght);
+    unsigned short idx = sim_feedback->light_create_light(&ilght);
     player->cursor_light_idx = idx;
     if (idx != 0) {
-        light_set_light_never_cache(idx);
+        sim_feedback->light_set_light_never_cache(idx);
     } else {
         WARNLOG("Cannot allocate light to player %d.",(int)player->id_number);
     }
@@ -1445,7 +1441,7 @@ void check_players_lost(void)
               init_player_start(player, true);
               if (dungeon->dnheart_idx == 0)
               {
-                  initialise_devastate_dungeon_from_heart(player->id_number);
+                  sim_feedback->initialise_devastate_dungeon_from_heart(player->id_number);
               }
           }
           if ((!thing_exists(heartng) || ((heartng->active_state == ObSt_BeingDestroyed) && !(dungeon->backup_heart_idx > 0))) && (player->victory_state == VicS_Undecided))

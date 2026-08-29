@@ -17,19 +17,12 @@ extern "C" {
     TbBool custom_sound_load_wav(const char* filepath, int sample_id);
     TbBool custom_sound_load_wav_mem(const unsigned char* data, size_t size, const char* logical_name, int sample_id);
     SoundSmplTblID get_custom_offset(void);
-    // prepare_file_path()/prepare_file_path_mod() (config.h) declared
-    // locally instead of including config.h/config_creature.h -- plain
-    // functions, used by direct call only, same bare-extern shape as
-    // bflib_sndlib.cpp's precedent (stage 13.3).
-    char *prepare_file_path(short fgroup, const char *fname);
-    char *prepare_file_path_mod(const char *mod_dir, short fgroup, const char *fname);
-    // thing_is_invalid() (kfx_sim's thing_data.h) / creature_code_name()
-    // (config_creature.h) -- plain narrow-use functions, same
-    // bare-extern shape as above.
-    struct Thing;
-    short thing_is_invalid(const struct Thing *thing);
-    const char *creature_code_name(ThingModel crmodel);
 }
+// prepare_file_path()/prepare_file_path_mod() (config.h), thing_is_invalid()
+// (kfx_sim's thing_data.h), and creature_code_name() (config_creature.h)
+// are reached through SoundStateCallbacks instead of same-file bare-extern
+// forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 namespace KeeperFX {
 
@@ -103,9 +96,9 @@ SoundEmitterID SoundManager::playEffect(SoundSmplTblID sample_id, long priority,
 
 // Play creature sound
 void SoundManager::playCreatureSound(struct Thing* thing, long sound_type, long priority) {
-    if (!initialized_ || thing_is_invalid(thing)) {
+    if (!initialized_ || sound_state_callbacks->thing_is_invalid(thing)) {
         SYNCDBG(8,"Cannot play creature sound (initialized=%d, thing_valid=%d)",
-               initialized_, !thing_is_invalid(thing));
+               initialized_, !sound_state_callbacks->thing_is_invalid(thing));
         return;
     }
     
@@ -246,11 +239,12 @@ bool SoundManager::loadWavFile(const std::string& filepath, SoundSmplTblID sampl
     return true;
 }
 
-// Forward declare get_rid from config system
-extern "C" {
-    extern struct NamedCommand creature_desc[];
-    long get_rid(const struct NamedCommand desc[], const char *name);
-}
+// get_rid() is declared in bflib_basics.h (kfx_platform, transitively
+// included above) -- it moved down from kfx_config's config.h since it
+// has no config-state coupling. creature_desc[] itself is genuine
+// kfx_config state (the creature-model name registry), reached via
+// SoundStateCallbacks::get_creature_desc() below. See docs/refactor/
+// todo/check-layering-symbol-level-blind-spot.md.
 
 // Set creature sound override
 bool SoundManager::setCreatureSound(const std::string& creature_model, const std::string& sound_type, 
@@ -264,7 +258,7 @@ bool SoundManager::setCreatureSound(const std::string& creature_model, const std
     }
     
     // Get creature model ID
-    long crmodel = get_rid(creature_desc, creature_model.c_str());
+    long crmodel = get_rid(sound_state_callbacks->get_creature_desc(), creature_model.c_str());
     if (crmodel < 0 || crmodel >= sound_state_callbacks->get_creature_model_count()) {
         WARNLOG("Invalid creature model: %s", creature_model.c_str());
         return false;
@@ -597,7 +591,7 @@ static bool find_in_mod_sound_dirs(const char* candidate, char* out_path, size_t
         if (!mod_item->state.lrg_sound) continue;
         char mod_dir[256];
         snprintf(mod_dir, sizeof(mod_dir), "%s/%s", MODS_DIR_NAME, mod_item->name);
-        const char* resolved = prepare_file_path_mod(mod_dir, FGrp_LrgSound, candidate);
+        const char* resolved = sound_state_callbacks->prepare_file_path_mod(mod_dir, FGrp_LrgSound, candidate);
         if (resolved != NULL && LbFileExists(resolved)) {
             SYNCDBG(8, "[mod %s/sound] '%s' -> '%s' (FOUND)", mod_item->name, candidate, resolved);
             snprintf(out_path, out_size, "%s", resolved);
@@ -635,27 +629,27 @@ static bool resolve_creature_sound_path(const char* path_in, char* out_path, siz
         if (find_in_mod_sound_dirs(candidate, out_path, out_size,
                 sound_state_callbacks->get_mods_after_map(), sound_state_callbacks->get_mods_after_map_count())) return true;
         const char* r;
-        r = prepare_file_path(FGrp_CmpgLvls, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_CmpgLvls, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
-        r = prepare_file_path(FGrp_CmpgCrtrs, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_CmpgCrtrs, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
 
         // after_campaign mods override campaign dirs, then campaign-level game dirs
         if (find_in_mod_sound_dirs(candidate, out_path, out_size,
                 sound_state_callbacks->get_mods_after_campaign(), sound_state_callbacks->get_mods_after_campaign_count())) return true;
-        r = prepare_file_path(FGrp_CmpgConfig, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_CmpgConfig, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
-        r = prepare_file_path(FGrp_CrtrData, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_CrtrData, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
 
         // after_base mods override fxdata, then base game dirs
         if (find_in_mod_sound_dirs(candidate, out_path, out_size,
                 sound_state_callbacks->get_mods_after_base(), sound_state_callbacks->get_mods_after_base_count())) return true;
-        r = prepare_file_path(FGrp_FxData, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_FxData, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
-        r = prepare_file_path(FGrp_CmpgMedia, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_CmpgMedia, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
-        r = prepare_file_path(FGrp_Main, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_Main, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
     }
     SYNCDBG(5, "Custom sound path not found: '%s'", path_in);
@@ -691,23 +685,23 @@ static bool resolve_sounds_cfg_sound_path(const char* path_in, char* out_path, s
         if (find_in_mod_sound_dirs(candidate, out_path, out_size,
                 sound_state_callbacks->get_mods_after_map(), sound_state_callbacks->get_mods_after_map_count())) return true;
         const char* r;
-        r = prepare_file_path(FGrp_CmpgLvls, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_CmpgLvls, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
 
         // after_campaign mods override campaign dirs, then the campaign game dir
         if (find_in_mod_sound_dirs(candidate, out_path, out_size,
                 sound_state_callbacks->get_mods_after_campaign(), sound_state_callbacks->get_mods_after_campaign_count())) return true;
-        r = prepare_file_path(FGrp_CmpgConfig, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_CmpgConfig, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
 
         // after_base mods override fxdata, then base game dirs
         if (find_in_mod_sound_dirs(candidate, out_path, out_size,
                 sound_state_callbacks->get_mods_after_base(), sound_state_callbacks->get_mods_after_base_count())) return true;
-        r = prepare_file_path(FGrp_FxData, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_FxData, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
-        r = prepare_file_path(FGrp_CmpgMedia, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_CmpgMedia, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
-        r = prepare_file_path(FGrp_Main, candidate);
+        r = sound_state_callbacks->prepare_file_path(FGrp_Main, candidate);
         if (r && LbFileExists(r)) { snprintf(out_path, out_size, "%s", r); return true; }
     }
     SYNCDBG(7,"Sound path NOT resolved : '%s'", path_in);
@@ -865,7 +859,7 @@ int load_creature_custom_sound(long crtr_model, const char* sound_type, const ch
     }
     
     // Get creature name
-    const char* creature_name = creature_code_name((ThingModel)crtr_model);
+    const char* creature_name = sound_state_callbacks->creature_code_name((ThingModel)crtr_model);
 
     // Generate unique name for this custom sound
     char sound_name[256];
@@ -904,7 +898,7 @@ int load_creature_custom_sounds(long crtr_model, const char* sound_type, const c
     }
     
     const char (*wav_paths)[512] = (const char (*)[512])wav_paths_ptr;
-    const char* creature_name = creature_code_name((ThingModel)crtr_model);
+    const char* creature_name = sound_state_callbacks->creature_code_name((ThingModel)crtr_model);
 
     SYNCDBG(5, "Loading %d custom sound(s) for %s.%s from '%s'", count, creature_name, sound_type, wav_paths[0]);
 

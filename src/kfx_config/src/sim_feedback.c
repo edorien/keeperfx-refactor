@@ -48,6 +48,7 @@ static TbBool noop_tag_cursor_blocks_sell_area(PlayerNumber plyr_idx, MapSubtlCo
 static void noop_set_engine_view(struct PlayerInfo *player, long val) {}
 static void noop_setup_engine_window(long x1, long y1, long x2, long y2) {}
 static long noop_light_create_light(struct InitLight *ilght) { return 0; }
+static void noop_light_init_dungeon_heart(long lgt_id, long min_radius, long min_intensity) {}
 static void noop_light_delete_light(long idx) {}
 static void noop_light_turn_light_off(long num) {}
 static void noop_light_turn_light_on(long num) {}
@@ -62,6 +63,11 @@ static void noop_light_set_light_radius(long lgt_id, unsigned short radius) {}
 static void noop_light_initialise(void) {}
 static int noop_light_count_lights(void) { return 0; }
 static TbBool noop_light_create_light_adv(VALUE *init_data) { return false; }
+static void noop_process_dungeon_destroy(struct Thing *heartng) {}
+static void noop_initialise_devastate_dungeon_from_heart(PlayerNumber plyr_idx) {}
+static TbBool noop_load_texture_map_file(unsigned long tmapidx, LevelNumber lvnum, short fgroup) { return false; }
+static const struct EventTypeInfo *noop_get_event_button_info(EventKind evkind) { return NULL; }
+static void noop_frontstats_initialise(void) {}
 static long noop_GetMouseX(void) { return 0; }
 static long noop_GetMouseY(void) { return 0; }
 static short noop_is_mouse_pressed_lrbutton(void) { return 0; }
@@ -177,6 +183,7 @@ static const struct SimFeedbackCallbacks default_sim_feedback = {
     &noop_set_engine_view,
     &noop_setup_engine_window,
     &noop_light_create_light,
+    &noop_light_init_dungeon_heart,
     &noop_light_delete_light,
     &noop_light_turn_light_off,
     &noop_light_turn_light_on,
@@ -191,6 +198,11 @@ static const struct SimFeedbackCallbacks default_sim_feedback = {
     &noop_light_initialise,
     &noop_light_count_lights,
     &noop_light_create_light_adv,
+    &noop_process_dungeon_destroy,
+    &noop_initialise_devastate_dungeon_from_heart,
+    &noop_load_texture_map_file,
+    &noop_get_event_button_info,
+    &noop_frontstats_initialise,
     &noop_GetMouseX,
     &noop_GetMouseY,
     &noop_is_mouse_pressed_lrbutton,

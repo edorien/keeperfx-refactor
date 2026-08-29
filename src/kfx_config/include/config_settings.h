@@ -39,6 +39,17 @@ struct GameKey {
 // game_key_settings[]'s fields directly (default_code/default_mods/
 // default_controller_buttons/toml_name) when populating default
 // settings; kfx_config is the lowest-ranked real by-value consumer.
+// enum BindingMenuVisibility moved down with it (2026-08-29, docs/
+// refactor/todo/check-layering-symbol-level-blind-spot.md) -- pure
+// name/ID vocabulary, no functional coupling, same shape as
+// GameKeys/GAME_KEYS_COUNT's own earlier move to kfx_platform.
+enum BindingMenuVisibility {
+    BMV_Hidden,
+    BMV_KeyMouseOnly,
+    BMV_ControllerOnly,
+    BMV_Visible,
+};
+
 struct GamekeySettings {
     const char* toml_name;
     TextStringId string_id; // For display in the key binding menu

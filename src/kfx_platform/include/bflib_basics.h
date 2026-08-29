@@ -145,6 +145,27 @@ short error_dialog(const char *codefile,const int ecode,const char *message) __a
 short error_dialog_fatal(const char *codefile,const int ecode,const char *message) __attribute__ ((nonnull(1, 3)));
 int str_append(char * buffer, int size, const char * str) __attribute__ ((nonnull(1, 3)));
 int str_appendf(char * buffer, int size, const char * format, ...) __attribute__ ((format(printf, 3, 4), nonnull(1, 3)));
+
+// Generic name/id lookup pair and its lookup function. Owned here (not
+// kfx_config's config.h, where they used to live) because get_rid() has
+// no config-state coupling at all -- it's a pure algorithm over whatever
+// array is passed in. Moved down so kfx_platform code (e.g.
+// sound_manager.cpp) can call it without a bare same-file extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+struct NamedCommand {
+    const char *name;
+    int num;
+};
+long get_rid(const struct NamedCommand *desc, const char *itmname);
+
+// Registered from main.cpp with kfx_config's emulate_integer_overflow()
+// (config_rules.c, reads kfx_config_state's classic_bugs_flags) --
+// saturate_set_unsigned() below can't include config.h directly. See
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
+typedef TbBool (*EmulateIntegerOverflowFunc)(unsigned short nbits);
+extern EmulateIntegerOverflowFunc emulate_integer_overflow_provider;
+void set_emulate_integer_overflow_provider(EmulateIntegerOverflowFunc provider);
 /******************************************************************************/
 int LbErrorLog(const char *format, ...) __attribute__ ((format(printf, 1, 2), nonnull(1)));
 int LbWarnLog(const char *format, ...) __attribute__ ((format(printf, 1, 2), nonnull(1)));

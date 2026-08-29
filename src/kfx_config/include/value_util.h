@@ -7,6 +7,10 @@
 
 #include <toml.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static inline TbBool value_coerce_bool(VALUE *value)
 {
     return (value_type(value) == VALUE_BOOL && value_bool(value)) ||
@@ -200,3 +204,7 @@ int sound_id_from_text(const char* text);
         continue;\
     }\
 }
+
+#ifdef __cplusplus
+}
+#endif

@@ -73,16 +73,19 @@ unsigned short units_per_pixel_height;
 unsigned short units_per_pixel_menu_height;
 unsigned short units_per_pixel_best;
 unsigned short units_per_pixel_menu;
-unsigned short units_per_pixel_landview;
-unsigned short units_per_pixel_landview_frame;
 unsigned short units_per_pixel_ui;
-unsigned long aspect_ratio_factor_HOR_PLUS;
-unsigned long aspect_ratio_factor_HOR_PLUS_AND_VERT_PLUS;
 unsigned long first_person_horizontal_fov;
-unsigned long first_person_vertical_fov;
-unsigned long landview_frame_movement_scale_x;
-unsigned long landview_frame_movement_scale_y;
 long base_mouse_sensitivity = 256;
+
+// units_per_pixel_landview, units_per_pixel_landview_frame,
+// aspect_ratio_factor_HOR_PLUS(_AND_VERT_PLUS),
+// landview_frame_movement_scale_x/y and first_person_vertical_fov are
+// defined in kfx_platform/src/bflib_video.c (declared extern in
+// bflib_video.h, included above) instead of here: their only writers,
+// calculate_landview_upp() and calculate_aspect_ratio_factor(), already
+// live there -- this file only ever calls into them, never reads/writes
+// the values directly. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 // Registered with config.h's ConfigReloadCallbacks; config_keeperfx.c
 // sets this from keeperfx.cfg's POINTER_SENSITIVITY command.
@@ -724,6 +727,21 @@ TbScreenMode setup_screen_mode(TbScreenMode nmode, TbBool failsafe)
   force_video_mode_reset = false;
   SYNCDBG(8,"Finished");
   return nmode;
+}
+
+// Registered with bflib_video.h's VideoScaleCallbacks (see
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md);
+// bflib_video.c's scaling math can't read units_per_pixel_width/height/
+// ui/best/menu (assigned below) directly.
+const struct VideoScaleValues *get_video_scale_values(void)
+{
+    static struct VideoScaleValues values;
+    values.units_per_pixel_width = units_per_pixel_width;
+    values.units_per_pixel_height = units_per_pixel_height;
+    values.units_per_pixel_ui = units_per_pixel_ui;
+    values.units_per_pixel_best = units_per_pixel_best;
+    values.units_per_pixel_menu = units_per_pixel_menu;
+    return &values;
 }
 
 TbBool update_screen_mode_data(long width, long height)

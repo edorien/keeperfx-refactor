@@ -13,13 +13,11 @@
 #include "bflib_mouse.h"
 #include "bflib_video.h"
 #include "bflib_planar.h"
-//
-// prepare_file_path() (config.h) is declared locally instead of including
-// config.h -- plain function, used by direct call only, same bare-extern
-// shape as bflib_sndlib.cpp's precedent (stage 13.3).
-extern "C" {
-char *prepare_file_path(short fgroup, const char *fname);
-}
+// prepare_file_path() (config.h) is reached through SoundStateCallbacks
+// (bflib_sndlib.h) instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+#include "bflib_sndlib.h"
 #include <SDL3/SDL.h>
 #include "post_inc.h"
 
@@ -191,7 +189,7 @@ void init_controller_input()
         ERRORLOG("SDL gamepad init: %s", SDL_GetError());
         return;
     }
-    SDL_AddGamepadMappingsFromFile(prepare_file_path(FGrp_FxData, "gamecontrollerdb.txt"));
+    SDL_AddGamepadMappingsFromFile(sound_state_callbacks->prepare_file_path(FGrp_FxData, "gamecontrollerdb.txt"));
 
     // Open the first available gamepad, if any.
     int count = 0;

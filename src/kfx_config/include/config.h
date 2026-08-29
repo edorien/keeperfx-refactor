@@ -79,6 +79,13 @@ enum Ensigns {
     EnsCoop         = 49,
 };
 
+// Custom (zip-loaded) ensign sprites start right past the built-in enum
+// Ensigns values above; kfx_render/custom_sprites.h owns the sprite-sheet
+// lookup, but this offset is also needed by kfx_config (config_campaigns.c)
+// and kfx_game (lvl_script_commands.c's SET_LEVEL_ENSIGN), both ranked
+// below kfx_render, so it lives here instead.
+#define CUSTOM_ENSIGN_BASE 50
+
 enum TbLevelState {
     LvSt_Hidden    =  0,
     LvSt_HalfShow  =  1,
@@ -188,10 +195,9 @@ struct CommandWord {
     char text[COMMAND_WORD_LEN];
 };
 
-struct NamedCommand {
-    const char *name;
-    int num;
-};
+// struct NamedCommand and get_rid() moved to kfx_platform's
+// bflib_basics.h/.c (included above) -- see docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 struct LongNamedCommand {
     const char* name;
@@ -257,6 +263,8 @@ struct Thing;
 struct SlabMap;
 struct SlabSet;
 struct SlabObj;
+struct Computer2;
+struct Room;
 
 // Injected so config_campaigns.c/config_terrain.c/config_trapdoor.c/
 // config_rules.c don't need frontmenu_ingame_tabs.h/frontmenu_ingame_map.h/
@@ -408,6 +416,124 @@ struct ConfigReloadCallbacks {
     // (player->special_digger); kfx_sim owns struct PlayerInfo.
     ThingModel (*get_player_special_digger)(PlayerNumber plyr_idx);
     void (*set_player_special_digger)(PlayerNumber plyr_idx, ThingModel model);
+
+    // player_computer.h/room_data.h/slab_data.h -- config_terrain.c's
+    // computer-player room-building-process reactivation needs a
+    // handful of kfx_sim reads/calls it previously reached via bare
+    // same-file extern declarations. slabmap_kind is slabmap_owner's
+    // sibling above. See docs/refactor/todo/
+    // check-layering-symbol-level-blind-spot.md.
+    struct Computer2 *(*get_computer_player_f)(long plyr_idx, const char *func_name);
+    TbBool (*reactivate_build_process)(struct Computer2 *comp, RoomKind rkind);
+    long (*reinitialise_rooms_of_kind)(RoomKind rkind);
+    long (*recalculate_effeciency_for_rooms_of_kind)(RoomKind rkind);
+    TbBool (*slabmap_block_invalid)(const struct SlabMap *slb);
+    SlabKind (*slabmap_kind)(const struct SlabMap *slb);
+
+    // lvl_filesdk1.h -- config_campaigns.c triggers a re-scan of the
+    // level/campaign directories for .lif/.lof files after a campaign
+    // reload; the scan itself is kfx_sim state (level_strings[] et al).
+    TbBool (*find_and_load_lif_files)(void);
+    TbBool (*find_and_load_lof_files)(void);
+
+    // player_compprocs.h/player_compchecks.h/player_compevents.h --
+    // config_compp.c's computer-player .cfg field tables reference these
+    // NamedCommand tables by pointer; the tables are the true (kfx_sim)
+    // registry of computer-player process/check/event function slots.
+    const struct NamedCommand *(*get_computer_process_func_type)(void);
+    const struct NamedCommand *(*get_computer_check_func_type)(void);
+    const struct NamedCommand *(*get_computer_event_func_type)(void);
+    const struct NamedCommand *(*get_computer_event_test_func_type)(void);
+
+    // player_data.h/thing_navigate.h/map_utils.h/thing_stats.h --
+    // config_creature.c's availability/job-assignment logic needs a
+    // handful of kfx_sim reads it previously reached via bare same-file
+    // extern declarations. thing_class_and_model_name is also used by
+    // config_rules.c's sacrifice logging.
+    unsigned char (*get_my_player_number)(void);
+    TbBool (*player_is_roaming)(PlayerNumber plyr_num);
+    TbBool (*slab_is_area_inner_fill)(MapSlabCoord slb_x, MapSlabCoord slb_y);
+    const char *(*thing_class_and_model_name)(ThingClass class_id, ThingModel model);
+
+    // creature_instances.h -- config_creature.c's .cfg field tables
+    // reference these NamedCommand tables by pointer; the tables are the
+    // true (kfx_sim) registry of creature-instance function slots.
+    const struct NamedCommand *(*get_creature_instances_func_type)(void);
+    const struct NamedCommand *(*get_creature_instances_validate_func_type)(void);
+    const struct NamedCommand *(*get_creature_instances_search_targets_func_type)(void);
+
+    // creature_jobs.h -- same shape as the creature-instances tables
+    // above, for the job-assignment/coords-check/coords-assign function
+    // registries.
+    const struct NamedCommand *(*get_creature_job_player_assign_func_type)(void);
+    const struct NamedCommand *(*get_creature_job_player_check_func_type)(void);
+    const struct NamedCommand *(*get_creature_job_coords_check_func_type)(void);
+    const struct NamedCommand *(*get_creature_job_coords_assign_func_type)(void);
+
+    // thing_creature.h/thing_list.h -- config_crtrmodel.c's per-model
+    // config-reload sweep (creature availability change, etc.) needs to
+    // both call these directly and pass several of them by pointer into
+    // do_to_players_all_creatures_of_model()/
+    // do_to_all_things_of_class_and_model() (kfx_sim's live-thing
+    // iteration helpers); all Thing-operating, so all kfx_sim state.
+    TbBool (*remove_creature_lair)(struct Thing *thing);
+    TbBool (*update_creature_health_to_max)(struct Thing *creatng);
+    TbBool (*update_relative_creature_health)(struct Thing *creatng);
+    long (*do_to_players_all_creatures_of_model)(PlayerNumber plyr_idx, int crmodel, TbBool (*do_cb)(struct Thing *));
+    long (*do_to_all_things_of_class_and_model)(int tngclass, int tngmodel, TbBool (*do_cb)(struct Thing *));
+    void (*recalculate_all_creature_digger_lists)(void);
+    TbBool (*update_speed_of_player_creatures_of_model)(PlayerNumber plyr_idx, int crmodel);
+    TbBool (*creature_increase_available_instances)(struct Thing *thing);
+    TbBool (*process_job_stress_and_going_postal)(struct Thing *creatng);
+
+    // creature_states.h -- config_crtrstates.c's .cfg field tables
+    // reference these NamedCommand tables by pointer; the tables are the
+    // true (kfx_sim) registry of creature-state process/cleanup/
+    // move-from-slab/move-check function slots.
+    const struct NamedCommand *(*get_process_func_commands)(void);
+    const struct NamedCommand *(*get_cleanup_func_commands)(void);
+    const struct NamedCommand *(*get_move_from_slab_func_commands)(void);
+    const struct NamedCommand *(*get_move_check_func_commands)(void);
+
+    // dungeon_data.h -- config_magic.c's power-cast eligibility check
+    // needs to know whether a player still has a dungeon heart; kfx_sim
+    // owns struct Dungeon.
+    TbBool (*player_has_heart)(PlayerNumber plyr_idx);
+
+    // thing_data.h -- config_objects.c's crate-reclassification query
+    // needs the same Thing-pointer bounds check as kfx_platform's
+    // SoundStateCallbacks::thing_is_invalid (same real function, reached
+    // through this struct instead since config_objects.c is kfx_config,
+    // not kfx_platform).
+    short (*thing_is_invalid)(const struct Thing *thing);
+
+    // thing_list.h -- config_rules.c's excess-creature rule enforcement
+    // walks the live thing list; kfx_sim owns that state.
+    unsigned short (*setup_excess_creatures_to_leave_or_die)(short max_remain);
+
+    // lvl_filesdk1.h -- config_strings.c looks up a parsed level-name
+    // string by index; kfx_sim owns the level_strings[] buffer (filled
+    // while loading level files).
+    char **(*get_level_strings)(void);
+
+    // room_data.h/thing_traps.h -- config_trapdoor.c's per-player
+    // door/trap buildability + amount update needs kfx_sim's struct
+    // PlayerInfo/Dungeon state.
+    TbBool (*set_door_buildable_and_add_to_amount)(PlayerNumber plyr_idx, ThingModel door_kind, int32_t buildable, int32_t amount);
+    TbBool (*set_trap_buildable_and_add_to_amount)(PlayerNumber plyr_idx, ThingModel trap_kind, int32_t buildable, int32_t amount);
+
+    // gui_soundmsgs.h -- config_sounds.c writes the [system] section's
+    // speech_queue_limit setting directly into kfx_frontend's live
+    // g_speech_queue_limit; kfx_frontend owns and reads it (the speech
+    // message queue is a UI concern), same "config writes into a value
+    // owned by a higher layer" shape as set_call_to_arms_graphics above.
+    void (*set_speech_queue_limit)(int limit);
+
+    // lvl_script_lib.h -- config.c's script-hook config value parsing
+    // (icon/anim-by-name lookups, dynamic string params) interns strings
+    // into kfx_game's live script string pool.
+    long (*script_strdup)(const char *src);
+    const char *(*script_strval)(long offset);
 };
 void set_config_reload_callbacks(const struct ConfigReloadCallbacks *callbacks);
 extern const struct ConfigReloadCallbacks *config_reload_callbacks;
@@ -489,7 +615,6 @@ const char *get_conf_parameter_text(const struct NamedCommand commands[],int num
 long get_named_field_id(const struct NamedField *desc, const char *itmname);
 long get_id(const struct NamedCommand *desc, const char *itmname);
 long long get_long_id(const struct LongNamedCommand* desc, const char* itmname);
-long get_rid(const struct NamedCommand *desc, const char *itmname);
 /******************************************************************************/
 int64_t value_name           (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);
 int64_t value_default        (const struct NamedField* named_field, const char* value_text, const struct NamedFieldSet* named_fields_set, int idx, const char* src_str, unsigned char flags);

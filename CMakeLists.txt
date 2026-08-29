@@ -189,6 +189,42 @@ target_compile_definitions(kfx_bfdebug_std INTERFACE BFDEBUG_LEVEL=0)
 add_library(kfx_bfdebug_hvlog INTERFACE)
 target_compile_definitions(kfx_bfdebug_hvlog INTERFACE BFDEBUG_LEVEL=10)
 
+# docs/refactor/testing/: opt-in Catch2 unit-test harness, one test binary
+# per src/kfx_*/ library (see stage-01-framework-and-scaffold.md for the
+# full design). Native Linux only for now -- there's no Windows CI runner
+# or Wine step to execute a mingw-cross-compiled test binary, so this
+# isn't wired into the mingw32 toolchain path. Off by default: contributors
+# who never pass -DKFX_BUILD_TESTS=ON see no new targets, no FetchContent,
+# no new required tools.
+option(KFX_BUILD_TESTS "Build Catch2 unit tests for each kfx_* library (native Linux only, see docs/refactor/testing/stage-01-framework-and-scaffold.md)" OFF)
+if(KFX_BUILD_TESTS)
+    include(FetchContent)
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v3.7.1 # pin; bump deliberately, not floating
+    )
+    FetchContent_MakeAvailable(Catch2)
+    list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
+    enable_testing()
+endif()
+
+# docs/refactor/testing/comprehensive/stage-05-coverage-tooling.md: opt-in
+# gcov/lcov coverage report generation, layered on top of KFX_BUILD_TESTS.
+# Fetches lcov 1.16 (not the latest 2.x -- that needs non-core Perl
+# modules; 1.16 needs none, verified) via kfx_fetch() (Dependencies.cmake),
+# the same download-a-tarball-once helper every other prebuilt dependency
+# in this file uses -- no `apt install lcov`/`pip install gcovr` needed.
+option(KFX_TEST_COVERAGE "Instrument kfx_* libraries for gcov/lcov coverage (native Linux, requires -DKFX_BUILD_TESTS=ON)" OFF)
+if(KFX_BUILD_TESTS AND KFX_TEST_COVERAGE)
+    target_compile_options(kfx_common_opts INTERFACE --coverage -O0 -g)
+    target_link_options(kfx_common_opts INTERFACE --coverage)
+
+    kfx_fetch(lcov "https://github.com/linux-test-project/lcov/releases/download/v1.16/lcov-1.16.tar.gz")
+    set(KFX_LCOV_BIN "${CMAKE_BINARY_DIR}/deps/lcov/lcov-1.16/bin/lcov")
+    set(KFX_GENHTML_BIN "${CMAKE_BINARY_DIR}/deps/lcov/lcov-1.16/bin/genhtml")
+endif()
+
 set(KFX_SOURCES_REMAINING ${KEEPERFX_SOURCES_C} ${KEEPERFX_SOURCES_CXX})
 set(KFX_OBJECT_LIBS_STD "")
 set(KFX_OBJECT_LIBS_HVLOG "")
@@ -213,6 +249,33 @@ add_subdirectory(src/kfx_game)
 add_subdirectory(src/kfx_frontend)
 add_subdirectory(src/kfx_script)
 add_subdirectory(src/kfx_apploop)
+
+# docs/refactor/testing/comprehensive/stage-05-coverage-tooling.md: the
+# whole local coverage workflow as one target -- `ctest` then
+# `cmake --build <dir> --target coverage`. Placed after every
+# add_subdirectory(src/kfx_*) call above since it DEPENDS on their
+# *_utest targets by name -- all ten now exist (kfx_apploop/kfx_script
+# landed in stage-06/07; see docs/Architecture/testing-harness.md).
+if(KFX_BUILD_TESTS AND KFX_TEST_COVERAGE)
+    add_custom_target(coverage
+        COMMAND ${CMAKE_COMMAND} -E env perl "${KFX_LCOV_BIN}"
+            --capture --directory "${CMAKE_BINARY_DIR}"
+            --output-file "${CMAKE_BINARY_DIR}/coverage.raw.info"
+            --gcov-tool gcov --quiet
+        COMMAND perl "${KFX_LCOV_BIN}"
+            --extract "${CMAKE_BINARY_DIR}/coverage.raw.info"
+            "${CMAKE_SOURCE_DIR}/src/kfx_*/src/*"
+            --output-file "${CMAKE_BINARY_DIR}/coverage.info" --quiet
+        COMMAND perl "${KFX_GENHTML_BIN}"
+            "${CMAKE_BINARY_DIR}/coverage.info"
+            --output-directory "${CMAKE_BINARY_DIR}/coverage-html" --quiet
+        DEPENDS
+            kfx_platform_utest kfx_config_utest kfx_pathfinding_utest
+            kfx_sim_utest kfx_render_utest kfx_net_utest kfx_game_utest
+            kfx_frontend_utest kfx_script_utest kfx_apploop_utest
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        COMMENT "Capturing coverage and rendering HTML report (coverage-html/index.html)")
+endif()
 
 # Each src/kfx_*/CMakeLists.txt globs its own library directory directly --
 # see docs/refactor/stage-0{6,7,8,9,10,11}-*.md for the per-stage history

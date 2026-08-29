@@ -330,8 +330,6 @@ struct ShotConfigStats {
     FuncIdx hit_thing_lua_func_idx;
 };
 
-typedef unsigned char (*Expand_Check_Func)(void);
-
 /**
  * Configuration parameters for powers.
  */
@@ -440,7 +438,8 @@ extern const struct NamedCommand powermodel_properties_commands[];
 extern const struct LongNamedCommand powermodel_castability_commands[];
 extern const struct NamedCommand powermodel_expand_check_func_type[];
 extern const struct NamedCommand magic_power_commands[];
-extern const Expand_Check_Func powermodel_expand_check_func_list[];
+// powermodel_expand_check_func_list moved to kfx_sim's power_process.h
+// -- see docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
 extern const struct NamedCommand magic_use_func_commands[];
 extern const struct NamedCommand magic_cost_formula_commands[];
 /******************************************************************************/

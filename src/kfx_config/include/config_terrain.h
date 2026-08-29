@@ -176,8 +176,12 @@ extern const struct ConfigFileData keeper_terrain_file_data;
 extern struct NamedCommand slab_desc[TERRAIN_ITEMS_MAX];
 extern struct NamedCommand room_desc[TERRAIN_ITEMS_MAX];
 extern const struct NamedCommand room_roles_desc[];
-extern Room_Update_Func terrain_room_total_capacity_func_list[13];
-extern Room_Update_Func terrain_room_used_capacity_func_list[10];
+// terrain_room_total_capacity_func_list/terrain_room_used_capacity_func_list
+// moved to kfx_sim's room_data.h/.c: every element is a kfx_sim function
+// (room_data.c/room_treasure.c/room_garden.c/etc.), and kfx_config never
+// read the arrays itself, only defined them for kfx_sim's own
+// room_data.c to read -- misplaced data, not a real kfx_config table.
+// See docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
 
 extern const struct NamedFieldSet terrain_room_named_fields_set;
 /******************************************************************************/

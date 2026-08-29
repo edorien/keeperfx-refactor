@@ -38,11 +38,10 @@
 // through DungeonAvailabilityCallbacks instead of dungeon_data.h
 // directly (stage 13.3, docs/refactor/stage-13-enforce-and-document.md).
 #include "dungeon_availability.h"
-// player_has_heart() (kfx_sim's dungeon_data.h) declared locally --
-// plain narrow-use predicate, interleaved with power-stat parent-power
-// remapping that must stay in kfx_config, same bare-extern shape as
-// config_terrain.c's terrain_room_*_capacity_func_list precedent.
-TbBool player_has_heart(PlayerNumber plyr_idx);
+// player_has_heart() (kfx_sim's dungeon_data.h) is reached through
+// config_reload_callbacks instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 #include "kfx_config_state.h"
 #include "post_inc.h"
@@ -450,22 +449,8 @@ const struct NamedCommand magic_use_func_commands[] = {
 };
 
 
-// Bare externs for kfx_sim's power_process.c functions (see
-// config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- avoids pulling in power_process.h just for
-// these three function-pointer table entries.
-extern unsigned char general_expand_check(void);
-extern unsigned char sight_of_evil_expand_check(void);
-extern unsigned char call_to_arms_expand_check(void);
-
-const Expand_Check_Func powermodel_expand_check_func_list[] = {
-  NULL,
-  general_expand_check,
-  sight_of_evil_expand_check,
-  call_to_arms_expand_check,
-  NULL,
-  NULL,
-};
+// powermodel_expand_check_func_list moved to kfx_sim's power_process.c
+// -- see docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
 
 /******************************************************************************/
 struct NamedCommand spell_desc[MAGIC_ITEMS_MAX];
@@ -1465,7 +1450,7 @@ TbBool is_power_available(PlayerNumber plyr_idx, PowerKind pwkind)
             pwkind = powerst->parent_power;
     }
     // Player must have dungeon heart to cast spells, with no heart only floating spirit spell works
-    if (!player_has_heart(plyr_idx) && (pwkind != PwrK_POSSESS)) {
+    if (!config_reload_callbacks->player_has_heart(plyr_idx) && (pwkind != PwrK_POSSESS)) {
         return false;
     }
     if (pwkind >= kfx_config_state.conf.magic_conf.power_types_count)
@@ -1495,7 +1480,7 @@ TbBool is_power_obtainable(PlayerNumber plyr_idx, PowerKind pwkind)
             pwkind = powerst->parent_power;
     }
     // Player must have dungeon heart to cast spells, with no heart only floating spirit spell works
-    if (!player_has_heart(plyr_idx) && (pwkind != PwrK_POSSESS)) {
+    if (!config_reload_callbacks->player_has_heart(plyr_idx) && (pwkind != PwrK_POSSESS)) {
         return false;
     }
     if (pwkind >= kfx_config_state.conf.magic_conf.power_types_count) {

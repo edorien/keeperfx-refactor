@@ -24,7 +24,14 @@
 #include "bflib_basics.h"
 #include "ariadne_navitree.h"
 #include "ariadne_tringls.h"
-#include "player_data.h"
+// PLAYERS_COUNT (kfx_config_state.h, kfx_config) instead of
+// player_data.h (kfx_sim) -- this file only needs the bounds-check
+// constant, already independently #define'd in kfx_config's own state
+// header (kept in sync manually with kfx_sim's copy; see that header's
+// comment). PlayerNumber itself comes from kfx_platform's globals.h
+// (included above), not from either. See docs/refactor/todo/
+// two-remaining-layering-violations.md.
+#include "kfx_config_state.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus

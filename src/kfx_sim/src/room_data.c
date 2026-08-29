@@ -494,6 +494,40 @@ void count_slabs_pow2_wth_effcncy(struct Room *room)
     room->total_capacity = count;
 }
 
+// Moved from kfx_config's config_terrain.c (see docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md): every element below is a
+// kfx_sim function, and kfx_config never read these arrays itself, only
+// defined them for this file to read (via terrain_room_total_capacity_
+// func_list[roomst->update_total_capacity_idx] etc. below).
+Room_Update_Func terrain_room_total_capacity_func_list[] = {
+  NULL,
+  count_slabs_all_only,
+  count_slabs_all_wth_effcncy,
+  count_slabs_no_min_wth_effcncy,
+  count_slabs_div2_wth_effcncy,
+  count_slabs_div2_nomin_effcncy,
+  count_slabs_mul2_wth_effcncy,
+  count_slabs_pow2_wth_effcncy,
+  count_gold_slabs_wth_effcncy,
+  count_gold_slabs_full,
+  count_gold_slabs_div2,
+  NULL,
+  NULL,
+};
+
+Room_Update_Func terrain_room_used_capacity_func_list[] = {
+  NULL,
+  count_gold_hoardes_in_room,
+  count_books_in_room,
+  count_workers_in_room,
+  count_crates_in_room,
+  count_bodies_in_room,
+  count_food_in_room,
+  count_lair_occupants,
+  NULL,
+  NULL,
+};
+
 void delete_room_structure(struct Room *room)
 {
     if (room_is_invalid(room))

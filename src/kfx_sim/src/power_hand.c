@@ -564,7 +564,7 @@ void draw_power_hand(void)
     int ps_units_per_px;
     {
         const struct TbSprite *spr = sprite_lookup->get_panel_sprite(POWER_HAND_GPS_TRAPDOOR_BONUS_BOX_STD_S); // Use dungeon special box as reference
-        ps_units_per_px = calculate_relative_upp(46, units_per_pixel_ui, spr->SHeight);
+        ps_units_per_px = calculate_relative_upp(46, video_scale_callbacks->get_video_scale_values()->units_per_pixel_ui, spr->SHeight);
     }
     // Now draw
     if (((kfx_sim_state.operation_flags & GOF_ShowGui) != 0) && (kfx_sim_state.small_map_state != 2)
@@ -1177,7 +1177,7 @@ void draw_mini_things_in_hand(long x, long y)
     int ps_units_per_px;
     {
         const struct TbSprite *spr = sprite_lookup->get_panel_sprite(POWER_HAND_GPS_TRAPDOOR_BONUS_BOX_STD_S); // Use dungeon special box as reference
-        ps_units_per_px = calculate_relative_upp(46, units_per_pixel_ui, spr->SHeight);
+        ps_units_per_px = calculate_relative_upp(46, video_scale_callbacks->get_video_scale_values()->units_per_pixel_ui, spr->SHeight);
     }
     unsigned long spr_idx = get_creature_model_graphics(get_players_special_digger_model(dungeon->owner), CGI_HandSymbol);
     if (spr_idx > 0) {

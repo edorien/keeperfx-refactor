@@ -55,18 +55,13 @@
 #define CrSnd_Fight   10
 #define CrSnd_Piss    11
 
-// Bare externs for kfx_sim's thing_creature.h/thing_stats.h functions
-// (see config_terrain.c's terrain_room_*_capacity_func_list for the
-// same established pattern) -- only ever used here by address, passed
-// into do_to_players_all_creatures_of_model()/
-// do_to_all_things_of_class_and_model().
-extern TbBool remove_creature_lair(struct Thing *thing);
-extern TbBool update_creature_health_to_max(struct Thing *creatng);
-extern TbBool update_relative_creature_health(struct Thing *creatng);
-extern long do_to_players_all_creatures_of_model(PlayerNumber plyr_idx, int crmodel, TbBool (*do_cb)(struct Thing *));
-extern long do_to_all_things_of_class_and_model(int tngclass, int tngmodel, TbBool (*do_cb)(struct Thing *));
-extern void recalculate_all_creature_digger_lists();
-extern TbBool update_speed_of_player_creatures_of_model(PlayerNumber plyr_idx, int crmodel);
+// remove_creature_lair()/update_creature_health_to_max()/
+// update_relative_creature_health()/do_to_players_all_creatures_of_model()/
+// do_to_all_things_of_class_and_model()/recalculate_all_creature_digger_lists()/
+// update_speed_of_player_creatures_of_model() (all kfx_sim) are reached
+// through config_reload_callbacks instead of same-file bare-extern
+// forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -2989,26 +2984,19 @@ TbBool swap_creature(ThingModel ncrt_id, ThingModel crtr_id)
     do_creature_swap(ncrt_id, crtr_id);
     struct CreatureModelConfig* ncrconf = creature_stats_get(crtr_id);
     ThingModel newlair = ncrconf->lair_object;
-    // Bare extern for kfx_sim's creature_states_mood.h function (see
-    // config_terrain.c's terrain_room_*_capacity_func_list for the same
-    // established pattern) -- only ever used here by address.
-    extern TbBool process_job_stress_and_going_postal(struct Thing *creatng);
-    // Bare extern for kfx_sim's creature_instances.h function -- only
-    // ever used here by address.
-    extern TbBool creature_increase_available_instances(struct Thing *thing);
     for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++)
     {
-        do_to_players_all_creatures_of_model(plyr_idx, crtr_id, update_relative_creature_health);
-        do_to_players_all_creatures_of_model(plyr_idx, crtr_id, creature_increase_available_instances);
-        update_speed_of_player_creatures_of_model(plyr_idx, crtr_id);
+        config_reload_callbacks->do_to_players_all_creatures_of_model(plyr_idx, crtr_id, config_reload_callbacks->update_relative_creature_health);
+        config_reload_callbacks->do_to_players_all_creatures_of_model(plyr_idx, crtr_id, config_reload_callbacks->creature_increase_available_instances);
+        config_reload_callbacks->update_speed_of_player_creatures_of_model(plyr_idx, crtr_id);
         if (oldlair != newlair)
         {
-            do_to_players_all_creatures_of_model(plyr_idx, crtr_id, remove_creature_lair);
+            config_reload_callbacks->do_to_players_all_creatures_of_model(plyr_idx, crtr_id, config_reload_callbacks->remove_creature_lair);
         }
-        do_to_players_all_creatures_of_model(plyr_idx, crtr_id, process_job_stress_and_going_postal);
+        config_reload_callbacks->do_to_players_all_creatures_of_model(plyr_idx, crtr_id, config_reload_callbacks->process_job_stress_and_going_postal);
     }
 
-    recalculate_all_creature_digger_lists();
+    config_reload_callbacks->recalculate_all_creature_digger_lists();
     config_reload_callbacks->update_creatr_model_activities_list(1);
 
     return true;
@@ -3041,7 +3029,7 @@ TbBool change_max_health_of_creature_kind(ThingModel crmodel, HitPoints new_max)
     }
     SYNCDBG(3,"Changing all %s health from %d to %d.",creature_code_name(crmodel),(int)crconf->health,(int)new_max);
     crconf->health = saturate_set_signed(new_max, 16);
-    int n = do_to_all_things_of_class_and_model(TCls_Creature, crmodel, update_creature_health_to_max);
+    int n = config_reload_callbacks->do_to_all_things_of_class_and_model(TCls_Creature, crmodel, config_reload_callbacks->update_creature_health_to_max);
     return (n > 0);
 }
 

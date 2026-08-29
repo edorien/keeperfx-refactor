@@ -32,24 +32,13 @@
 
 #include "kfx_config_state.h"
 #include "dungeon_availability.h"
-// get_computer_player()/reactivate_build_process() (kfx_sim's
-// player_computer.h) declared locally -- struct Computer2 is only ever
-// compared/passed here, never dereferenced, so it stays opaque; same
-// bare-extern shape as config_terrain.c's own
-// terrain_room_*_capacity_func_list precedent.
-struct Computer2;
-struct Computer2 *get_computer_player_f(long plyr_idx, const char *func_name);
-#define get_computer_player(plyr_idx) get_computer_player_f(plyr_idx, __func__)
-TbBool reactivate_build_process(struct Computer2 *comp, RoomKind rkind);
-// reinitialise_rooms_of_kind()/recalculate_effeciency_for_rooms_of_kind()
-// (kfx_sim's room_data.h) and slabmap_block_invalid()/slabmap_kind()
-// (kfx_sim's slab_data.h) -- same bare-extern shape as above; struct
-// SlabMap stays opaque since slabmap_kind() is the only field access.
-long reinitialise_rooms_of_kind(RoomKind rkind);
-long recalculate_effeciency_for_rooms_of_kind(RoomKind rkind);
-struct SlabMap;
-TbBool slabmap_block_invalid(const struct SlabMap *slb);
-SlabKind slabmap_kind(const struct SlabMap *slb);
+// get_computer_player_f()/reactivate_build_process()/
+// reinitialise_rooms_of_kind()/recalculate_effeciency_for_rooms_of_kind()/
+// slabmap_block_invalid()/slabmap_kind() (all kfx_sim) are reached
+// through config_reload_callbacks instead of same-file bare-extern
+// forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+#define get_computer_player(plyr_idx) config_reload_callbacks->get_computer_player_f(plyr_idx, __func__)
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -242,7 +231,7 @@ static void assign_reinitialise_rooms(const struct NamedField* named_field, int6
     assign_default(named_field,value,named_fields_set,idx,src_str,flags);
     if (flag_is_set(flags,ccf_DuringLevel))
     {
-        reinitialise_rooms_of_kind(idx);
+        config_reload_callbacks->reinitialise_rooms_of_kind(idx);
     }
 }
 
@@ -257,7 +246,7 @@ static void assign_recalculate_effeciency(const struct NamedField* named_field, 
     assign_default(named_field,value,named_fields_set,idx,src_str,flags);
     if (flag_is_set(flags,ccf_DuringLevel))
     {
-        recalculate_effeciency_for_rooms_of_kind(idx);
+        config_reload_callbacks->recalculate_effeciency_for_rooms_of_kind(idx);
     }
 }
 
@@ -291,57 +280,9 @@ const struct NamedCommand room_roles_desc[] = {
   {NULL,                       0},
 };
 
-/* Room capacity computation, using functions from room_data.c */
-
-extern void count_slabs_all_only(struct Room *room);
-extern void count_slabs_all_wth_effcncy(struct Room *room);
-extern void count_slabs_no_min_wth_effcncy(struct Room *room);
-extern void count_slabs_div2_wth_effcncy(struct Room *room);
-extern void count_slabs_div2_nomin_effcncy(struct Room *room);
-extern void count_slabs_mul2_wth_effcncy(struct Room *room);
-extern void count_slabs_pow2_wth_effcncy(struct Room *room);
-extern void count_gold_slabs_wth_effcncy(struct Room *room);
-extern void count_gold_slabs_full(struct Room *room);
-extern void count_gold_slabs_div2(struct Room* room);
-
-Room_Update_Func terrain_room_total_capacity_func_list[] = {
-  NULL,
-  count_slabs_all_only,
-  count_slabs_all_wth_effcncy,
-  count_slabs_no_min_wth_effcncy,
-  count_slabs_div2_wth_effcncy,
-  count_slabs_div2_nomin_effcncy,
-  count_slabs_mul2_wth_effcncy,
-  count_slabs_pow2_wth_effcncy,
-  count_gold_slabs_wth_effcncy,
-  count_gold_slabs_full,
-  count_gold_slabs_div2,
-  NULL,
-  NULL,
-};
-
-/* Room usage computation, using functions from room_data.c */
-
-extern void count_gold_hoardes_in_room(struct Room *room);
-extern void count_books_in_room(struct Room *room);
-extern void count_workers_in_room(struct Room *room);
-extern void count_crates_in_room(struct Room *room);
-extern void count_bodies_in_room(struct Room *room);
-extern void count_food_in_room(struct Room *room);
-extern void count_lair_occupants(struct Room *room);
-
-Room_Update_Func terrain_room_used_capacity_func_list[] = {
-  NULL,
-  count_gold_hoardes_in_room,
-  count_books_in_room,
-  count_workers_in_room,
-  count_crates_in_room,
-  count_bodies_in_room,
-  count_food_in_room,
-  count_lair_occupants,
-  NULL,
-  NULL,
-};
+// terrain_room_total_capacity_func_list/terrain_room_used_capacity_func_list
+// moved to kfx_sim's room_data.c -- see config_terrain.h and
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
 
 const struct NamedCommand terrain_health_commands[] = {
   {"DIRT",            1},
@@ -376,9 +317,9 @@ struct SlabConfigStats *get_slab_kind_stats(SlabKind slab_kind)
 
 struct SlabConfigStats *get_slab_stats(const struct SlabMap *slb)
 {
-    if (slabmap_block_invalid(slb))
+    if (config_reload_callbacks->slabmap_block_invalid(slb))
         return &kfx_config_state.conf.slab_conf.slab_cfgstats[0];
-    return get_slab_kind_stats(slabmap_kind(slb));
+    return get_slab_kind_stats(config_reload_callbacks->slabmap_kind(slb));
 }
 
 /**
@@ -570,7 +511,7 @@ TbBool set_room_available(PlayerNumber plyr_idx, RoomKind rkind, long resrch, lo
         struct Computer2* comp = get_computer_player(plyr_idx);
         if (comp != NULL)
         {
-            reactivate_build_process(comp, rkind);
+            config_reload_callbacks->reactivate_build_process(comp, rkind);
         }
     }
 

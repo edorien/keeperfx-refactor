@@ -35,17 +35,11 @@
 #include "sprite_lookup.h"
 #include "kfx_config_state.h"
 #include "dungeon_availability.h"
-// my_player_number (kfx_sim's player_data.h, a plain extern global) and
-// player_is_roaming()/slab_is_area_inner_fill() (kfx_sim's
-// player_data.h/room_data.h, plain predicates) declared locally instead
-// of including their headers -- same bare-extern shape as
-// config_terrain.c's terrain_room_*_capacity_func_list precedent.
-extern unsigned char my_player_number;
-TbBool player_is_roaming(PlayerNumber plyr_num);
-TbBool slab_is_area_inner_fill(MapSlabCoord slb_x, MapSlabCoord slb_y);
-// Bare extern for kfx_sim's thing_stats.h thing_class_and_model_name() --
-// same pattern as above, plain scalar-in/string-out debug-name lookup.
-extern const char *thing_class_and_model_name(ThingClass class_id, ThingModel model);
+// my_player_number/player_is_roaming()/slab_is_area_inner_fill()/
+// thing_class_and_model_name() (all kfx_sim) are reached through
+// config_reload_callbacks instead of same-file bare-extern
+// forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 #include "post_inc.h"
 
 // Literal-dup of kfx_sim's map_data.h STL_PER_SLB (only reachable
@@ -58,13 +52,9 @@ extern const char *thing_class_and_model_name(ThingClass class_id, ThingModel mo
 // CrInst_NULL from kfx_sim's creature_instances.h; bit-identical sentinel
 // for "no instance".
 #define CREATURE_INSTANCE_NULL 0
-// Bare externs for kfx_sim's creature_instances.h NamedCommand tables (see
-// config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- only ever used here as opaque
-// struct NamedCommand* references.
-extern const struct NamedCommand creature_instances_func_type[];
-extern const struct NamedCommand creature_instances_validate_func_type[];
-extern const struct NamedCommand creature_instances_search_targets_func_type[];
+// creature_instances_func_type/creature_instances_validate_func_type/
+// creature_instances_search_targets_func_type (kfx_sim) are reached
+// through config_reload_callbacks -- see the comment above.
 
 #ifdef __cplusplus
 extern "C" {
@@ -294,13 +284,12 @@ void set_creature_model_graphics(long crmodel, unsigned short seq_idx, unsigned 
     kfx_config_state.conf.crtr_conf.creature_graphics[crmodel][seq_idx] = val;
 }
 /******************************************************************************/
-extern const struct NamedCommand creature_job_player_assign_func_type[];
-extern const struct NamedCommand creature_job_player_check_func_type[];
-extern Creature_Job_Player_Assign_Func creature_job_player_assign_func_list[];
-extern const struct NamedCommand creature_job_coords_check_func_type[];
-extern Creature_Job_Coords_Check_Func creature_job_coords_check_func_list[];
-extern const struct NamedCommand creature_job_coords_assign_func_type[];
-extern Creature_Job_Coords_Assign_Func creature_job_coords_assign_func_list[];
+// creature_job_player_assign_func_type/creature_job_player_check_func_type/
+// creature_job_coords_check_func_type/creature_job_coords_assign_func_type
+// (kfx_sim) are reached through config_reload_callbacks -- see
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md. The
+// _func_list (not _func_type) siblings were declared here too but never
+// actually used in this file -- dead declarations, removed.
 
 const struct NamedCommand mevents_desc[] = {
     {"MEVENT_NOTHING",         EvKind_Nothing},
@@ -1268,7 +1257,7 @@ TbBool parse_creaturetype_instance_blocks(char *buf, long len, const char *confi
             }
             break;
         case 12: // FUNCTION
-            k = recognize_conf_parameter(buf,&pos,len,creature_instances_func_type);
+            k = recognize_conf_parameter(buf,&pos,len,config_reload_callbacks->get_creature_instances_func_type());
             if (k > 0)
             {
                 inst_inf->func_idx = k;
@@ -1392,7 +1381,7 @@ TbBool parse_creaturetype_instance_blocks(char *buf, long len, const char *confi
             }
             break;
         case 18: // ValidateSourceFunc
-            k = recognize_conf_parameter(buf, &pos, len, creature_instances_validate_func_type);
+            k = recognize_conf_parameter(buf, &pos, len, config_reload_callbacks->get_creature_instances_validate_func_type());
             if (k > 0)
             {
                 inst_inf->validate_source_func = k;
@@ -1412,7 +1401,7 @@ TbBool parse_creaturetype_instance_blocks(char *buf, long len, const char *confi
             }
             break;
         case 19: // ValidateTargetFunc
-            k = recognize_conf_parameter(buf, &pos, len, creature_instances_validate_func_type);
+            k = recognize_conf_parameter(buf, &pos, len, config_reload_callbacks->get_creature_instances_validate_func_type());
             if (k > 0)
             {
                 inst_inf->validate_target_func = k;
@@ -1432,7 +1421,7 @@ TbBool parse_creaturetype_instance_blocks(char *buf, long len, const char *confi
             }
             break;
         case 20: // SearchTargetsFunc
-            k = recognize_conf_parameter(buf, &pos, len, creature_instances_search_targets_func_type);
+            k = recognize_conf_parameter(buf, &pos, len, config_reload_callbacks->get_creature_instances_search_targets_func_type());
             if (k > 0)
             {
                 inst_inf->search_func = k;
@@ -1691,13 +1680,13 @@ TbBool parse_creaturetype_job_blocks(char *buf, long len, const char *config_tex
             case 7: // PLAYERFUNCTIONS
                 jobcfg->func_plyr_check_idx = 0;
                 jobcfg->func_plyr_assign_idx = 0;
-                k = recognize_conf_parameter(buf,&pos,len,creature_job_player_check_func_type);
+                k = recognize_conf_parameter(buf,&pos,len,config_reload_callbacks->get_creature_job_player_check_func_type());
                 if (k > 0)
                 {
                     jobcfg->func_plyr_check_idx = k;
                     n++;
                 }
-                k = recognize_conf_parameter(buf,&pos,len,creature_job_player_assign_func_type);
+                k = recognize_conf_parameter(buf,&pos,len,config_reload_callbacks->get_creature_job_player_assign_func_type());
                 if (k > 0)
                 {
                     jobcfg->func_plyr_assign_idx = k;
@@ -1712,13 +1701,13 @@ TbBool parse_creaturetype_job_blocks(char *buf, long len, const char *config_tex
             case 8: // COORDSFUNCTIONS
                 jobcfg->func_cord_check_idx = 0;
                 jobcfg->func_cord_assign_idx = 0;
-                k = recognize_conf_parameter(buf,&pos,len,creature_job_coords_check_func_type);
+                k = recognize_conf_parameter(buf,&pos,len,config_reload_callbacks->get_creature_job_coords_check_func_type());
                 if (k > 0)
                 {
                     jobcfg->func_cord_check_idx = k;
                     n++;
                 }
-                k = recognize_conf_parameter(buf,&pos,len,creature_job_coords_assign_func_type);
+                k = recognize_conf_parameter(buf,&pos,len,config_reload_callbacks->get_creature_job_coords_assign_func_type());
                 if (k > 0)
                 {
                     jobcfg->func_cord_assign_idx = k;
@@ -2078,7 +2067,7 @@ TbBool set_creature_available(PlayerNumber plyr_idx, ThingModel crtr_model, long
     // note that we can't get_players_num_dungeon() because players
     // may be uninitialized yet when this is called.
     if (!dungeon_availability->player_has_valid_dungeon(plyr_idx)) {
-        ERRORDBG(11,"Cannot set %s availability; player %d has no dungeon.",thing_class_and_model_name(TCls_Creature, crtr_model),(int)plyr_idx);
+        ERRORDBG(11,"Cannot set %s availability; player %d has no dungeon.",config_reload_callbacks->thing_class_and_model_name(TCls_Creature, crtr_model),(int)plyr_idx);
         return false;
     }
     if ((crtr_model < 1) || (crtr_model >= kfx_config_state.conf.crtr_conf.model_count)) {
@@ -2089,7 +2078,7 @@ TbBool set_creature_available(PlayerNumber plyr_idx, ThingModel crtr_model, long
         force_avail = 0;
     if (force_avail >= CREATURES_COUNT)
         force_avail = CREATURES_COUNT-1;
-    SYNCDBG(7,"Setting %s availability for player %d to allowed=%d, forced=%d.",thing_class_and_model_name(TCls_Creature, crtr_model),(int)plyr_idx,(int)can_be_avail,(int)force_avail);
+    SYNCDBG(7,"Setting %s availability for player %d to allowed=%d, forced=%d.",config_reload_callbacks->thing_class_and_model_name(TCls_Creature, crtr_model),(int)plyr_idx,(int)can_be_avail,(int)force_avail);
     dungeon_availability->set_creature_availability(plyr_idx, crtr_model, can_be_avail, force_avail);
     return true;
 }
@@ -2104,7 +2093,7 @@ void update_players_special_digger_model(PlayerNumber plyr_idx, ThingModel new_d
     }
     config_reload_callbacks->set_player_special_digger(plyr_idx, new_dig_model);
 
-    if (plyr_idx == my_player_number)
+    if (plyr_idx == config_reload_callbacks->get_my_player_number())
     {
         for (size_t i = 0; i < CREATURE_TYPES_MAX; i++)
         {
@@ -2128,7 +2117,7 @@ ThingModel get_players_special_digger_model(PlayerNumber plyr_idx)
 
     ThingModel crmodel;
 
-    if (player_is_roaming(plyr_idx))
+    if (config_reload_callbacks->player_is_roaming(plyr_idx))
     {
         crmodel = kfx_config_state.conf.crtr_conf.special_digger_good;
         if (crmodel == 0)
@@ -2297,7 +2286,7 @@ CreatureJob get_job_for_subtile(const struct Thing *creatng, MapSubtlCoord stl_x
 {
     // Detect the job which we will do in the area
     unsigned long required_kind_flags = drop_kind_flags;
-    if (slab_is_area_inner_fill(creature_subtile_slab(stl_x), creature_subtile_slab(stl_y))) {
+    if (config_reload_callbacks->slab_is_area_inner_fill(creature_subtile_slab(stl_x), creature_subtile_slab(stl_y))) {
         required_kind_flags |= JoKF_AssignOnAreaCenter;
     } else {
         required_kind_flags |= JoKF_AssignOnAreaBorder;

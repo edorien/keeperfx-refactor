@@ -127,21 +127,23 @@ int64_t value_overrides(const struct NamedField* named_field, const char* value_
     return 0;
 }
 
-// Bare externs for kfx_sim's creature_states.h NamedCommand tables (see
-// config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- only ever used here as opaque
-// struct NamedCommand* references.
-extern const struct NamedCommand process_func_commands[];
-extern const struct NamedCommand cleanup_func_commands[];
-extern const struct NamedCommand move_from_slab_func_commands[];
-extern const struct NamedCommand move_check_func_commands[];
-
-const struct NamedField crstates_states_named_fields[] = {
+// process_func_commands/cleanup_func_commands/move_from_slab_func_commands/
+// move_check_func_commands (kfx_sim's creature_states.h) are genuine
+// kfx_sim state, not derivable at compile time -- unlike config_terrain.c's
+// function-pointer tables, these are embedded as NamedCommand pointers
+// inside the (formerly const) NamedField table below, so a runtime
+// callback call can't sit directly in the initializer. Instead, the
+// array is left mutable, initialized to NULL here, and patched by
+// resolve_crstates_func_commands_pointers() (below, wired as
+// creature_states_file_data's pre_load_func) once config_reload_callbacks
+// is registered. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+struct NamedField crstates_states_named_fields[] = {
     {"NAME",                   0, field_t(struct CreatureStateConfig, name),                        0,        0,      0,              creatrstate_desc,  value_name,      assign_null},
-    {"PROCESSFUNCTION",        0, field_t(struct CreatureStateConfig, process_state),               0,        0,      0,         process_func_commands,  value_function,  assign_default},
-    {"CLEANUPFUNCTION",        0, field_t(struct CreatureStateConfig, cleanup_state),               0,        0,      0,         cleanup_func_commands,  value_function,  assign_default},
-    {"MOVEFROMSLABFUNCTION",   0, field_t(struct CreatureStateConfig, move_from_slab),              0,        0,      0,  move_from_slab_func_commands,  value_function,  assign_default},
-    {"MOVECHECKFUNCTION",      0, field_t(struct CreatureStateConfig, move_check),                  0,        0,      0,      move_check_func_commands,  value_function,  assign_default},
+    {"PROCESSFUNCTION",        0, field_t(struct CreatureStateConfig, process_state),               0,        0,      0,         NULL,  value_function,  assign_default},
+    {"CLEANUPFUNCTION",        0, field_t(struct CreatureStateConfig, cleanup_state),               0,        0,      0,         NULL,  value_function,  assign_default},
+    {"MOVEFROMSLABFUNCTION",   0, field_t(struct CreatureStateConfig, move_from_slab),              0,        0,      0,  NULL,  value_function,  assign_default},
+    {"MOVECHECKFUNCTION",      0, field_t(struct CreatureStateConfig, move_check),                  0,        0,      0,      NULL,  value_function,  assign_default},
     {"OVERRIDES",             -1, NULL,0,                                                           0,        0,      0,                          NULL,  value_overrides, assign_null},
     {"STATETYPE",              0, field_t(struct CreatureStateConfig, state_type),                  0,        0,      0, creature_state_types_commands,  value_default,   assign_default},
     {"CAPTIVE",                0, field_t(struct CreatureStateConfig, captive),                     0,        0,      1,                          NULL,  value_default,   assign_default},
@@ -171,10 +173,21 @@ const struct NamedFieldSet crstates_states_named_fields_set = {
 
 static TbBool load_creaturestates_config_file(const char *fname, unsigned short flags);
 
+// Patches the NamedCommand pointers left NULL in
+// crstates_states_named_fields above -- see the comment there and
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
+static void resolve_crstates_func_commands_pointers(void)
+{
+    crstates_states_named_fields[1].namedCommand = config_reload_callbacks->get_process_func_commands();
+    crstates_states_named_fields[2].namedCommand = config_reload_callbacks->get_cleanup_func_commands();
+    crstates_states_named_fields[3].namedCommand = config_reload_callbacks->get_move_from_slab_func_commands();
+    crstates_states_named_fields[4].namedCommand = config_reload_callbacks->get_move_check_func_commands();
+}
+
 const struct ConfigFileData creature_states_file_data = {
     .filename = "crstates.cfg",
     .load_func = load_creaturestates_config_file,
-    .pre_load_func = NULL,
+    .pre_load_func = resolve_crstates_func_commands_pointers,
     .post_load_func = NULL,
 };
 

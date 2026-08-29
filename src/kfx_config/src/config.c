@@ -34,10 +34,10 @@
 #include "bflib_sound.h"
 #include "bflib_fmvids.h"
 #include "config_campaigns.h"
-// script_strdup()/script_strval() (kfx_game's lvl_script_lib.h) declared
-// locally -- plain functions, used by direct call only.
-long script_strdup(const char *src);
-const char * script_strval(long offset);
+// script_strdup()/script_strval() (kfx_game's lvl_script_lib.h) are
+// reached through config_reload_callbacks instead of same-file
+// bare-extern forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 // Real usage: sprite_lookup->get_icon_id()/sprite_lookup->get_anim_id_().
 #include "sprite_lookup.h"
 // Real usage: get_string_id_by_alias().
@@ -104,6 +104,29 @@ static void config_reload_noop_set_block_health(long idx, long val) {}
 static ThingModel config_reload_noop_get_player_special_digger(PlayerNumber plyr_idx) { return 0; }
 static void config_reload_noop_set_player_special_digger(PlayerNumber plyr_idx, ThingModel model) {}
 
+// See docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
+static struct Computer2 *config_reload_noop_get_computer_player_f(long plyr_idx, const char *func_name) { return NULL; }
+static TbBool config_reload_noop_reactivate_build_process(struct Computer2 *comp, RoomKind rkind) { return false; }
+static long config_reload_noop_get_room_kind_long(RoomKind rkind) { return 0; }
+static TbBool config_reload_noop_slabmap_block_invalid(const struct SlabMap *slb) { return true; }
+static SlabKind config_reload_noop_slabmap_kind(const struct SlabMap *slb) { return 0; }
+static const struct NamedCommand *config_reload_noop_get_named_command_array(void) { return NULL; }
+static unsigned char config_reload_noop_get_my_player_number(void) { return 0; }
+static TbBool config_reload_noop_bool_from_player(PlayerNumber plyr_idx) { return false; }
+static TbBool config_reload_noop_slab_is_area_inner_fill(MapSlabCoord slb_x, MapSlabCoord slb_y) { return false; }
+static const char *config_reload_noop_thing_class_and_model_name(ThingClass class_id, ThingModel model) { return ""; }
+static TbBool config_reload_noop_bool_thing(struct Thing *thing) { return false; }
+static long config_reload_noop_do_to_players_all_creatures_of_model(PlayerNumber plyr_idx, int crmodel, TbBool (*do_cb)(struct Thing *)) { return 0; }
+static long config_reload_noop_do_to_all_things_of_class_and_model(int tngclass, int tngmodel, TbBool (*do_cb)(struct Thing *)) { return 0; }
+static TbBool config_reload_noop_update_speed_of_player_creatures_of_model(PlayerNumber plyr_idx, int crmodel) { return false; }
+static short config_reload_noop_thing_is_invalid(const struct Thing *thing) { return true; }
+static unsigned short config_reload_noop_setup_excess_creatures_to_leave_or_die(short max_remain) { return 0; }
+static char **config_reload_noop_get_level_strings(void) { return NULL; }
+static TbBool config_reload_noop_bool_door_trap(PlayerNumber plyr_idx, ThingModel kind, int32_t buildable, int32_t amount) { return false; }
+static void config_reload_noop_set_speech_queue_limit(int limit) {}
+static long config_reload_noop_script_strdup(const char *src) { return -1; }
+static const char *config_reload_noop_script_strval(long offset) { return NULL; }
+
 static const struct ConfigReloadCallbacks default_config_reload_callbacks = {
     &config_reload_noop_void, &config_reload_noop_void, &config_reload_noop_void,
     &config_reload_noop_update_creatr_model_activities_list,
@@ -149,6 +172,38 @@ static const struct ConfigReloadCallbacks default_config_reload_callbacks = {
     &config_reload_noop_set_block_health,
     &config_reload_noop_get_player_special_digger,
     &config_reload_noop_set_player_special_digger,
+    &config_reload_noop_get_computer_player_f,
+    &config_reload_noop_reactivate_build_process,
+    &config_reload_noop_get_room_kind_long,
+    &config_reload_noop_get_room_kind_long,
+    &config_reload_noop_slabmap_block_invalid,
+    &config_reload_noop_slabmap_kind,
+    &config_reload_noop_bool, &config_reload_noop_bool,
+    &config_reload_noop_get_named_command_array, &config_reload_noop_get_named_command_array,
+    &config_reload_noop_get_named_command_array, &config_reload_noop_get_named_command_array,
+    &config_reload_noop_get_my_player_number,
+    &config_reload_noop_bool_from_player,
+    &config_reload_noop_slab_is_area_inner_fill,
+    &config_reload_noop_thing_class_and_model_name,
+    &config_reload_noop_get_named_command_array, &config_reload_noop_get_named_command_array,
+    &config_reload_noop_get_named_command_array,
+    &config_reload_noop_get_named_command_array, &config_reload_noop_get_named_command_array,
+    &config_reload_noop_get_named_command_array, &config_reload_noop_get_named_command_array,
+    &config_reload_noop_bool_thing, &config_reload_noop_bool_thing, &config_reload_noop_bool_thing,
+    &config_reload_noop_do_to_players_all_creatures_of_model,
+    &config_reload_noop_do_to_all_things_of_class_and_model,
+    &config_reload_noop_void,
+    &config_reload_noop_update_speed_of_player_creatures_of_model,
+    &config_reload_noop_bool_thing, &config_reload_noop_bool_thing,
+    &config_reload_noop_get_named_command_array, &config_reload_noop_get_named_command_array,
+    &config_reload_noop_get_named_command_array, &config_reload_noop_get_named_command_array,
+    &config_reload_noop_bool_from_player,
+    &config_reload_noop_thing_is_invalid,
+    &config_reload_noop_setup_excess_creatures_to_leave_or_die,
+    &config_reload_noop_get_level_strings,
+    &config_reload_noop_bool_door_trap, &config_reload_noop_bool_door_trap,
+    &config_reload_noop_set_speech_queue_limit,
+    &config_reload_noop_script_strdup, &config_reload_noop_script_strval,
 };
 const struct ConfigReloadCallbacks *config_reload_callbacks = &default_config_reload_callbacks;
 
@@ -665,7 +720,7 @@ int64_t value_icon(const struct NamedField* named_field, const char* value_text,
 {
     if (flag_is_set(flags,ccf_SplitExecution))
     {
-        int64_t script_string_offset = script_strdup(value_text);
+        int64_t script_string_offset = config_reload_callbacks->script_strdup(value_text);
         if (script_string_offset < 0)
         {
             NAMFIELDWRNLOG("Run out script strings space");
@@ -683,7 +738,7 @@ int64_t value_animid(const struct NamedField* named_field, const char* value_tex
 {
   if (flag_is_set(flags,ccf_SplitExecution))
   {
-      int64_t script_string_offset = script_strdup(value_text);
+      int64_t script_string_offset = config_reload_callbacks->script_strdup(value_text);
       if (script_string_offset < 0)
       {
           NAMFIELDWRNLOG("Run out script strings space");
@@ -716,7 +771,7 @@ void assign_icon(const struct NamedField* named_field, int64_t value, const stru
 {
     if (flag_is_set(flags,ccf_SplitExecution))
     {
-        short icon_id = sprite_lookup->get_icon_id(script_strval(value));
+        short icon_id = sprite_lookup->get_icon_id(config_reload_callbacks->script_strval(value));
         assign_default(named_field,icon_id,named_fields_set,idx,src_str,flags);
     }
     else
@@ -729,7 +784,7 @@ void assign_animid(const struct NamedField* named_field, int64_t value, const st
 {
     if (flag_is_set(flags,ccf_SplitExecution))
     {
-        short anim_id = sprite_lookup->get_anim_id_(script_strval(value));
+        short anim_id = sprite_lookup->get_anim_id_(config_reload_callbacks->script_strval(value));
         assign_default(named_field,anim_id,named_fields_set,idx,src_str,flags);
     }
     else
@@ -1337,29 +1392,9 @@ long long get_long_id(const struct LongNamedCommand* desc, const char* itmname)
     return -1;
 }
 
-/**
- * Returns ID of given item using NamedCommands list, or any item if the string is 'RANDOM'.
- * Similar to recognize_conf_parameter(), but for use only if the buffer stores
- * one word, ended with "\0".
- * If not found, returns -1.
- */
-long get_rid(const struct NamedCommand *desc, const char *itmname)
-{
-  long i;
-  if ((desc == NULL) || (itmname == NULL))
-    return -1;
-  for (i=0; desc[i].name != NULL; i++)
-  {
-    if (strcasecmp(desc[i].name, itmname) == 0)
-      return desc[i].num;
-  }
-  if (strcasecmp("RANDOM", itmname) == 0)
-  {
-      i = (rand() % i);
-      return desc[i].num;
-  }
-  return -1;
-}
+// get_rid() moved to kfx_platform's bflib_basics.c (see
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md) --
+// declared in bflib_basics.h, included above via config.h.
 
 char *prepare_file_path_buf(char *dst, int dst_size, short fgroup, const char *fname)
 {
@@ -2306,7 +2341,6 @@ TbBool is_level_in_current_campaign(LevelNumber lvnum)
     }
     return false;
 }
-
 
 /* @comment
  *     The loading items of load_config and load_config_for_mod need to be consistent.

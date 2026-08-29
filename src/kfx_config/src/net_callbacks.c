@@ -74,6 +74,7 @@ static TbBool noop_fill_game_catalogue_entry(struct CatalogueEntry *centry, cons
 static TbBool noop_save_packet_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry) { return false; }
 static void noop_draw_out_of_sync_box(long a1, long a2, long box_width) {}
 static void noop_process_frontend_chat_message(int player_id, const char *message) {}
+static void noop_set_host_packet_received(long double value) {}
 
 static const struct NetCallbacks default_net_callbacks = {
     &noop_enter_net_session_screen,
@@ -137,6 +138,7 @@ static const struct NetCallbacks default_net_callbacks = {
     &noop_save_packet_chunks,
     &noop_draw_out_of_sync_box,
     &noop_process_frontend_chat_message,
+    &noop_set_host_packet_received,
 };
 const struct NetCallbacks *net_callbacks = &default_net_callbacks;
 

@@ -34,12 +34,10 @@ extern "C" {
 // enum GameKeys/GAME_KEYS_COUNT moved to kfx_platform's globals.h
 // (stage 13.3) -- pure name/ID vocabulary, no functional coupling here.
 
-enum BindingMenuVisibility {
-    BMV_Hidden,
-    BMV_KeyMouseOnly,
-    BMV_ControllerOnly,
-    BMV_Visible,
-};
+// enum BindingMenuVisibility moved to kfx_config's config_settings.h
+// (2026-08-29, docs/refactor/todo/check-layering-symbol-level-blind-spot.md),
+// alongside game_key_settings[] -- pure name/ID vocabulary, no functional
+// coupling here.
 
 // enum TbButtonFrontendFlags moved to bflib_guibtns.h (stage 10,
 // docs/refactor/stage-10-kfx-frontend.md).

@@ -139,6 +139,11 @@ extern struct TbSpriteSheet *pointer_sprites;
 extern struct TbLoadFiles legal_load_files[];
 extern struct TbLoadFilesV2 game_load_files[];
 extern unsigned short units_per_pixel_min;
+// Declared here, not bflib_video.h (kfx_platform): its only reader is
+// this library's own engine_camera.c, so it doesn't belong on
+// kfx_platform's public surface. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+extern unsigned long first_person_horizontal_fov;
 extern long base_mouse_sensitivity;
 void set_base_mouse_sensitivity(long val);
 
@@ -185,6 +190,9 @@ TbScreenMode setup_screen_mode_zero(TbScreenMode nmode);
 
 short LoadMcgaData(void);
 TbBool update_screen_mode_data(long width, long height);
+// Registered with bflib_video.h's VideoScaleCallbacks. See
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
+const struct VideoScaleValues *get_video_scale_values(void);
 void load_pointer_file(short hi_res);
 TbBool load_testfont_fonts(void);
 void free_testfont_fonts(void);

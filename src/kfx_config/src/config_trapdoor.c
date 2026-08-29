@@ -34,11 +34,9 @@
 #include "kfx_config_state.h"
 #include "dungeon_availability.h"
 // set_trap_buildable_and_add_to_amount()/set_door_buildable_and_add_to_amount()
-// (kfx_sim's dungeon_data.h) declared locally -- plain functions, used
-// by direct call only, same bare-extern shape as config_terrain.c's
-// terrain_room_*_capacity_func_list precedent.
-TbBool set_trap_buildable_and_add_to_amount(PlayerNumber plyr_idx, ThingModel trap_kind, int32_t buildable, int32_t amount);
-TbBool set_door_buildable_and_add_to_amount(PlayerNumber plyr_idx, ThingModel door_kind, int32_t buildable, int32_t amount);
+// (kfx_sim's dungeon_data.h) are reached through config_reload_callbacks
+// instead of same-file bare-extern forward-declarations. See
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -718,7 +716,7 @@ TbBool make_available_all_doors(PlayerNumber plyr_idx)
   }
   for (long i = 1; i < kfx_config_state.conf.trapdoor_conf.door_types_count; i++)
   {
-    if (!set_door_buildable_and_add_to_amount(plyr_idx, i, 1, 0))
+    if (!config_reload_callbacks->set_door_buildable_and_add_to_amount(plyr_idx, i, 1, 0))
     {
         ERRORLOG("Could not make door %s available for player %d", door_code_name(i), plyr_idx);
         return false;
@@ -739,7 +737,7 @@ TbBool make_available_all_traps(PlayerNumber plyr_idx)
   }
   for (long i = 1; i < kfx_config_state.conf.trapdoor_conf.trap_types_count; i++)
   {
-    if (!set_trap_buildable_and_add_to_amount(plyr_idx, i, 1, 0))
+    if (!config_reload_callbacks->set_trap_buildable_and_add_to_amount(plyr_idx, i, 1, 0))
     {
         ERRORLOG("Could not make trap %s available for player %d", trap_code_name(i), plyr_idx);
         return false;

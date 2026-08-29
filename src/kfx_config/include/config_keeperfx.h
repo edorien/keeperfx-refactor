@@ -107,6 +107,14 @@ struct StartupParameters {
     char config_file[CMDLN_MAXLEN+1];
     GameTurn pause_at_gameturn;
     unsigned char startup_flags;
+    // Moved from main.cpp (2026-08-29, docs/refactor/todo/
+    // check-layering-symbol-level-blind-spot.md) -- cmdline-parsed
+    // process-startup config, same shape as this struct's other fields;
+    // read by kfx_frontend's front_network.c and kfx_game's main_game.c,
+    // both ranked below app_entry.
+    char autostart_multiplayer_campaign[80];
+    int autostart_multiplayer_level;
+    TbBool force_player_num;
 #ifdef FUNCTESTING
     unsigned char functest_flags;
     char functest_name[FTEST_MAX_NAME_LENGTH];

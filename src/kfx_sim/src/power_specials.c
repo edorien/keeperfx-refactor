@@ -18,7 +18,6 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "power_specials.h"
-#include "api.h"
 
 #include "globals.h"
 #include "bflib_basics.h"

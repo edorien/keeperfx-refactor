@@ -275,10 +275,35 @@ extern unsigned short units_per_pixel_landview_frame;
 extern unsigned short units_per_pixel_ui;
 extern unsigned long aspect_ratio_factor_HOR_PLUS;
 extern unsigned long aspect_ratio_factor_HOR_PLUS_AND_VERT_PLUS;
-extern unsigned long first_person_horizontal_fov;
+// first_person_horizontal_fov is declared in kfx_render's vidmode.h, not
+// here: it's read only by kfx_render's own engine_camera.c, never by any
+// kfx_platform code, so it doesn't belong on kfx_platform's public
+// surface. See docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
 extern unsigned long first_person_vertical_fov;
 extern unsigned long landview_frame_movement_scale_x;
 extern unsigned long landview_frame_movement_scale_y;
+
+// units_per_pixel_width/height/ui/best/menu above are written by
+// kfx_render's vidmode.c (update_screen_mode_data(), which needs its own
+// render-config/RendererManager context to compute them) -- this file's
+// scaling math (scale_value_by_horizontal_resolution and friends) reads
+// them back through this callback instead of the bare extern, since that
+// bare read is a genuine kfx_render-state dependency, not just a
+// misplaced definition. Registered from main.cpp with vidmode.c's own
+// get_video_scale_values(), which already owns the real values. See
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
+struct VideoScaleValues {
+    unsigned short units_per_pixel_width;
+    unsigned short units_per_pixel_height;
+    unsigned short units_per_pixel_ui;
+    unsigned short units_per_pixel_best;
+    unsigned short units_per_pixel_menu;
+};
+struct VideoScaleCallbacks {
+    const struct VideoScaleValues *(*get_video_scale_values)(void);
+};
+void set_video_scale_callbacks(const struct VideoScaleCallbacks *callbacks);
+extern const struct VideoScaleCallbacks *video_scale_callbacks;
 
 extern unsigned short MyScreenWidth;
 extern unsigned short MyScreenHeight;

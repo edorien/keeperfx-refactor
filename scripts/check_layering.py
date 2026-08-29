@@ -86,10 +86,6 @@ LIB_DIR_NAMES = set(LIBRARY_ORDER) - {"app_entry"}
 # -- don't let this list grow to paper over new violations.
 # ---------------------------------------------------------------------------
 ACCEPTED_VIOLATIONS: set[tuple[str, str]] = {
-    # The one legitimate direct call to the real per-frame update()
-    # dispatcher, from a debug console command that manually advances a
-    # turn. Inherent to what the command does.
-    ("src/kfx_game/src/console_cmd.c", "game_session_loop.h"),
     # net_resync.cpp's intentionally-preserved raw-blob network resync
     # serialization: game/kfx_game_state/kfx_frontend_state are memcpy'd
     # wholesale. This is the wire format by design; no further action

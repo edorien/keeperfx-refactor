@@ -19,6 +19,7 @@ static void noop_gui_panel_sprite_left(long x, long y, int units_per_px, long sp
 static void noop_draw_slab64k(long pos_x, long pos_y, int units_per_px, long width, long height) {}
 static void noop_sync_cheat_box_3(CrInstance active_instance_id) {}
 static TbBool noop_get_bool(void) { return false; }
+static float noop_get_interpolate_time(void) { return 0.0f; }
 static long noop_get_long(void) { return 0; }
 static short noop_menu_is_active(short idx) { return 0; }
 static void noop_turn_on_menu(MenuID idx) {}
@@ -93,6 +94,7 @@ static const struct RenderOverlayCallbacks default_render_overlay = {
     &noop_light_set_attached_slab, /* light_set_attached_slab */
     &noop_delete_lights_attached_to_slab_in_area, /* delete_lights_attached_to_slab_in_area */
     &noop_get_bool,                /* get_lights_enabled */
+    &noop_get_interpolate_time,
 };
 const struct RenderOverlayCallbacks *render_overlay = &default_render_overlay;
 

@@ -34,10 +34,14 @@ extern "C" {
 #endif
 /******************************************************************************/
 static TbBool load_computer_player_config_file(const char *fname, unsigned short flags);
+// See resolve_compp_func_type_pointers() below and docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static void resolve_compp_func_type_pointers(void);
 
 const struct ConfigFileData keeper_keepcomp_file_data = {
   .filename = "keepcompp.cfg",
   .load_func = load_computer_player_config_file,
+  .pre_load_func = resolve_compp_func_type_pointers,
   .post_load_func = NULL,
 };
 
@@ -95,16 +99,18 @@ const struct NamedFieldSet compp_common_named_fields_set = {
   get_compp_common_base,
 };
 
-// Bare externs for kfx_sim's player_computer.h NamedCommand tables (see
-// config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- these are only ever used here as opaque
-// struct NamedCommand* references, so the full header isn't needed.
-extern const struct NamedCommand computer_process_func_type[];
-extern const struct NamedCommand computer_check_func_type[];
-extern const struct NamedCommand computer_event_func_type[];
-extern const struct NamedCommand computer_event_test_func_type[];
-
-static const struct NamedField compp_process_named_fields[] = {
+// computer_process_func_type/computer_check_func_type/
+// computer_event_func_type/computer_event_test_func_type (kfx_sim's
+// player_computer.h) are genuine kfx_sim state, not derivable at compile
+// time -- unlike config_terrain.c's function-pointer tables, these are
+// embedded as NamedCommand pointers inside the (formerly const)
+// NamedField tables below, so a runtime callback call can't sit directly
+// in the initializer. Instead, the array is left mutable, initialized to
+// NULL here, and patched by resolve_compp_func_type_pointers() (below,
+// wired as keeper_keepcomp_file_data's pre_load_func) once
+// config_reload_callbacks is registered. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+static struct NamedField compp_process_named_fields[] = {
   //name           //pos    //field                                   //default //min     //max    //NamedCommand
   {"NAME",        -1, field_t(struct ComputerProcess, name),          0, INT32_MIN,UINT32_MAX, NULL,                       value_name,    assign_null},
   {"MNEMONIC",     0, field_t(struct ComputerProcess, mnemonic),      0, INT32_MIN,UINT32_MAX, NULL,                       value_name,    assign_null},
@@ -113,11 +119,11 @@ static const struct NamedField compp_process_named_fields[] = {
   {"VALUES",       2, field_t(struct ComputerProcess, process_configuration_value_3), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
   {"VALUES",       3, field_t(struct ComputerProcess, process_configuration_value_4), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
   {"VALUES",       4, field_t(struct ComputerProcess, process_configuration_value_5), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
-  {"FUNCTIONS",    0, field_t(struct ComputerProcess, func_check), 0, INT32_MIN,UINT32_MAX, computer_process_func_type, value_default, assign_default},
-  {"FUNCTIONS",    1, field_t(struct ComputerProcess, func_setup), 0, INT32_MIN,UINT32_MAX, computer_process_func_type, value_default, assign_default},
-  {"FUNCTIONS",    2, field_t(struct ComputerProcess, func_task), 0, INT32_MIN,UINT32_MAX, computer_process_func_type, value_default, assign_default},
-  {"FUNCTIONS",    3, field_t(struct ComputerProcess, func_complete), 0, INT32_MIN,UINT32_MAX, computer_process_func_type, value_default, assign_default},
-  {"FUNCTIONS",    4, field_t(struct ComputerProcess, func_pause), 0, INT32_MIN,UINT32_MAX, computer_process_func_type, value_default, assign_default},
+  {"FUNCTIONS",    0, field_t(struct ComputerProcess, func_check), 0, INT32_MIN,UINT32_MAX, NULL, value_default, assign_default},
+  {"FUNCTIONS",    1, field_t(struct ComputerProcess, func_setup), 0, INT32_MIN,UINT32_MAX, NULL, value_default, assign_default},
+  {"FUNCTIONS",    2, field_t(struct ComputerProcess, func_task), 0, INT32_MIN,UINT32_MAX, NULL, value_default, assign_default},
+  {"FUNCTIONS",    3, field_t(struct ComputerProcess, func_complete), 0, INT32_MIN,UINT32_MAX, NULL, value_default, assign_default},
+  {"FUNCTIONS",    4, field_t(struct ComputerProcess, func_pause), 0, INT32_MIN,UINT32_MAX, NULL, value_default, assign_default},
   {"PARAMS",       0, field_t(struct ComputerProcess, process_parameter_1), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
   {"PARAMS",       1, field_t(struct ComputerProcess, process_parameter_2), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
   {"PARAMS",       2, field_t(struct ComputerProcess, process_parameter_3), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
@@ -137,13 +143,13 @@ const struct NamedFieldSet compp_process_named_fields_set = {
   get_processes_base,
 };
 
-static const struct NamedField compp_check_named_fields[] = {
+static struct NamedField compp_check_named_fields[] = {
   //name           //pos    //field                                   //default //min     //max    //NamedCommand
   {"NAME",        -1, field_t(struct ComputerCheck, name), 0, INT32_MIN,UINT32_MAX, NULL,                       value_name,    assign_null},
   {"MNEMONIC",     0, field_t(struct ComputerCheck, mnemonic), 0, INT32_MIN,UINT32_MAX, NULL,                       value_name,    assign_null},
   {"VALUES",       0, field_t(struct ComputerCheck, flags), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
   {"VALUES",       1, field_t(struct ComputerCheck, turns_interval), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
-  {"FUNCTIONS",    0, field_t(struct ComputerCheck, func), 0, INT32_MIN,UINT32_MAX, computer_check_func_type,   value_default, assign_default},
+  {"FUNCTIONS",    0, field_t(struct ComputerCheck, func), 0, INT32_MIN,UINT32_MAX, NULL, value_default, assign_default},
   {"PARAMS",       0, field_t(struct ComputerCheck, primary_parameter), 0, INT32_MIN,UINT32_MAX, NULL,            value_default, assign_default},
   {"PARAMS",       1, field_t(struct ComputerCheck, secondary_parameter), 0, INT32_MIN,UINT32_MAX, NULL,          value_default, assign_default},
   {"PARAMS",       2, field_t(struct ComputerCheck, tertiary_parameter), 0, INT32_MIN,UINT32_MAX, NULL,           value_default, assign_default},
@@ -162,15 +168,15 @@ const struct NamedFieldSet compp_check_named_fields_set = {
   get_checks_base,
 };
 
-static const struct NamedField compp_event_named_fields[] = {
+static struct NamedField compp_event_named_fields[] = {
   //name           //pos    //field                                   //default //min     //max    //NamedCommand
   {"NAME",        -1, field_t(struct ComputerEvent, name), 0, INT32_MIN,UINT32_MAX, NULL,                       value_name,    assign_null},
   {"MNEMONIC",     0, field_t(struct ComputerEvent, mnemonic), 0, INT32_MIN,UINT32_MAX, NULL,                       value_name,    assign_null},
   {"VALUES",       0, field_t(struct ComputerEvent, cetype), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
   {"VALUES",       1, field_t(struct ComputerEvent, mevent_kind), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
   {"VALUES",       2, field_t(struct ComputerEvent, test_interval), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
-  {"FUNCTIONS",    0, field_t(struct ComputerEvent, func_event), 0, INT32_MIN,UINT32_MAX, computer_event_func_type,   value_default, assign_default},
-  {"FUNCTIONS",    0, field_t(struct ComputerEvent, func_test), 0, INT32_MIN,UINT32_MAX, computer_event_test_func_type,   value_default, assign_default},
+  {"FUNCTIONS",    0, field_t(struct ComputerEvent, func_event), 0, INT32_MIN,UINT32_MAX, NULL, value_default, assign_default},
+  {"FUNCTIONS",    0, field_t(struct ComputerEvent, func_test), 0, INT32_MIN,UINT32_MAX, NULL, value_default, assign_default},
   {"PROCESS",      0, field_t(struct ComputerEvent, process), 0, INT32_MIN,UINT32_MAX, NULL,              value_process_mnemonic, assign_default},
   {"PARAMS",       0, field_t(struct ComputerEvent, primary_parameter), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
   {"PARAMS",       1, field_t(struct ComputerEvent, secondary_parameter), 0, INT32_MIN,UINT32_MAX, NULL,                       value_default, assign_default},
@@ -189,6 +195,27 @@ const struct NamedFieldSet compp_event_named_fields_set = {
   sizeof(comp_player_conf.event_types[0]),
   get_events_base,
 };
+
+// Patches the NamedCommand pointers left NULL in compp_process_named_fields/
+// compp_check_named_fields/compp_event_named_fields above, since kfx_sim's
+// computer_process_func_type/computer_check_func_type/
+// computer_event_func_type/computer_event_test_func_type can't sit in a
+// compile-time array initializer. Run as keeper_keepcomp_file_data's
+// pre_load_func, so it's always fresh before this file's tables are parsed
+// (config_reload_callbacks is registered well before the first config
+// (re)load -- see docs/refactor/todo/check-layering-symbol-level-blind-spot.md).
+static void resolve_compp_func_type_pointers(void)
+{
+    const struct NamedCommand *process_types = config_reload_callbacks->get_computer_process_func_type();
+    compp_process_named_fields[7].namedCommand = process_types;
+    compp_process_named_fields[8].namedCommand = process_types;
+    compp_process_named_fields[9].namedCommand = process_types;
+    compp_process_named_fields[10].namedCommand = process_types;
+    compp_process_named_fields[11].namedCommand = process_types;
+    compp_check_named_fields[4].namedCommand = config_reload_callbacks->get_computer_check_func_type();
+    compp_event_named_fields[5].namedCommand = config_reload_callbacks->get_computer_event_func_type();
+    compp_event_named_fields[6].namedCommand = config_reload_callbacks->get_computer_event_test_func_type();
+}
 
 
 

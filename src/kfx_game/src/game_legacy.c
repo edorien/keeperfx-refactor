@@ -29,7 +29,11 @@ extern "C" {
 /******************************************************************************/
 struct Game game;
 
-GameTurn get_gameturn()
+// Registered from main.cpp as kfx_platform's get_gameturn() provider (see
+// GetGameTurnFunc, globals.h) -- renamed from get_gameturn() since that
+// name is now owned by the thin wrapper in kfx_platform's bflib_basics.c.
+// See docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
+GameTurn game_legacy_get_gameturn(void)
 {
     return kfx_game_state.play_gameturn;
 }

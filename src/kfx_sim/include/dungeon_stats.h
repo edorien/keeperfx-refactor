@@ -103,6 +103,13 @@ long update_dungeons_scores(void);
 TbBool update_dungeon_scores_for_player(struct PlayerInfo *player);
 TbBool load_stats_files(void);
 
+unsigned long compute_dungeon_rooms_attraction_score(long num_entrance_slbs, long rooms_area, long entrance_gen);
+unsigned long compute_dungeon_creature_tactics_score(long battles_won, long battles_lost, long scavenge_gain, long scavenge_lost);
+unsigned long compute_dungeon_rooms_variety_score(long room_types, long total_area);
+unsigned long compute_dungeon_train_research_manufctr_wealth_score(long total_train, long total_research, long total_manufctr, long total_wealth);
+unsigned long compute_dungeon_creature_amount_score(long total_creatrs);
+unsigned long compute_dungeon_creature_mood_score(long survived_creatrs, long annoyed_creatrs);
+
 /******************************************************************************/
 #ifdef __cplusplus
 }

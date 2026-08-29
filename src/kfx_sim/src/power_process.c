@@ -105,6 +105,17 @@ unsigned char call_to_arms_expand_check(void)
     return (myplyr->cast_expand_level != 0) && (!player_uses_power_call_to_arms(myplyr->id_number));
 }
 
+// Moved from kfx_config's config_magic.c -- see power_process.h and
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
+const Expand_Check_Func powermodel_expand_check_func_list[] = {
+  NULL,
+  general_expand_check,
+  sight_of_evil_expand_check,
+  call_to_arms_expand_check,
+  NULL,
+  NULL,
+};
+
 void process_armageddon(void)
 {
     struct PlayerInfo *player;

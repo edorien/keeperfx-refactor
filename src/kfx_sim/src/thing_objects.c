@@ -58,17 +58,10 @@
 // process_dungeon_destroy()/initialise_devastate_dungeon_from_heart()
 // (kfx_game's game_loop.h) and light_create_light()/
 // light_init_dungeon_heart()/light_get_light_intensity()/
-// light_set_light_intensity() (kfx_render's light_data.h) declared
-// locally -- plain functions, used by direct call only, same
-// bare-extern shape as config_terrain.c's
-// terrain_room_*_capacity_func_list precedent.
-void process_dungeon_destroy(struct Thing *heartng);
-void initialise_devastate_dungeon_from_heart(PlayerNumber plyr_idx);
-struct InitLight;
-long light_create_light(struct InitLight *ilght);
-void light_init_dungeon_heart(long lgt_id, long radius, long intensity);
-unsigned char light_get_light_intensity(long idx);
-void light_set_light_intensity(long idx, unsigned char intensity);
+// light_set_light_intensity() (kfx_render's light_data.h) are reached
+// through sim_feedback instead of same-file bare-extern
+// forward-declarations. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 
 #include "post_inc.h"
 
@@ -184,7 +177,7 @@ struct Thing *create_object(const struct Coord3d *pos, ThingModel model, unsigne
         ilight.intensity = objst->ilght.intensity;
         ilight.flags = objst->ilght.flags;
         ilight.is_dynamic = objst->ilght.is_dynamic;
-        thing->light_id = light_create_light(&ilight);
+        thing->light_id = sim_feedback->light_create_light(&ilight);
         if (thing->light_id == 0) {
             SYNCDBG(8,"Cannot allocate light to %s",thing_model_name(thing));
         }
@@ -194,7 +187,7 @@ struct Thing *create_object(const struct Coord3d *pos, ThingModel model, unsigne
     if (thing_is_beating_dungeon_heart(thing))
     {
         thing->heart.beat_direction = 1;
-        light_init_dungeon_heart(thing->light_id, 0, 56);
+        sim_feedback->light_init_dungeon_heart(thing->light_id, 0, 56);
     }
     switch (thing->model)
     {
@@ -1206,20 +1199,20 @@ void update_dungeon_heart_beat(struct Thing *heartng)
         }
         if (k > 0)
         {
-            int intensity = light_get_light_intensity(heartng->light_id) + (i * 36 / k);
+            int intensity = sim_feedback->light_get_light_intensity(heartng->light_id) + (i * 36 / k);
             // intensity capped to 63 to fix the first beat flickering black which is visible when SKIP_HEART_ZOOM is on
-            light_set_light_intensity(heartng->light_id, min(intensity, 63));
+            sim_feedback->light_set_light_intensity(heartng->light_id, min(intensity, 63));
             heartng->anim_time += (i * base_heart_beat_rate / k);
             if (heartng->anim_time < 0)
             {
                 heartng->anim_time = 0;
-                light_set_light_intensity(heartng->light_id, 20);
+                sim_feedback->light_set_light_intensity(heartng->light_id, 20);
                 heartng->heart.beat_direction = 1;
             }
             if (heartng->anim_time > base_heart_beat_rate - 1)
             {
                 heartng->anim_time = base_heart_beat_rate - 1;
-                light_set_light_intensity(heartng->light_id, 56);
+                sim_feedback->light_set_light_intensity(heartng->light_id, 56);
                 heartng->heart.beat_direction = (unsigned char)-1;
                 if (bounce)
                 {
@@ -1346,7 +1339,7 @@ static TngUpdateRet object_update_dungeon_heart(struct Thing *heartng)
 
         }
     }
-    process_dungeon_destroy(heartng);
+    sim_feedback->process_dungeon_destroy(heartng);
 
     SYNCDBG(18,"Beat update");
     if ((heartng->alloc_flags & TAlF_Exists) == 0)

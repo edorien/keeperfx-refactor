@@ -56,8 +56,11 @@
 extern "C" {
 #endif
 
-extern char autostart_multiplayer_campaign[80];
-extern int autostart_multiplayer_level;
+// autostart_multiplayer_campaign/autostart_multiplayer_level now live in
+// kfx_config's struct StartupParameters (start_params), reached via
+// config_keeperfx.h. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
+#include "config_keeperfx.h"
 
 /******************************************************************************/
 const char *keeper_netconf_file = "fxconfig.net";
@@ -549,17 +552,17 @@ void handle_autostart_multiplayer_messaging(void)
     if (my_player_number != get_host_player_id() || get_selected_level_number() > SINGLEPLAYER_NOTSTARTED) {
         return;
     }
-    if (autostart_multiplayer_campaign[0] == '\0' && autostart_multiplayer_level <= 0) {
+    if (start_params.autostart_multiplayer_campaign[0] == '\0' && start_params.autostart_multiplayer_level <= 0) {
         return;
     }
     struct PlayerInfo *player = get_my_player();
     const char* camp = "keeporig";
     int level = 1;
-    if (autostart_multiplayer_campaign[0]) {
-        camp = autostart_multiplayer_campaign;
+    if (start_params.autostart_multiplayer_campaign[0]) {
+        camp = start_params.autostart_multiplayer_campaign;
     }
-    if (autostart_multiplayer_level > 0) {
-        level = autostart_multiplayer_level;
+    if (start_params.autostart_multiplayer_level > 0) {
+        level = start_params.autostart_multiplayer_level;
     }
     snprintf(player->mp_message_text, PLAYER_MP_MESSAGE_LEN, "%s:%d", camp, level);
     lbInkey = KC_RETURN;

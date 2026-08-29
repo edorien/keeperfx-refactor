@@ -63,12 +63,10 @@ long level_file_version = 0;
 char *level_strings[STRINGS_MAX+1];
 char *level_strings_data;
 
-// Bare extern for kfx_render's engine_textures.h function (see
-// config_terrain.c's terrain_room_*_capacity_func_list for the same
-// established pattern) -- lvl_filesdk1.c is now kfx_sim (moved from
-// kfx_config in stage 13.3, docs/refactor/stage-13-enforce-and-document.md),
-// but kfx_render is still ranked above it.
-extern TbBool load_texture_map_file(unsigned long tmapidx, LevelNumber lvnum, short fgroup);
+// load_texture_map_file() (kfx_render's engine_textures.h) is reached
+// through sim_feedback instead of a same-file bare-extern
+// forward-declaration. See docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md.
 /******************************************************************************/
 #pragma pack(1)
 
@@ -1450,7 +1448,7 @@ static TbBool load_level_file(LevelNumber lvnum)
           result = false;
         load_map_wibble_file(lvnum);
         load_and_setup_map_info(lvnum);
-        load_texture_map_file(kfx_config_state.texture_id, lvnum, fgroup);
+        sim_feedback->load_texture_map_file(kfx_config_state.texture_id, lvnum, fgroup);
         if (new_format)
         {
             load_aptfx_file(lvnum);
@@ -1483,7 +1481,7 @@ static TbBool load_level_file(LevelNumber lvnum)
         load_slab_file();
         init_columns();
         kfx_config_state.texture_id = 0;
-        load_texture_map_file(kfx_config_state.texture_id, lvnum, fgroup);
+        sim_feedback->load_texture_map_file(kfx_config_state.texture_id, lvnum, fgroup);
         init_top_texture_to_cube_table();
         result = false;
     }

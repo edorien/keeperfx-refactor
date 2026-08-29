@@ -846,8 +846,8 @@ static TbBool parse_system_section(char* buf, long len, const char* config_textn
             }
             else
             {
-                g_speech_queue_limit = (int)limit;
-                SYNCDBG(8, "Speech queue limit set to %d", g_speech_queue_limit);
+                config_reload_callbacks->set_speech_queue_limit((int)limit);
+                SYNCDBG(8, "Speech queue limit set to %d", (int)limit);
             }
         } else {
             WARNLOG("Unknown system setting '%s' in %s", name_buf, config_textname);
@@ -989,7 +989,7 @@ void sound_reset_to_fxdata_baseline(void)
 {
     sound_manager_clear_custom_sounds();
     sound_manager_clear_registry();
-    g_speech_queue_limit = 4;
+    config_reload_callbacks->set_speech_queue_limit(4);
     load_sounds_config();
     SYNCDBG(7, "sound_reset_to_fxdata_baseline: reset to fxdata defaults");
 }

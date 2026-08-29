@@ -1,0 +1,9 @@
+# Fixture for value_util_test.cpp's load_toml_file() tests
+# (docs/refactor/testing/comprehensive/stage-08-comprehensive-library-passes.md's
+# fixture-file pattern for kfx_config's TOML loaders). Deliberately tiny
+# and independent of any real config/fxdata/*.toml schema -- this is
+# testing the generic load_toml_file() mechanism every config_*.c TOML
+# loader shares, not any one config file's specific structure.
+[section]
+Name = "test"
+Value = 42
