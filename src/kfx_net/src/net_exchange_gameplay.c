@@ -15,7 +15,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "net_exchange_gameplay.h"
 #include "bflib_basics.h"
 #include "bflib_enet.h"

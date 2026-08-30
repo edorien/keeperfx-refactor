@@ -25,8 +25,8 @@
 #include "bflib_render.h"
 #include "bflib_sprfnt.h"
 #include "bflib_vidsurface.h"
-#include "kfx/platform/PlatformManager.h"
-#include "kfx/renderer/RendererManager.h"
+#include "platform/PlatformManager.h"
+#include "renderer/RendererManager.h"
 
 #include <SDL3/SDL.h>
 #include <math.h>

@@ -7,7 +7,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
-#include "kfx/platform/WindowSystemSDL.h"
+#include "platform/WindowSystemSDL.h"
 #include "bflib_basics.h"
 #include "bflib_video.h"
 #include <SDL3/SDL.h>

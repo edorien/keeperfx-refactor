@@ -7,12 +7,12 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
-#include "kfx/platform/PlatformManager.h"
-#include "kfx/platform/WindowSystemSDL.h"
-#include "kfx/platform/IPlatform.h"
-#include "kfx/platform/PlatformWindows.h"
-#include "kfx/platform/PlatformLinux.h"
-#include "kfx/platform/FileFind.h"
+#include "platform/PlatformManager.h"
+#include "platform/WindowSystemSDL.h"
+#include "platform/IPlatform.h"
+#include "platform/PlatformWindows.h"
+#include "platform/PlatformLinux.h"
+#include "platform/FileFind.h"
 #include "platform.h"
 #include "bflib_fileio.h"
 #include "cdrom.h"

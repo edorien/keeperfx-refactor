@@ -17,7 +17,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "gui_msgs.h"
 #include <stdarg.h>
 

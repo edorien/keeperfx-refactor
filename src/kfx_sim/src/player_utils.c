@@ -53,7 +53,7 @@
 #include "game_callbacks.h"
 #include "config.h"
 #include "kfx_sim_state.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "kfx_config_state.h"
 #include "power_process.h"
 // initialise_devastate_dungeon_from_heart() (kfx_game's game_loop.h)

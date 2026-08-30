@@ -74,7 +74,7 @@ list(APPEND KEEPERFX_SOURCES_CXX ${KEEPERFX_FTESTS_CXX})
 # The platform-exclusive OS-integration files (windows.cpp/steam_api.cpp/
 # cdrom.cpp/linux.cpp) moved to src/kfx_platform/src/ in stage 3 -- see
 # src/kfx_platform/CMakeLists.txt for their exclusion logic now. The new
-# src/kfx_platform/src/kfx/platform/ classes from upstream's SDL3
+# src/kfx_platform/src/platform/ classes from upstream's SDL3
 # migration moved there too.
 
 message(STATUS "We are using ${CMAKE_CXX_COMPILER_ID}")

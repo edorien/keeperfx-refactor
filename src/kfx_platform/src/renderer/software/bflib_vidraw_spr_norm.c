@@ -19,7 +19,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "bflib_vidraw.h"
 
 #include <string.h>

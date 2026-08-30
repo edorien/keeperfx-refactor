@@ -12,28 +12,35 @@
 
 file(GLOB KFX_PLATFORM_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-# kfx/platform/ (brought in from upstream's SDL3 migration -- see git log)
+# platform/ (brought in from upstream's SDL3 migration -- see git log)
 # holds the IPlatform/IWindowSystem OOP abstraction that replaced windows.cpp/
 # linux.cpp/cdrom.cpp/steam_api.cpp; not picked up by the plain GLOB above
 # since it's one directory deeper.
-file(GLOB KFX_PLATFORM_SOURCES_CXX_SUB "${CMAKE_CURRENT_SOURCE_DIR}/src/kfx/platform/*.cpp")
+file(GLOB KFX_PLATFORM_SOURCES_CXX_SUB "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/*.cpp")
 list(APPEND KFX_PLATFORM_SOURCES_CXX ${KFX_PLATFORM_SOURCES_CXX_SUB})
-# kfx/renderer/ (also from upstream's SDL3 migration) is the IRenderer seam
+# renderer/ (also from upstream's SDL3 migration) is the IRenderer seam
 # (RendererManager facade + RendererSoftware backend) that bflib_video.c
 # calls into for palette/framebuffer/screenshot/present-frame -- a
 # low-level SDL rendering backend with no engine-specific dependencies, so
 # it lives alongside kfx_platform's other bflib_video.c-adjacent code
 # rather than in kfx_render (which is the higher-ranked 3D engine).
-file(GLOB KFX_PLATFORM_SOURCES_CXX_RENDERER "${CMAKE_CURRENT_SOURCE_DIR}/src/kfx/renderer/*.cpp")
+file(GLOB KFX_PLATFORM_SOURCES_CXX_RENDERER "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/*.cpp")
 list(APPEND KFX_PLATFORM_SOURCES_CXX ${KFX_PLATFORM_SOURCES_CXX_RENDERER})
+# renderer/software/ -- the CPU software-renderer backend's raster
+# primitives (bflib_render*.c/bflib_vidraw*.c/SwDrawTarget.c), moved here
+# from a flat src/ layout by upstream's software-rendering refactor (see
+# git log). One directory deeper than the *.cpp glob above and all .c
+# rather than .cpp, so it needs its own glob too.
+file(GLOB KFX_PLATFORM_SOURCES_C_RENDERER_SW "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/*.c")
+list(APPEND KFX_PLATFORM_SOURCES_C ${KFX_PLATFORM_SOURCES_C_RENDERER_SW})
 
 # Platform-exclusive exceptions -- PlatformWindows.cpp/PlatformLinux.cpp
 # are each only buildable/relevant for their own OS (matches upstream's
 # BuildTargets.cmake filter logic).
 if(WIN32)
-    list(REMOVE_ITEM KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/kfx/platform/PlatformLinux.cpp")
+    list(REMOVE_ITEM KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/PlatformLinux.cpp")
 else()
-    list(REMOVE_ITEM KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/kfx/platform/PlatformWindows.cpp")
+    list(REMOVE_ITEM KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/PlatformWindows.cpp")
 endif()
 
 set(KFX_PLATFORM_SOURCES ${KFX_PLATFORM_SOURCES_C} ${KFX_PLATFORM_SOURCES_CXX})

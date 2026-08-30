@@ -95,6 +95,8 @@ TbBool copy_raw8_image_buffer(unsigned char *dst_buf,const int scanline,const in
 void draw_bar64k(long pos_x, long pos_y, int units_per_px, long width);
 void draw_lit_bar64k(long pos_x, long pos_y, int units_per_px, long width);
 void draw_slab64k_background(long pos_x, long pos_y, long width, long height);
+/** The tiling itself; draw_slab64k_background routes through the renderer first. */
+void draw_slab64k_background_immediate(long pos_x, long pos_y, long width, long height);
 void draw_slab64k(long pos_x, long pos_y, int units_per_px, long width, long height);
 void draw_ornate_slab64k(long pos_x, long pos_y, int units_per_px, long width, long height);
 void draw_ornate_slab_outline64k(long pos_x, long pos_y, int units_per_px, long width, long height);

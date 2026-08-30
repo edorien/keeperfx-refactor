@@ -28,7 +28,7 @@
 #include "game_legacy.h"
 #include "lens_api.h"
 
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "post_inc.h"
 
 /******************************************************************************/

@@ -1,6 +1,6 @@
 #include "pre_inc.h"
-#include "kfx/platform/PlatformWindows.h"
-#include "kfx/platform/FileFind.h"
+#include "platform/PlatformWindows.h"
+#include "platform/FileFind.h"
 #include "platform.h"
 #include "bflib_fileio.h"
 #include <SDL3/SDL.h>

@@ -1,5 +1,5 @@
 #include "pre_inc.h"
-#include "kfx/renderer/RendererSoftware.h"
+#include "renderer/RendererSoftware.h"
 #include "bflib_video.h"       // PALETTE_COLORS, lbWindow, SDL, vsync_enabled
 #include "bflib_vidsurface.h"  // lbDrawSurface (goes away when the framebuffer migrates)
 #include "bflib_mouse.h"       // LbMouseOnBeginSwap/EndSwap (software cursor around present)

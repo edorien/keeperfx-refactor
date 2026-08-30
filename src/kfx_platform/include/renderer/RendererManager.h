@@ -6,7 +6,7 @@
 
 // RendererType is a C++ enum; C translation units see it as an opaque int.
 #ifdef __cplusplus
-#  include "kfx/renderer/IRenderer.h"
+#  include "renderer/IRenderer.h"
 #else
 typedef int RendererType;
 #  define RENDERER_INVALID  (-1)
@@ -54,6 +54,34 @@ TbResult RendererScreenInitialize(void);
 TbResult RendererSetDoubleBuffering(TbBool state);
 
 // Current draw colour — ambient draw-call state, held off lbDisplay.  will be removing in the future, just for now it keeps the pr small
+// Text. LbTextDrawResized routes here so the active backend can record the
+// draw for this frame or draw it now.
+TbBool RendererTextDrawResized(int posx, int posy, int units_per_px, const char *text);
+
+// gui_draw.h (kfx_frontend) -- draw_slab64k_background_immediate is
+// kfx_frontend's actual tile-drawing code, used as the immediate-mode
+// fallback by RendererDrawSlabBackground below when no UI-renderer
+// sub-backend is active yet. kfx_platform is the lowest-ranked library
+// and can't include gui_draw.h directly, so this is injected instead,
+// mirroring bflib_inputctrl.h's InputFocusPredicates and
+// bflib_sndlib.h's SoundStateCallbacks.
+struct RendererDrawCallbacks {
+    void (*draw_slab_background_immediate)(long pos_x, long pos_y, long width, long height);
+};
+void set_renderer_draw_callbacks(const struct RendererDrawCallbacks *callbacks);
+extern const struct RendererDrawCallbacks *renderer_draw_callbacks;
+
+// Sprites. The Lb* entry points route here so the active backend can record the
+// draw for this frame or draw it now.
+struct TbSprite;
+TbResult RendererDrawBox(int32_t x, int32_t y, uint32_t width, uint32_t height, unsigned char colour);
+void RendererDrawSlabBackground(int32_t x, int32_t y, int32_t width, int32_t height);
+TbResult RendererSpriteDraw(int32_t x, int32_t y, const struct TbSprite *spr);
+TbResult RendererSpriteDrawOneColour(int32_t x, int32_t y, const struct TbSprite *spr, unsigned char colour);
+TbResult RendererSpriteDrawScaled(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h);
+TbResult RendererSpriteDrawScaledOneColour(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, unsigned char colour);
+int      RendererSpriteDrawScaledRemap(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, const unsigned char *cmap);
+
 unsigned char RendererGetDrawColour(void);
 void RendererSetDrawColour(unsigned char colour);
 

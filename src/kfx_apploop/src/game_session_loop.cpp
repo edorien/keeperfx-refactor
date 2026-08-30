@@ -94,7 +94,7 @@
 #include "bflib_crash.h"
 #include "lvl_filesdk1.h"
 #include "config_sounds.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 
 #include <cstdint>
 

@@ -147,8 +147,8 @@ zip / version helpers. **Depends on:** external libs only (SDL3, enet, zlib, …
   (`Coord3d`, `Coord2d`, …) and ~55 domain-ID typedefs (`PlayerNumber`,
   `ThingIndex`, `RoomKind`, …) used identically by every other library. This is
   the legitimate foundation header that stays below all nine libraries.
-- The **C++ platform/renderer seam** under `src/kfx/platform/` and
-  `src/kfx/renderer/`: `PlatformManager` (C-callable facade delegating to
+- The **C++ platform/renderer seam** under `src/kfx_platform/{include,src}/platform/` and
+  `src/kfx_platform/{include,src}/renderer/`: `PlatformManager` (C-callable facade delegating to
   `PlatformWindows` / `PlatformLinux` + `WindowSystemSDL`), and `RendererManager`
   (C-callable facade over `IRenderer` / `RendererSoftware`). This is the
   "complete refactor of the platform seam" — the C engine talks to a swappable

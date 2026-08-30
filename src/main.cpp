@@ -14,8 +14,8 @@
 #include "pre_inc.h"
 
 #include "platform.h"
-#include "kfx/platform/PlatformManager.h"
-#include "kfx/renderer/RendererManager.h"
+#include "platform/PlatformManager.h"
+#include "renderer/RendererManager.h"
 #include "globals.h"
 #include "bflib_sprite.h"
 #include "thing_data.h"
@@ -1990,6 +1990,10 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
     retval &= (LbTimerInit() != Lb_FAIL);
     retval &= (RendererScreenInitialize() != Lb_FAIL);
     retval &= (RendererInit(RENDERER_SOFTWARE) != 0);
+    static const struct RendererDrawCallbacks renderer_draw_callbacks_impl = {
+        &draw_slab64k_background_immediate,
+    };
+    set_renderer_draw_callbacks(&renderer_draw_callbacks_impl);
     LbSetTitle(PROGRAM_NAME);
     LbSetIcon(1);
     RendererSetDoubleBuffering(true);

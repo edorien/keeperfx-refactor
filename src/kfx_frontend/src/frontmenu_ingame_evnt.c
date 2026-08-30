@@ -17,7 +17,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "frontmenu_ingame_evnt.h"
 #include "config_keeperfx.h"
 #include "globals.h"

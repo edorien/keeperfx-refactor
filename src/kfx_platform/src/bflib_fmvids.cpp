@@ -1,7 +1,7 @@
 #include "pre_inc.h"
 #include "bflib_fmvids.h"
 #include "bflib_video.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "bflib_inputctrl.h"
 #include "bflib_keybrd.h"
 #include "bflib_vidsurface.h"

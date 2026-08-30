@@ -1,6 +1,6 @@
 #include "pre_inc.h"
-#include "kfx/platform/PlatformLinux.h"
-#include "kfx/platform/FileFind.h"
+#include "platform/PlatformLinux.h"
+#include "platform/FileFind.h"
 #include "platform.h" // kfxmain
 #include "bflib_fileio.h"
 #include <SDL3/SDL.h>

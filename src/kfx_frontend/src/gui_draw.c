@@ -17,7 +17,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "gui_draw.h"
 
 #include "globals.h"
@@ -233,6 +233,11 @@ void draw_lit_bar64k(long pos_x, long pos_y, int units_per_px, long width)
 }
 
 void draw_slab64k_background(long pos_x, long pos_y, long width, long height)
+{
+    RendererDrawSlabBackground(pos_x, pos_y, width, height);
+}
+
+void draw_slab64k_background_immediate(long pos_x, long pos_y, long width, long height)
 {
     long i;
     long scr_x = pos_x / pixel_size;

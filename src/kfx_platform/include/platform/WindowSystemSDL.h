@@ -1,7 +1,7 @@
 #ifndef WINDOW_SYSTEM_SDL_H
 #define WINDOW_SYSTEM_SDL_H
 
-#include "kfx/platform/IWindowSystem.h"
+#include "platform/IWindowSystem.h"
 
 struct SDL_Window;  // forward declaration; full type in WindowSystemSDL.cpp
 

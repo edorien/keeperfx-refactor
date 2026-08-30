@@ -8,7 +8,7 @@
 # kfx_*/tests/ subdirectory, so later ones can reference it by name --
 # CMake target names are global to the whole build). Every kfx_*_utest
 # transitively links kfx_platform (directly, or via another library that
-# depends on it), and kfx_platform/src/kfx/platform/PlatformLinux.cpp
+# depends on it), and kfx_platform/src/platform/PlatformLinux.cpp
 # physically owns the process main() (by design -- see
 # docs/refactor/todo/check-layering-symbol-level-blind-spot.md's item 3).
 # kfx_test_main.cpp forwards that main()'s kfxmain() call into Catch2's

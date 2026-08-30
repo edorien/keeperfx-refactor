@@ -43,7 +43,7 @@
 #include "game_heap.h"
 #include "game_legacy.h"
 #include "bflib_video.h"
-#include "kfx/renderer/RendererManager.h"
+#include "renderer/RendererManager.h"
 #include "net_callbacks.h"
 #include "game_merge.h"
 #include "game_lifecycle.h"

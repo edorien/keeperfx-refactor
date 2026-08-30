@@ -1,7 +1,7 @@
 #ifndef PLATFORM_LINUX_H
 #define PLATFORM_LINUX_H
 
-#include "kfx/platform/IPlatform.h"
+#include "platform/IPlatform.h"
 
 /** Linux desktop platform. */
 class PlatformLinux : public IPlatform {
