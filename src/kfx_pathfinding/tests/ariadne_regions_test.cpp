@@ -135,3 +135,35 @@ TEST_CASE_METHOD(ResetRegions, "navigation_regions_connected accepts an out-of-r
     CHECK(navigation_regions_connected(kTriA, kTriB, -1));
     CHECK(navigation_regions_connected(kTriA, kTriB, 9)); // == PLAYERS_COUNT
 }
+
+// region_set_f/region_unset_f/region_unlock all mutate the module-private
+// Regions[] array too (num_triangles/is_connected bookkeeping), but
+// that's not exposed through any accessor -- only region_set_f's write to
+// the *triangle's own* region id (via set_triangle_region_id(), already
+// covered directly in ariadne_tringls_test.cpp) is externally observable
+// here, through get_triangle_region_id().
+TEST_CASE_METHOD(ResetRegions, "region_set updates the triangle's own region id when it actually changes", "[kfx_pathfinding][ariadne_regions]") {
+    CHECK(get_triangle_region_id(kTriA) == 0); // ResetRegions leaves the triangle zeroed
+    region_set(kTriA, 5);
+    CHECK(get_triangle_region_id(kTriA) == 5);
+}
+
+TEST_CASE_METHOD(ResetRegions, "region_set rejects an out-of-range triangle id or region id without touching anything", "[kfx_pathfinding][ariadne_regions]") {
+    region_set(-1, 5);
+    region_set(TRIANLGLES_COUNT, 5);
+    region_set(kTriA, REGIONS_COUNT);
+    CHECK(get_triangle_region_id(kTriA) == 0); // untouched by any of the three rejected calls
+}
+
+TEST_CASE_METHOD(ResetRegions, "region_unset resets the triangle's region id back to 0", "[kfx_pathfinding][ariadne_regions]") {
+    region_set(kTriA, 5);
+    REQUIRE(get_triangle_region_id(kTriA) == 5);
+    region_unset(kTriA, 5);
+    CHECK(get_triangle_region_id(kTriA) == 0);
+}
+
+TEST_CASE_METHOD(ResetRegions, "region_unlock is a safe no-op from this test's vantage point (Regions[] itself isn't exposed)", "[kfx_pathfinding][ariadne_regions]") {
+    region_set(kTriA, 5);
+    region_unlock(kTriA); // must not crash; its is_connected write is unobservable here
+    CHECK(get_triangle_region_id(kTriA) == 5); // unaffected -- region_unlock never touches the triangle's own id
+}

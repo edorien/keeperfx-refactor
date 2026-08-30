@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "ariadne_tringls.h"
+#include "ariadne_points.h" // point_set/point_is_invalid/POINTS_COUNT, for get_triangle_point/triangle_tip_equals/edgelen_set
 #include "ariadne.h" // NAVMAP_FLOORHEIGHT_MAX
 
 namespace {
@@ -134,4 +135,84 @@ TEST_CASE("tri_new allocates from the free list before extending ix_Triangles", 
     CHECK(b == a); // reused from the free list, not a fresh ix_Triangles slot
     CHECK(ix_Triangles == 3); // unchanged: this allocation came from the free list
     CHECK(count_Triangles == 3);
+}
+
+TEST_CASE("triangle_find_first_used finds the first triangle (by index) with tree_alt still set", "[kfx_pathfinding][ariadne_tringls]") {
+    // triangulation_init_triangles doubles as this test's fixture too --
+    // it deterministically sets ix_Triangles=2 and both seed triangles'
+    // tree_alt to NAVMAP_FLOORHEIGHT_MAX (!= NAV_COL_UNSET), so the scan
+    // (0..ix_Triangles) is fully controlled rather than depending on
+    // whatever state other tests left in the shared Triangles[] array.
+    triangulation_init_triangles(0, 1, 2, 3);
+    CHECK(triangle_find_first_used() == 0);
+}
+
+TEST_CASE_METHOD(ResetScratchTriangle, "get_triangle_point resolves a triangle corner to its Point via ari_Points[]", "[kfx_pathfinding][ariadne_tringls]") {
+    constexpr AridPointId kScratchPt = POINTS_COUNT - 1;
+    point_set(kScratchPt, 111, 222);
+    Triangles[kScratchTri].points[1] = kScratchPt;
+
+    struct Point *pt = get_triangle_point(kScratchTri, 1);
+    CHECK(pt->x == 111);
+    CHECK(pt->y == 222);
+}
+
+TEST_CASE("get_triangle_point returns INVALID_POINT for an out-of-range triangle id or corner", "[kfx_pathfinding][ariadne_tringls]") {
+    CHECK(point_is_invalid(get_triangle_point(-1, 0)));
+    CHECK(point_is_invalid(get_triangle_point(TRIANLGLES_COUNT, 0)));
+    CHECK(point_is_invalid(get_triangle_point(0, -1)));
+    CHECK(point_is_invalid(get_triangle_point(0, 3)));
+}
+
+TEST_CASE_METHOD(ResetScratchTriangle, "triangle_tip_equals is true only when the corner's point matches the given coordinates", "[kfx_pathfinding][ariadne_tringls]") {
+    constexpr AridPointId kScratchPt = POINTS_COUNT - 2;
+    point_set(kScratchPt, 5, 9);
+    Triangles[kScratchTri].points[2] = kScratchPt;
+
+    CHECK(triangle_tip_equals(kScratchTri, 2, 5, 9));
+    CHECK_FALSE(triangle_tip_equals(kScratchTri, 2, 5, 10));
+}
+
+TEST_CASE("triangle_tip_equals rejects an out-of-range triangle id or corner", "[kfx_pathfinding][ariadne_tringls]") {
+    CHECK_FALSE(triangle_tip_equals(-1, 0, 0, 0));
+    CHECK_FALSE(triangle_tip_equals(TRIANLGLES_COUNT, 0, 0, 0));
+    CHECK_FALSE(triangle_tip_equals(0, -1, 0, 0));
+    CHECK_FALSE(triangle_tip_equals(0, 3, 0, 0));
+}
+
+TEST_CASE_METHOD(ResetScratchTriangle, "edgelen_set packs all-zero-length edges (three coincident points) into the minimum code for each edge", "[kfx_pathfinding][ariadne_tringls]") {
+    constexpr AridPointId kPt0 = POINTS_COUNT - 3;
+    constexpr AridPointId kPt1 = POINTS_COUNT - 4;
+    constexpr AridPointId kPt2 = POINTS_COUNT - 5;
+    point_set(kPt0, 0, 0);
+    point_set(kPt1, 0, 0);
+    point_set(kPt2, 0, 0);
+    Triangles[kScratchTri].points[0] = kPt0;
+    Triangles[kScratchTri].points[1] = kPt1;
+    Triangles[kScratchTri].points[2] = kPt2;
+
+    edgelen_set(kScratchTri);
+    // EdgeLenBits[0][0] == 1 for every one of the three edges:
+    // (1 << 4) | (1 << 2) | (1 << 0) == 21.
+    CHECK(get_triangle_edgelen(kScratchTri) == 21);
+}
+
+TEST_CASE_METHOD(ResetScratchTriangle, "edgelen_set clamps large edge deltas to the table's max code (3) per axis", "[kfx_pathfinding][ariadne_tringls]") {
+    constexpr AridPointId kPt0 = POINTS_COUNT - 3;
+    constexpr AridPointId kPt1 = POINTS_COUNT - 4;
+    constexpr AridPointId kPt2 = POINTS_COUNT - 5;
+    point_set(kPt0, 0, 0);
+    point_set(kPt1, 0, 0);
+    point_set(kPt2, 5, 0); // delta_x=5 on both edges touching pt2, clamped to 3
+
+    Triangles[kScratchTri].points[0] = kPt0;
+    Triangles[kScratchTri].points[1] = kPt1;
+    Triangles[kScratchTri].points[2] = kPt2;
+
+    edgelen_set(kScratchTri);
+    // edge(pt0,pt2): EdgeLenBits[0][3]=3 -> (3<<4)=48
+    // edge(pt2,pt1): EdgeLenBits[0][3]=3 -> (3<<2)=12
+    // edge(pt1,pt0): EdgeLenBits[0][0]=1 -> (1<<0)=1
+    // total: 48 | 12 | 1 == 61
+    CHECK(get_triangle_edgelen(kScratchTri) == 61);
 }

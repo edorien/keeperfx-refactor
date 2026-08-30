@@ -80,6 +80,8 @@ struct PacketEx
 /******************************************************************************/
 /******************************************************************************/
 void force_application_close(void);
+TbBool is_mouse_on_map(struct Packet* pckt);
+void remember_cursor_subtile(struct PlayerInfo *player);
 struct Thing *get_thing_under_hand(struct PlayerInfo *player, MapCoord x, MapCoord y);
 TbBool process_dungeon_control_packet_clicks(long idx);
 TbBool process_players_dungeon_control_packet_action(long idx);

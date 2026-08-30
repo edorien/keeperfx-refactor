@@ -248,3 +248,80 @@ Confirmed correct, not just "ran without error":
 - **Re-measured again** after the layering-residual-focused pass (302
   tests): **1.7% line coverage (2,164/124,517), 3.8% function coverage
   (281/7,447)**.
+- **Re-measured again** after adding `kfx_net`'s `packets_misc.c`/
+  `packets_input.c` accessor coverage and three more
+  `creature_states_*.c` files (`_mood`/`_gardn`/`_rsrch`, 357 tests):
+  **1.86% line coverage (2,329/124,942), 4.05% function coverage
+  (303/7,473)**.
+- **Re-measured again** after a dedicated `kfx_platform` (lowest-ranked
+  library) push (491 tests): **2.28% line coverage (2,853/124,942),
+  4.96% function coverage (371/7,473)**. `kfx_platform` itself went from
+  41 to 175 tests, 2.3%→6.1% line / 5.2%→12.7% function coverage
+  (`kfx_platform/src/index.html`) — every remaining zero-coverage file in
+  that library needs a live SDL/OpenAL/ENet/CPUID dependency or is
+  actively unsafe to exercise (signal handlers), see
+  `docs/Architecture/testing-harness.md` §10.
+- **Re-measured again** after moving one rung up the ladder to `kfx_config`
+  (550 tests): **2.69% line coverage (3,360/124,942), 8.28% function
+  coverage (619/7,473)**. `kfx_config` itself went from 45 to 104 tests,
+  3.3%→8.7% line / 5.0%→32.0% function coverage
+  (`kfx_config/src/index.html`) — the big win was exhaustively exercising
+  seven `*Callbacks`-registration files' default no-op tables (~220 tiny
+  static functions, only reachable through their table's function-pointer
+  fields), plus `config_campaigns.c`'s struct-management functions and a
+  worked per-loader TOML-fixture example (`config_textures.c`). What's
+  left is mostly the large per-`config_*.c` TOML loaders, a volume
+  problem (each needs its own fixture) rather than a capability gap like
+  `kfx_platform`'s remaining SDL/OpenAL/ENet-bound files.
+- **Re-measured again** after a third rung, `kfx_pathfinding` (567
+  tests): **2.80% line coverage (3,500/124,942), 8.48% function coverage
+  (634/7,473)**. `kfx_pathfinding` itself went from 41 to 58 tests,
+  6.9%→9.7% line / 21.3%→28.7% function coverage
+  (`kfx_pathfinding/src/index.html`) — this library started already
+  reasonably well covered, so the gains were smaller and mostly closed
+  gaps *within* already-tested `ariadne_*.c` files (findcache, tringls,
+  navitree, naviheap, points, regions) rather than landing a whole new
+  file. The "big three" (`ariadne.c`/`ariadne_update.c`/
+  `ariadne_wallhug.c`, ~4,000 lines combined) remain untouched and are
+  this library's one genuine "significant harness change" item — a
+  51-entry `PathfindingWorldCallbacks` fake driving real pathfinding
+  logic (the interface's own default-table registration is already
+  covered, in `kfx_config`).
+- **Re-measured again** after a fourth rung, `kfx_sim` (589 tests):
+  **2.86% line coverage (3,571/124,942), 8.61% function coverage
+  (643/7,473)**. `kfx_sim` itself went from 138 to 160 tests, 1.31%→1.45%
+  line / 3.18%→3.50% function coverage (`kfx_sim/src/index.html`) — by
+  far the smallest percentage move of the four libraries pushed so far,
+  because `kfx_sim` is by far the largest (49,302 lines across ~90
+  files, more than the other three combined) and the bulk of it needs a
+  fuller `Thing`+`CreatureControl`+`Room`+`Dungeon` fixture this pass
+  didn't build. Landed the pure/near-pure functions reachable without
+  that: `map_locations.c`'s `TbMapLocation` bit-packing accessors,
+  `room_jobs.c`'s `worker_needed_in_dungeons_room_role` (research
+  branch), `map_ceiling.c`'s `ceiling_set_info`, `power_process.c`'s
+  `players_disease_can_infect_target_players_creatures`. Closing a
+  meaningful fraction of `kfx_sim` — starting with the 13 untested
+  `creature_states_*.c` files and the ~4,800-line `player_comp*.c` AI
+  cluster (`player_computer.c`/`player_comptask.c`/`player_compchecks.c`/
+  `player_compprocs.c`/`player_compevents.c`, all still 0%) — is
+  realistically a multi-session effort, not a single follow-up pass.
+- **Re-measured again** after a fifth rung, `kfx_render` (604 tests):
+  **2.96% line coverage (3,698/124,942), 9.02% function coverage
+  (674/7,473)**. `kfx_render` itself went from 25 to 40 tests, 2.1%→3.1%
+  line / 5.4%→11.1% function coverage (`kfx_render/src/index.html`) —
+  function coverage more than doubled, the biggest relative jump of any
+  library pushed so far, by finally landing the `LensEffect` C++ class
+  hierarchy stage-08's kfx_render row had flagged since its original
+  pass as "a natural fit... no fixture needed": every effect subclass
+  whose `Draw()`/`Cleanup()` turned out safe to call on a never-`Setup()`
+  instance (`Mist`/`Overlay`/`Displacement`/`Flyeye`/`LuaLensEffect`,
+  confirmed by reading each body first) plus the `LensEffect` base
+  class's own accessors. `PaletteEffect` (reaches into real player/
+  palette state) and `LuaLensEffect`'s actual Lua-exposed pixel
+  accessors (private, would need replicating an unexported struct
+  layout) weren't attempted. The rest of this library --
+  `engine_render.c` (5,618 lines), `custom_sprites.c`, `vidmode.c`,
+  `cursor_tag.c`, and the `LensManager.cpp`/`lens_api.c` singleton --
+  needs a live rendering surface or real map/player world state, the
+  same "significant harness change" territory as `kfx_platform`'s
+  `bflib_vidraw.c` family.

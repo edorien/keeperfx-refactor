@@ -175,6 +175,8 @@ extern const struct NamedCommand cmpgn_human_player_options[];
 /******************************************************************************/
 TbBool load_campaign(const char *cmpgn_fname,struct GameCampaign *campgn,unsigned short flags, short fgroup);
 TbBool free_campaign(struct GameCampaign *campgn);
+void clear_level_info(struct LevelInformation *lvinfo);
+TbBool clear_campaign(struct GameCampaign *campgn);
 long add_single_level_to_campaign(struct GameCampaign *campgn, LevelNumber lvnum);
 long add_multi_level_to_campaign(struct GameCampaign *campgn, LevelNumber lvnum);
 long add_bonus_level_to_campaign(struct GameCampaign *campgn, LevelNumber lvnum);
@@ -192,6 +194,8 @@ TbBool load_campaigns_list(struct CampaignsList *clist, short fgroup, const char
 TbBool change_campaign(uint8_t pack, const char *cmpgn_fname);
 TbBool is_campaign_loaded(void);
 TbBool is_campaign_in_list(const char *cmpgn_fname, struct CampaignsList *clist);
+TbBool swap_campaigns_in_list(struct CampaignsList *clist, int idx1, int idx2);
+void sort_campaigns_quicksort(struct CampaignsList *clist, int beg, int end);
 uint8_t prepare_campaign_file_name(const char *cmpgn_fname, char *cmpgn_file, int cmpgn_file_len);
 TbBool is_map_pack(void);
 void set_default_mp_mappack(void);

@@ -1,13 +1,17 @@
 // kfx_pathfinding: ariadne_naviheap.c, per docs/refactor/testing/
 // stage-04b-kfx-pathfinding.md's "reasonable next candidates" list.
-// Scoped to capacity/empty-state mechanics only -- the heap's actual
-// priority ordering is driven by naviheap_item_tree_val(), which reads
-// ariadne_navitree's tree_val[] array through naviheap_get(), state this
-// pass doesn't set up. Deliberately not tested here; a reasonable next
-// increment once ariadne_navitree.c itself has a test fixture.
+// Originally scoped to capacity/empty-state mechanics only -- the heap's
+// actual priority ordering is driven by naviheap_item_tree_val(), which
+// reads ariadne_navitree's tree_val[] array through naviheap_get().
+// Follow-up pass (2026-08-29, once ariadne_navitree_test.cpp landed
+// tree_val[]'s own fixture) adds that ordering test: a real min-heap
+// round-trip over three items with distinct tree_val priorities, using
+// scratch ids far from both the capacity test's 0..256 range and
+// ariadne_navitree_test.cpp's own TREEITEMS_COUNT-1 scratch slot.
 #include <catch2/catch_test_macros.hpp>
 
 #include "ariadne_naviheap.h"
+#include "ariadne_navitree.h" // tree_val[], for the priority-ordering test
 
 namespace {
 struct ResetNaviheap {
@@ -34,4 +38,26 @@ TEST_CASE_METHOD(ResetNaviheap, "naviheap_add rejects once the heap is full", "[
     }
     CHECK(all_accepted);
     CHECK_FALSE(naviheap_add(9999)); // one past capacity
+}
+
+TEST_CASE_METHOD(ResetNaviheap, "naviheap_top/naviheap_remove pop items in ascending tree_val order (a real min-heap)", "[kfx_pathfinding][ariadne_naviheap]") {
+    constexpr long kLow = TREEITEMS_COUNT - 2;
+    constexpr long kMid = TREEITEMS_COUNT - 3;
+    constexpr long kHigh = TREEITEMS_COUNT - 4;
+    tree_val[kLow] = 10;
+    tree_val[kMid] = 50;
+    tree_val[kHigh] = 90;
+
+    // Added out of priority order, on purpose.
+    REQUIRE(naviheap_add(kMid));
+    REQUIRE(naviheap_add(kHigh));
+    REQUIRE(naviheap_add(kLow));
+
+    CHECK(naviheap_top() == kLow);
+    CHECK(naviheap_remove() == kLow);
+    CHECK(naviheap_top() == kMid);
+    CHECK(naviheap_remove() == kMid);
+    CHECK(naviheap_top() == kHigh);
+    CHECK(naviheap_remove() == kHigh);
+    CHECK(naviheap_empty());
 }

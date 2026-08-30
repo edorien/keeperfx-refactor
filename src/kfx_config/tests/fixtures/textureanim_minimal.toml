@@ -1,0 +1,7 @@
+# Fixture for config_textures_test.cpp -- a minimal textureanim.toml
+# exercising load_textureanim_config_file()'s real field-mapping logic
+# (docs/Architecture/testing-harness.md §10's "no specific loader's own
+# schema has a test yet" gap, closed for this one loader as an example).
+# "texture544" is tex_no 0: TEXTURE_BLOCKS_STAT_COUNT_A (544) + tex_no.
+[texture544]
+frames = [10, 11, 12, 13, 14, 15, 16, 17]

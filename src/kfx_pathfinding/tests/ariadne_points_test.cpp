@@ -51,3 +51,17 @@ TEST_CASE_METHOD(ResetPointPool, "point_get on an out-of-range id returns the in
     CHECK(point_is_invalid(point_get(-1)));
     CHECK(point_is_invalid(point_get(POINTS_COUNT)));
 }
+
+TEST_CASE_METHOD(ResetPointPool, "point_dispose marks the point's y as the 0x8000 disposed sentinel", "[kfx_pathfinding][ariadne_points]") {
+    // 0x8000 is the same sentinel allocated_point_search()'s own early
+    // return checks for -- point_set_new_or_reuse()'s free-list reuse
+    // (point_new(), static, only reachable that way) depends on disposed
+    // slots being unmistakable from real (x, y) data, which is why this
+    // is the one observable side effect worth pinning down here.
+    AridPointId id = point_set_new_or_reuse(15, 25);
+    REQUIRE(id >= 0);
+    point_dispose(id);
+    // Point::y is a signed short, so the 0x8000 sentinel wraps to -32768
+    // once stored -- confirmed by running, not assumed from the literal.
+    CHECK(point_get(id)->y == (short)0x8000);
+}

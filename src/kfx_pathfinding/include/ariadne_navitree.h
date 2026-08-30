@@ -37,6 +37,7 @@ extern long tree_val[TREEVALS_COUNT];
 extern unsigned char Tags[TREEITEMS_COUNT];
 extern long tree_dad[TREEITEMS_COUNT];
 extern unsigned char tag_current;
+extern long ix_delaunay;
 
 #pragma pack()
 /******************************************************************************/

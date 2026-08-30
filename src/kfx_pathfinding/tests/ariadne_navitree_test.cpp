@@ -3,18 +3,25 @@
 // row -- the tag/route bookkeeping functions (tags_init, store/
 // is_current_tag, copy_tree_to_route, update_border_tags/
 // border_tags_to_current) are pure array operations over Tags[]/
-// tree_dad[]/tag_current, no triangulated fixture needed. delaunay_init/
-// _add/_add_triangle/optimise_heuristic/delaunay_seeded are deliberately
-// NOT attempted here -- they need a real triangulated area, the same
-// "big three" territory stage-08's kfx_pathfinding row flags.
+// tree_dad[]/tag_current, no triangulated fixture needed. Also
+// navitree_add (tree_val[]/Tags[]/tree_dad[] bookkeeping plus a
+// naviheap_add() push, itself already tested in isolation in
+// ariadne_naviheap_test.cpp) and delaunay_init (ix_delaunay = 0, a real
+// but simple reset). delaunay_add/_add_triangle/optimise_heuristic/
+// delaunay_seeded are still deliberately NOT attempted here -- unlike
+// delaunay_init, they need a real triangulated area, the same "big
+// three" territory stage-08's kfx_pathfinding row flags (a follow-up
+// pass found delaunay_init itself doesn't actually need one, despite an
+// earlier version of this comment lumping it in with the others).
 //
-// Tags[]/tree_dad[]/tag_current had no header declaration anywhere
-// (only used within ariadne_navitree.c itself, or through the functions
-// tested here) -- added to ariadne_navitree.h, the same "add the missing
-// declaration" fix used repeatedly across this plan.
+// Tags[]/tree_dad[]/tag_current/ix_delaunay had no header declaration
+// anywhere (only used within ariadne_navitree.c itself, or through the
+// functions tested here) -- added to ariadne_navitree.h, the same "add
+// the missing declaration" fix used repeatedly across this plan.
 #include <catch2/catch_test_macros.hpp>
 
 #include "ariadne_navitree.h"
+#include "ariadne_naviheap.h" // naviheap_init, for the navitree_add fixture
 
 #include <cstring>
 
@@ -96,4 +103,22 @@ TEST_CASE_METHOD(ResetNavitree, "border_tags_to_current stamps using the live ta
     int32_t border_pt[1] = {3};
     CHECK(border_tags_to_current(border_pt, 1) == 1);
     CHECK(Tags[3] == 9);
+}
+
+TEST_CASE_METHOD(ResetNavitree, "navitree_add records the move cost/tag/parent and pushes onto the navi-heap", "[kfx_pathfinding][ariadne_navitree]") {
+    naviheap_init();
+    constexpr long kScratchPos = TREEITEMS_COUNT - 1;
+    tag_current = 3;
+
+    CHECK(navitree_add(kScratchPos, 7, 42));
+    CHECK(tree_val[kScratchPos] == 42);
+    CHECK(Tags[kScratchPos] == 3);
+    CHECK(tree_dad[kScratchPos] == 7);
+    CHECK_FALSE(naviheap_empty());
+}
+
+TEST_CASE("delaunay_init resets ix_delaunay to 0", "[kfx_pathfinding][ariadne_navitree]") {
+    ix_delaunay = 17;
+    delaunay_init();
+    CHECK(ix_delaunay == 0);
 }

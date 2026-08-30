@@ -37,6 +37,7 @@ struct PlayerInfo;
 void set_chosen_power(PowerKind pwkind, TextStringId sptooltip);
 void set_chosen_power_none(void);
 
+TbBool players_disease_can_infect_target_players_creatures(PlayerNumber source_player, PlayerNumber target_player);
 void process_disease(struct Thing *thing);
 void process_timebomb(struct Thing *creatng);
 void timebomb_explode(struct Thing *creatng);

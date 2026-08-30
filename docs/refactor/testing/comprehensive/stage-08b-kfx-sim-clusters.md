@@ -298,13 +298,27 @@ actually reference those three symbols. See
 
 ## Running total
 
-`kfx_sim` currently has **102 tests** (verified via `ctest -N`, not
-recomputed by hand), part of **302 across all ten libraries** — the five
-clusters' foundational pass, the `can_change_from_state_to` and
+`kfx_sim` currently has **160 tests** (verified via `ctest -N`, not
+recomputed by hand), part of **589 across all ten libraries** (as of
+2026-08-29, after the `kfx_platform`→`kfx_config`→`kfx_pathfinding`→
+`kfx_sim` "focus on the lowest-ranked library" pushes documented in
+`docs/Architecture/testing-harness.md` §10) — the five clusters'
+foundational pass, the `can_change_from_state_to` and
 `creature_states_tresr.c` depth increments, `roomspace_test.cpp` (now
 4 tests, up from 1), `player_utils_test.cpp`, `thing_stats_test.cpp`,
 `dungeon_stats_test.cpp`, `magic_powers_test.cpp`, `room_capacity_test.cpp`,
-`power_specials_test.cpp`, and `creature_graphics_test.cpp`, combined.
+`power_specials_test.cpp`, `creature_graphics_test.cpp`, three more
+individual `creature_states_*.c` files landed after this document's
+original pass — `creature_states_mood_test.cpp` (15 tests, the anger/mood
+bookkeeping cluster), `creature_states_gardn_test.cpp` (8 tests, hunger
+accessors), `creature_states_rsrch_test.cpp` (13 tests, the pure
+`struct Dungeon`-only research-queue functions) — and four small files
+outside any of the five clusters, landed in the `kfx_sim` rung of the
+per-library push: `map_locations_test.cpp` (9 tests, `TbMapLocation`
+bit-packing), `room_jobs_test.cpp` (3 tests, the `RoRoF_Research` branch
+of `worker_needed_in_dungeons_room_role`), `map_ceiling_test.cpp` (5
+tests, `ceiling_set_info`), `power_process_test.cpp` (5 tests,
+`players_disease_can_infect_target_players_creatures`) — combined.
 `check_layering.py --strict` and `check_layering_symbols.py --strict`
 both reconfirmed unaffected after every addition in this cluster, not
 just checked once at the end.
@@ -320,17 +334,24 @@ just checked once at the end.
   and anything in `thing_creature.c`/`thing_factory.c`/`thing_physics.c`
   beyond the base accessors.
 - **creature**: `can_change_from_state_to()` covers *permission* to
-  transition, and `creature_states_tresr.c` (the smallest per-state file)
-  has its one helper function tested — but 16 other `creature_states_*.c`
-  files remain completely untouched, including every actual
-  `process_state`/`cleanup_state` implementation and the `FuncIdx`
-  dispatch table that calls into them. `creature_states_tresr.c`'s single
-  function (`creature_able_to_get_salary`, a config lookup, not a state
-  transition itself) was the easiest possible foothold in this file
-  family, not representative of what the other 16 files will need —
-  expect most of them to require a fuller `Thing`+`CreatureControl`+
-  room/job context, genuinely closer to pattern B/fixture territory than
-  anything landed in this cluster so far.
+  transition, and four `creature_states_*.c` files now have direct
+  coverage: `_tresr` (the smallest, one helper function), `_mood` (the
+  anger/mood bookkeeping cluster — `creature_can_get_angry`, `anger_
+  calculate_creature_is_angry`, `anger_free_for_anger_increase/decrease`,
+  `anger_is_creature_angry/livid`, `anger_get_creature_anger_type`, via
+  the same `ConfigReloadCallbacks` fake plus `thing_get(1)`/`ccontrol_idx`
+  wiring), `_gardn` (`creature_able_to_eat`, `hunger_is_creature_hungry`,
+  same fixture again), and `_rsrch` (`get_next_research_item`, `has_new_
+  rooms_to_research` — both take a bare `struct Dungeon *`, no `Thing`
+  fixture needed at all, the simplest of the four). 13 other
+  `creature_states_*.c` files remain completely untouched, and — this is
+  true of all 17, including these four — every actual `process_state`/
+  `cleanup_state` implementation and the `FuncIdx` dispatch table that
+  calls into them is still uncovered; only pure/near-pure accessor
+  functions have been picked off so far. Expect the actual state-machine
+  entry points (`at_*_room()`/`*ing()`) to require a fuller `Thing`+
+  `CreatureControl`+room/job context, genuinely closer to pattern B/
+  fixture territory than anything landed in this cluster so far.
 - **room**: `get_dungeon_sell_user_roomspace`'s remaining
   `roomspace_detection_mode` branch (calls `get_current_room_as_roomspace()`,
   needs a real room fixture, not attempted) — `box_placement_mode` and
