@@ -10,6 +10,8 @@
 
 #include "creature_states_rsrch.h"
 #include "dungeon_data.h"
+#include "config_creature.h"
+#include "kfx_sim_test_fixtures.h"
 
 #include <cstring>
 
@@ -125,4 +127,25 @@ TEST_CASE_METHOD(ZeroedDungeon, "has_new_rooms_to_research is false once the roo
     dungeon.room_buildable[6] = 1; // bit 0 set
     dungeon.room_resrchable[6] = 2;
     CHECK_FALSE(has_new_rooms_to_research(&dungeon));
+}
+
+// creature_can_do_research needs a real Thing (is_neutral_thing/
+// get_dungeon by ->owner), so uses kfx_sim_test_fixtures.h's
+// ResetSimAndConfig/make_creature rather than this file's own
+// ZeroedDungeon. creature_stats_get_from_thing() always resolves to
+// model[0] in this test binary (the same indirection noted throughout
+// this session), so research_value is configured on model[0].
+TEST_CASE_METHOD(kfx_test::ResetSimAndConfig, "creature_can_do_research requires a non-neutral owner, a positive research_value, and an active research item", "[kfx_sim][creature_states_rsrch]") {
+    struct Thing *thing = kfx_test::make_creature(1, 1, 0);
+    CHECK_FALSE(creature_can_do_research(thing)); // research_value defaults to 0
+
+    kfx_config_state.conf.crtr_conf.model[0].research_value = 1;
+    CHECK(creature_can_do_research(thing)); // current_research_idx defaults to 0, which is >= 0
+
+    get_dungeon(0)->current_research_idx = -1;
+    CHECK_FALSE(creature_can_do_research(thing));
+
+    get_dungeon(0)->current_research_idx = 0;
+    struct Thing *neutral_thing = kfx_test::make_creature(2, 2, PLAYER_NEUTRAL);
+    CHECK_FALSE(creature_can_do_research(neutral_thing));
 }

@@ -66,11 +66,15 @@ file(GLOB KEEPERFX_SOURCES_CXX "src/*.cpp")
 # src/ftests/ is the one subdirectory under src/ that isn't a kfx_*
 # library (functional-test scaffolding, deliberately kept out of any
 # library) -- it needs its own scoped recursive glob since it nests a
-# tests/ subdirectory of its own.
+# tests/ subdirectory of its own. Built as its own kfx_ftests OBJECT
+# library, gated behind the KFX_FUNCTESTING option below, rather than
+# appended directly into KEEPERFX_SOURCES_C/CXX: several src/kfx_*/
+# libraries call into it (ftest_srand()/ftest_update()) under #ifdef
+# FUNCTESTING, so it needs to be linked wherever those libraries are --
+# see KFX_FUNCTESTING's own comment for why that means keeperfx/
+# keeperfx_hvlog only, never alongside KFX_BUILD_TESTS.
 file(GLOB_RECURSE KEEPERFX_FTESTS_C "src/ftests/*.c")
 file(GLOB_RECURSE KEEPERFX_FTESTS_CXX "src/ftests/*.cpp")
-list(APPEND KEEPERFX_SOURCES_C ${KEEPERFX_FTESTS_C})
-list(APPEND KEEPERFX_SOURCES_CXX ${KEEPERFX_FTESTS_CXX})
 # The platform-exclusive OS-integration files (windows.cpp/steam_api.cpp/
 # cdrom.cpp/linux.cpp) moved to src/kfx_platform/src/ in stage 3 -- see
 # src/kfx_platform/CMakeLists.txt for their exclusion logic now. The new
@@ -209,20 +213,87 @@ if(KFX_BUILD_TESTS)
     enable_testing()
 endif()
 
+# Compiles in the src/ftests/ in-game functional-test harness (every
+# #ifdef FUNCTESTING block, spread across src/ftests/ itself plus
+# kfx_platform/kfx_config/kfx_sim/kfx_game/kfx_frontend/kfx_apploop/main.cpp)
+# into keeperfx/keeperfx_hvlog. The legacy Makefile's FTEST_DEBUG=1 is the
+# only place that ever defined this; it is undefined here otherwise, so
+# without this option every #ifdef FUNCTESTING block -- and the -ftests
+# launch flag it gates -- compiles to nothing. Running the resulting
+# binary with -ftests still needs the real, proprietary Dungeon Keeper
+# data files (see src/ftests/README.md); this option only controls
+# whether the harness is compiled in at all.
+#
+# Declared (and its KFX_BUILD_TESTS conflict resolved) before
+# KFX_TEST_COVERAGE below, which reads this option's value to decide
+# whether to instrument keeperfx/kfx_ftests for gcov -- option() calls
+# must run before anything reads the variable they define.
+option(KFX_FUNCTESTING "Compile in the src/ftests/ in-game functional-test harness (-ftests launch flag; needs real game data files to run, not just build)" OFF)
+# Deliberately incompatible with KFX_BUILD_TESTS, not just untested together:
+# turning FUNCTESTING on makes kfx_sim/kfx_game/kfx_frontend/kfx_apploop
+# call real ftest_srand()/ftest_update() symbols (defined in kfx_ftests
+# below) under #ifdef FUNCTESTING. Every kfx_*_utest binary reuses those
+# same OBJECT-library .o files as keeperfx (that's the point of OBJECT
+# libraries), so it would need those symbols resolved too -- but
+# kfx_ftests' own sources (ftest_util.c, ftest_bug_*.c) reach all the way
+# up to kfx_frontend/kfx_net (message_add_fmt, kfx_net_state,
+# zoom_to_parchment_map, ...), and CMake OBJECT libraries do not forward
+# each other's compiled objects transitively (confirmed with an isolated
+# repro: PUBLIC target_link_libraries between two OBJECT libraries
+# propagates usage requirements like include dirs, never the objects
+# themselves) -- only a target that lists the *entire* dependency ladder
+# directly, the way kfx_apploop_utest already does, can actually resolve
+# them. Retrofitting every narrower *_utest (kfx_sim_utest, kfx_render_utest,
+# ...) to also link the full ladder would undo their deliberately minimal,
+# individually-justified link lists (see their own CMakeLists.txt comments)
+# for a combination (functional-test harness + isolated unit tests) nobody
+# actually needs at the same time: -ftests exercises the real compiled game
+# against real game data, unit tests deliberately avoid needing either.
+if(KFX_FUNCTESTING AND KFX_BUILD_TESTS)
+    message(FATAL_ERROR "KFX_FUNCTESTING and KFX_BUILD_TESTS cannot both be ON: "
+        "the *_utest binaries reuse kfx_sim/kfx_game/kfx_frontend/kfx_apploop's "
+        "OBJECT-library output, which would need ftest_srand()/ftest_update() "
+        "resolved (see the comment above this check) without pulling in every "
+        "*_utest's full dependency ladder. Build them in separate trees instead.")
+endif()
+if(KFX_FUNCTESTING)
+    target_compile_definitions(kfx_common_opts INTERFACE FUNCTESTING=1)
+
+    # main.cpp and src/ftests/* itself are the only consumers now that
+    # KFX_BUILD_TESTS is guaranteed OFF whenever this is ON (see above) --
+    # a plain OBJECT library linked only into keeperfx/keeperfx_hvlog below.
+    add_library(kfx_ftests OBJECT ${KEEPERFX_FTESTS_C} ${KEEPERFX_FTESTS_CXX})
+    target_link_libraries(kfx_ftests PRIVATE kfx_common_opts)
+endif()
+
 # docs/refactor/testing/comprehensive/stage-05-coverage-tooling.md: opt-in
-# gcov/lcov coverage report generation, layered on top of KFX_BUILD_TESTS.
-# Fetches lcov 1.16 (not the latest 2.x -- that needs non-core Perl
-# modules; 1.16 needs none, verified) via kfx_fetch() (Dependencies.cmake),
-# the same download-a-tarball-once helper every other prebuilt dependency
-# in this file uses -- no `apt install lcov`/`pip install gcovr` needed.
-option(KFX_TEST_COVERAGE "Instrument kfx_* libraries for gcov/lcov coverage (native Linux, requires -DKFX_BUILD_TESTS=ON)" OFF)
-if(KFX_BUILD_TESTS AND KFX_TEST_COVERAGE)
+# gcov/lcov coverage report generation, layered on top of KFX_BUILD_TESTS
+# or KFX_FUNCTESTING (mutually exclusive with each other, so exactly one
+# of the two -- or neither -- is ever the actual consumer). Fetches lcov
+# 1.16 (not the latest 2.x -- that needs non-core Perl modules; 1.16 needs
+# none, verified) via kfx_fetch() (Dependencies.cmake), the same
+# download-a-tarball-once helper every other prebuilt dependency in this
+# file uses -- no `apt install lcov`/`pip install gcovr` needed.
+option(KFX_TEST_COVERAGE "Instrument kfx_* libraries for gcov/lcov coverage (native Linux, requires -DKFX_BUILD_TESTS=ON or -DKFX_FUNCTESTING=ON)" OFF)
+if((KFX_BUILD_TESTS OR KFX_FUNCTESTING) AND KFX_TEST_COVERAGE)
     target_compile_options(kfx_common_opts INTERFACE --coverage -O0 -g)
     target_link_options(kfx_common_opts INTERFACE --coverage)
 
     kfx_fetch(lcov "https://github.com/linux-test-project/lcov/releases/download/v1.16/lcov-1.16.tar.gz")
     set(KFX_LCOV_BIN "${CMAKE_BINARY_DIR}/deps/lcov/lcov-1.16/bin/lcov")
     set(KFX_GENHTML_BIN "${CMAKE_BINARY_DIR}/deps/lcov/lcov-1.16/bin/genhtml")
+
+    # geninfo (what `lcov --capture` invokes) checks each source line
+    # against a regex -- lcov_excl_line, defaulting to the literal string
+    # "LCOV_EXCL_LINE" -- and drops any matching line from the report.
+    # --rc lcov_excl_line=<pattern> overrides that regex for this
+    # invocation; kept as an alternation so per-line "// LCOV_EXCL_LINE"
+    # comments still work alongside the pattern-based match. The logging
+    # macros below (globals.h) are pure diagnostics with no branching
+    # logic of their own, so their call sites contribute uninteresting
+    # noise to the coverage percentage -- matched by macro name rather
+    # than requiring an exclusion comment on every call site.
+    set(KFX_LCOV_EXCL_LINE_PATTERN "LCOV_EXCL_LINE|\\b(ERRORLOG|WARNLOG|WARNMSG|SYNCDBG|JUSTMSG|SCRPTWRNLOG|SCRPTERRLOG)\\s*\\(")
 endif()
 
 set(KFX_SOURCES_REMAINING ${KEEPERFX_SOURCES_C} ${KEEPERFX_SOURCES_CXX})
@@ -262,6 +333,7 @@ if(KFX_BUILD_TESTS AND KFX_TEST_COVERAGE)
             --capture --directory "${CMAKE_BINARY_DIR}"
             --output-file "${CMAKE_BINARY_DIR}/coverage.raw.info"
             --gcov-tool gcov --quiet
+            --rc "lcov_excl_line=${KFX_LCOV_EXCL_LINE_PATTERN}"
         COMMAND perl "${KFX_LCOV_BIN}"
             --extract "${CMAKE_BINARY_DIR}/coverage.raw.info"
             "${CMAKE_SOURCE_DIR}/src/kfx_*/src/*"
@@ -274,7 +346,91 @@ if(KFX_BUILD_TESTS AND KFX_TEST_COVERAGE)
             kfx_sim_utest kfx_render_utest kfx_net_utest kfx_game_utest
             kfx_frontend_utest kfx_script_utest kfx_apploop_utest
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-        COMMENT "Capturing coverage and rendering HTML report (coverage-html/index.html)")
+        COMMENT "Capturing coverage and rendering HTML report (coverage-html/index.html)"
+        # Without VERBATIM, the Ninja/Makefile generators emit the
+        # --extract pattern below unescaped on the generated shell command
+        # line, so the shell glob-expands "src/kfx_*/src/*" against the
+        # real filesystem before lcov's own perl-based matcher ever sees
+        # it -- silently turning one literal wildcard pattern into a list
+        # of already-resolved, wildcard-free path arguments (confirmed by
+        # reading the generated build.ninja directly: the COMMAND line had
+        # no quotes at all around this argument). That shell-level glob
+        # only expands one path segment per "*", so it can never reach the
+        # files living one or two directories below src/kfx_<name>/src/
+        # (currently src/kfx_platform/src/{platform,renderer,
+        # renderer/software}/, moved there by the "Flatten kfx/platform
+        # and kfx/renderer" commit) -- they were silently missing from
+        # every coverage.info/coverage-html report even though several
+        # have real test coverage. VERBATIM makes CMake itself escape
+        # every command argument for the target shell, so the pattern
+        # reaches lcov as the single literal string it's written as here,
+        # letting lcov's own transform_pattern() (which maps each "*" to a
+        # regex ".*" -- already recursive, matches "/" too) do the actual
+        # matching as originally intended.
+        VERBATIM)
+endif()
+
+# The ftest-driven equivalent of the coverage target above: since
+# KFX_FUNCTESTING and KFX_BUILD_TESTS are mutually exclusive (see
+# KFX_FUNCTESTING's own comment), this never collides with the `coverage`
+# target defined there -- exactly one of the two ever exists in a given
+# configure. Runs every registered non-long-running src/ftests/ test
+# (wildcard -ftests, no name) via -headless (bflib_video.c/main.cpp: SDL's
+# "dummy" video driver + SoundDisabled, so this needs no real display or
+# audio device) and -exitonfailedtest (nonzero exit on failure, aborting
+# the target the same way a failing `ctest` would).
+#
+# Needs the real, proprietary Dungeon Keeper data files to get past config
+# loading and actually run a level (see src/ftests/README.md) -- KFX_FTEST_DATA_DIR
+# points at a real install (not distributed with this repo, hence no
+# default other than a local staging convention); StageFtestData.cmake
+# copies just the subset the registered tests need (~90MB, determined
+# empirically via strace against a real run -- not all of a real
+# install's ~1.5GB is needed) into this build tree, so keeperfx runs from
+# CMAKE_BINARY_DIR like every other COMMAND here already does. Verified
+# against a real install: 6 of 7 registered short tests passed
+# (example_template_test, bug_imp_tp_attack_door__claim/prisoner/deadbody,
+# bug_imp_goldseam_dig, bug_pathing_stair_treasury); the 7th
+# (bug_invisible_units_cant_select) never completed within 3 minutes on
+# its own, well past its other-test siblings' each-under-15-seconds pace --
+# it drives mouse-cursor/thing-under-hand selection
+# (ftest_util_center_cursor_over_dungeon_view(), player->thing_under_hand),
+# which plausibly never resolves against a real display's absence under
+# -headless. Not excluded from the wildcard run below (yet) -- flagged
+# here rather than silently worked around.
+option(KFX_FTEST_DATA_DIR "Path to a real KeeperFX game-data install (proprietary, not distributed with this repo) to stage into the build tree for the KFX_FUNCTESTING+KFX_TEST_COVERAGE `coverage` target -- see src/ftests/README.md" "")
+if(KFX_FUNCTESTING AND KFX_TEST_COVERAGE)
+    add_custom_target(coverage
+        COMMAND ${CMAKE_COMMAND}
+            "-DSOURCE_DIR=${KFX_FTEST_DATA_DIR}"
+            "-DDEST_DIR=${CMAKE_BINARY_DIR}"
+            "-DKEEPERFX_CFG=${CMAKE_SOURCE_DIR}/config/keeperfx.cfg"
+            -P "${CMAKE_SOURCE_DIR}/build/cmake/modules/StageFtestData.cmake"
+        COMMAND "$<TARGET_FILE:keeperfx>" -ftests -headless -exitonfailedtest
+        COMMAND ${CMAKE_COMMAND} -E env perl "${KFX_LCOV_BIN}"
+            --capture --directory "${CMAKE_BINARY_DIR}"
+            --output-file "${CMAKE_BINARY_DIR}/coverage.raw.info"
+            --gcov-tool gcov --quiet
+            --rc "lcov_excl_line=${KFX_LCOV_EXCL_LINE_PATTERN}"
+        COMMAND perl "${KFX_LCOV_BIN}"
+            --extract "${CMAKE_BINARY_DIR}/coverage.raw.info"
+            "${CMAKE_SOURCE_DIR}/src/kfx_*/src/*"
+            --output-file "${CMAKE_BINARY_DIR}/coverage.info" --quiet
+        COMMAND perl "${KFX_GENHTML_BIN}"
+            "${CMAKE_BINARY_DIR}/coverage.info"
+            --output-directory "${CMAKE_BINARY_DIR}/coverage-html" --quiet
+        DEPENDS keeperfx
+        # Every COMMAND above uses fully-qualified paths (KFX_LCOV_BIN,
+        # ${CMAKE_BINARY_DIR}/..., ${CMAKE_SOURCE_DIR}/...), including
+        # keeperfx itself now that StageFtestData.cmake stages its data
+        # into CMAKE_BINARY_DIR -- so, unlike an earlier version of this
+        # target, cwd genuinely doesn't matter for any of them; kept
+        # explicit anyway for clarity.
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        COMMENT "Staging ftest data, running src/ftests/ headlessly, then capturing coverage and rendering HTML report (coverage-html/index.html)"
+        # See the sibling coverage target's own comment above for why
+        # VERBATIM is required on the --extract pattern.
+        VERBATIM)
 endif()
 
 # Each src/kfx_*/CMakeLists.txt globs its own library directory directly --
@@ -307,6 +463,11 @@ target_link_libraries(keeperfx PRIVATE ${KFX_OBJECT_LIBS_STD} kfx_bfdebug_std kf
 
 add_executable(keeperfx_hvlog ${KFX_SOURCES_REMAINING})
 target_link_libraries(keeperfx_hvlog PRIVATE ${KFX_OBJECT_LIBS_HVLOG} kfx_bfdebug_hvlog kfx_common_opts)
+
+if(KFX_FUNCTESTING)
+    target_link_libraries(keeperfx PRIVATE kfx_ftests)
+    target_link_libraries(keeperfx_hvlog PRIVATE kfx_ftests)
+endif()
 
 # kfx_link_dependencies() (Dependencies.cmake) links every external
 # dependency other than SDL3 (already on kfx_common_opts above) onto the

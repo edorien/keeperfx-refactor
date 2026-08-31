@@ -34,6 +34,7 @@ struct Room;
 
 #pragma pack()
 /******************************************************************************/
+TbBool jailbreak_possible(struct Room *room, PlayerNumber creature_owner);
 short cleanup_prison(struct Thing *thing);
 short creature_arrived_at_prison(struct Thing *thing);
 short creature_drop_body_in_prison(struct Thing *thing);

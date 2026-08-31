@@ -1,0 +1,9 @@
+# Fixture for config_translation_test.cpp -- a minimal translation.toml
+# exercising load_translation_config_file()'s real TOML-walk + per-
+# language fallback logic.
+[greeting]
+ENG = "Hello"
+FRE = "Bonjour"
+
+[no_english_entry]
+FRE = "Seulement en francais"

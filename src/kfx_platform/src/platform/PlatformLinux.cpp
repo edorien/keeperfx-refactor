@@ -3,6 +3,7 @@
 #include "platform/FileFind.h"
 #include "platform.h" // kfxmain
 #include "bflib_fileio.h"
+#include "bflib_video.h"
 #include <SDL3/SDL.h>
 #include <cstdlib>
 #include <cctype>
@@ -73,6 +74,13 @@ TbFileFind* PlatformLinux::FileFindFirst(const char* filespec, TbFileEntry* entr
 
 bool PlatformLinux::VideoInit()
 {
+    // -headless (main.cpp): force SDL's "dummy" driver so init/window
+    // creation still succeed with no real display -- verified against
+    // this SDL3 build (SDL_Init/SDL_CreateWindow/SDL_GetWindowSurface/
+    // SDL_UpdateWindowSurface all succeed with a real, if unshown,
+    // window+surface) rather than assumed.
+    if (VideoDisabled)
+        SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
     if (!SDL_Init(SDL_INIT_VIDEO))
         return false;
     atexit(SDL_Quit);

@@ -7,7 +7,8 @@
 #include "../ftest.h"
 #include "../ftest_util.h"
 
-#include "../../game_legacy.h"
+#include "game_legacy.h"
+#include "config_keeperfx.h"
 #include "player_instances.h"
 #include "power_specials.h"
 

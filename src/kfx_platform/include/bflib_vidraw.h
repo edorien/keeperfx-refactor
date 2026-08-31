@@ -195,6 +195,10 @@ void LbSpriteSetScalingWidthSimpleArray(int32_t * xsteps_arr, long x, long swidt
 void LbSpriteSetScalingWidthClippedArray(int32_t * xsteps_arr, long x, long swidth, long dwidth, long gwidth);
 void LbSpriteSetScalingHeightSimpleArray(int32_t * ysteps_arr, long y, long sheight, long dheight);
 void LbSpriteSetScalingHeightClippedArray(int32_t * ysteps_arr, long y, long sheight, long dheight, long gheight);
+// Had real external linkage but no header declaration at all -- added,
+// the usual "add the missing declaration" fix.
+void LbSpriteClearScalingWidthArray(int32_t * xsteps_arr, int32_t swidth);
+void LbSpriteClearScalingHeightArray(int32_t * ysteps_arr, long sheight);
 
 TbResult LbSpriteDraw(long x, long y, const struct TbSprite *spr);
 TbResult LbSpriteDrawOneColour(long x, long y, const struct TbSprite *spr, const TbPixel colour);

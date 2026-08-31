@@ -43,6 +43,10 @@ struct ErrorStatistics {
 /******************************************************************************/
 void erstats_clear(void);
 long erstat_inc(int stat_num);
+TbBool erstat_check(void);
+extern struct ErrorStatistics erstat[];
+extern int last_checked_stat_num;
+extern float render_onscreen_msg_time;
 
 TbBool is_onscreen_msg_visible(void);
 TbBool show_onscreen_msg(int nturns, const char *fmt_str, ...);

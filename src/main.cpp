@@ -1692,6 +1692,17 @@ static short process_command_line(unsigned short argc, char *argv[])
       {
           SoundDisabled = true;
       } else
+      if (strcasecmp(parstr, "headless") == 0)
+      {
+          // No real display or audio device needed -- SDL still gets a
+          // (unshown) window/surface via its "dummy" video driver
+          // (VideoDisabled, checked in PlatformLinux/PlatformWindows::
+          // VideoInit()), and SoundDisabled skips audio device init
+          // entirely (sounds.c). For running src/ftests/ in CI/sandboxed
+          // environments, e.g. under coverage instrumentation.
+          VideoDisabled = true;
+          SoundDisabled = true;
+      } else
       if (strcasecmp(parstr, "fps") == 0)
       {
           narg++;

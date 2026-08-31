@@ -70,8 +70,18 @@ TbBool creature_is_being_attacked_by_enemy_creature_not_digger(struct Thing *fig
 TbBool creature_has_creature_in_combat(const struct Thing *thing, const struct Thing *enmtng);
 TbBool set_creature_combat_state(struct Thing *fighter, struct Thing *enemy, CrAttackType attack_type);
 TbBool battle_with_creature_of_player(PlayerNumber plyr_idx, BattleIndex battle_id);
+void insert_thing_in_battle_list(struct Thing *thing, BattleIndex battle_id);
+void remove_thing_from_battle_list(struct Thing *thing);
+long count_creatures_really_in_combat(BattleIndex battle_id);
+TbBool cleanup_battle(BattleIndex battle_id);
 TbBool creature_would_benefit_from_healing(const struct Thing* thing);
 TbBool creature_requires_cleansing(const struct Thing* thing, SpellKind spell_idx);
+TbBool add_ranged_combat_attacker(struct Thing *enmtng, unsigned short fighter_idx);
+TbBool remove_ranged_combat_attacker(struct Thing *enmtng, unsigned short fighter_idx);
+TbBool add_melee_combat_attacker(struct Thing *enmtng, unsigned short fighter_idx);
+TbBool remove_melee_combat_attacker(struct Thing *enmtng, unsigned short fighter_idx);
+long remove_all_melee_combat_attackers(struct Thing *victmtng);
+long remove_all_ranged_combat_attackers(struct Thing *victmtng);
 
 void reset_postal_instance_cache();
 CrInstance get_postal_instance_to_use(const struct Thing *thing, unsigned long dist);

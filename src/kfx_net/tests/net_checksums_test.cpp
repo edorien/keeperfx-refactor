@@ -18,12 +18,34 @@
 #include "net_checksums.h"
 #include "thing_data.h"
 #include "kfx_sim_state.h"
+#include "kfx_net_state.h"
+#include "net_game.h" // net_player_info[]/MAX_NET_USERS, for checksums_different's network_player_active check
 
 #include <cstring>
 
 namespace {
 struct ResetSimState {
     ResetSimState() { std::memset(&kfx_sim_state, 0, sizeof(kfx_sim_state)); }
+};
+
+// checksums_different() also touches kfx_net_state (packets) and
+// net_player_info (network_player_active); get_host_player_id() is
+// hardcoded to 0, so kfx_sim_state.players[0] is always "the host" here.
+struct ResetChecksumState {
+    ResetChecksumState() {
+        std::memset(&kfx_sim_state, 0, sizeof(kfx_sim_state));
+        std::memset(&kfx_net_state, 0, sizeof(kfx_net_state));
+        std::memset(net_player_info, 0, sizeof(net_player_info));
+        kfx_sim_state.players[0].packet_num = 0;
+    }
+
+    // Makes player i (1 <= i < MAX_NET_USERS) an active, non-computer
+    // network client with its own packet slot equal to its player index.
+    void make_active_client(int i) {
+        kfx_sim_state.players[i].allocflags |= PlaF_Allocated;
+        kfx_sim_state.players[i].packet_num = i;
+        net_player_info[i].network_user_active = 1;
+    }
 };
 
 // Index 0 is thing_is_invalid()'s reserved sentinel (thing_data.c), same
@@ -67,4 +89,50 @@ TEST_CASE_METHOD(ResetSimState, "get_thing_checksum changes when a checksummed f
     thing->owner = 3;
     TbBigChecksum after = get_thing_checksum(thing);
     CHECK(before != after);
+}
+
+TEST_CASE_METHOD(ResetChecksumState, "checksums_different is false when no other player has an active network packet to compare", "[kfx_net][net_checksums]") {
+    kfx_net_state.packets[0].checksum = 0xAABBCCDD;
+    CHECK_FALSE(checksums_different());
+}
+
+TEST_CASE_METHOD(ResetChecksumState, "checksums_different is false when a client's checksum matches the host's", "[kfx_net][net_checksums]") {
+    kfx_net_state.packets[0].checksum = 0xAABBCCDD;
+    make_active_client(1);
+    kfx_net_state.packets[1].checksum = 0xAABBCCDD;
+    kfx_net_state.packets[1].action = 1; // non-empty, so is_packet_empty() doesn't short-circuit to "missing"
+    CHECK_FALSE(checksums_different());
+}
+
+TEST_CASE_METHOD(ResetChecksumState, "checksums_different is true when a client's checksum differs from the host's", "[kfx_net][net_checksums]") {
+    kfx_net_state.packets[0].checksum = 0xAABBCCDD;
+    make_active_client(1);
+    kfx_net_state.packets[1].checksum = 0x11223344;
+    kfx_net_state.packets[1].action = 1;
+    CHECK(checksums_different());
+}
+
+TEST_CASE_METHOD(ResetChecksumState, "checksums_different is true when an active client's checksum packet is entirely empty", "[kfx_net][net_checksums]") {
+    kfx_net_state.packets[0].checksum = 0xAABBCCDD;
+    make_active_client(1); // packets[1] left fully zeroed -- is_packet_empty() is true
+    CHECK(checksums_different());
+}
+
+TEST_CASE_METHOD(ResetChecksumState, "checksums_different skips a player marked computer-controlled (PlaF_CompCtrl)", "[kfx_net][net_checksums]") {
+    kfx_net_state.packets[0].checksum = 0xAABBCCDD;
+    make_active_client(1);
+    kfx_sim_state.players[1].allocflags |= PlaF_CompCtrl;
+    kfx_net_state.packets[1].checksum = 0x11223344; // would mismatch, but the player is skipped entirely
+    kfx_net_state.packets[1].action = 1;
+    CHECK_FALSE(checksums_different());
+}
+
+TEST_CASE_METHOD(ResetChecksumState, "checksums_different skips a player whose network slot isn't active", "[kfx_net][net_checksums]") {
+    kfx_net_state.packets[0].checksum = 0xAABBCCDD;
+    kfx_sim_state.players[1].allocflags |= PlaF_Allocated;
+    kfx_sim_state.players[1].packet_num = 1;
+    // net_player_info[1].network_user_active left at 0 -- not an active network slot.
+    kfx_net_state.packets[1].checksum = 0x11223344;
+    kfx_net_state.packets[1].action = 1;
+    CHECK_FALSE(checksums_different());
 }

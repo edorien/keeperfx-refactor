@@ -315,6 +315,10 @@ extern unsigned short display_id;
 
 extern TbBool vsync_enabled;
 
+/** Set by -headless (main.cpp) before PlatformManager_InitVideo() runs;
+  * see bflib_video.c for what it does. */
+extern TbBool VideoDisabled;
+
 extern TbDisplayStruct lbDisplay;
 extern SDL_Window *lbWindow;
 

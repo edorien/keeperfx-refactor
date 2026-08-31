@@ -23,6 +23,16 @@ extern "C"
     void api_event(const char *event_name);
     void api_event_with_data(const char *event_name, const struct ApiEventData *data, size_t data_count);
 
+    size_t get_max_flags();
+
+    void api_clear_all_subscriptions();
+    int api_is_subscribed_to_event(const char *event_name);
+    int api_subscribe_event(const char *event_name);
+    int api_unsubscribe_event(const char *event_name);
+    int api_is_subscribed_to_var(PlayerNumber plyr_idx, unsigned char valtype, short validx);
+    int api_subscribe_var(PlayerNumber plyr_idx, const char *var_name, unsigned char valtype, short validx);
+    int api_unsubscribe_var(PlayerNumber plyr_idx, unsigned char valtype, short validx);
+
 #ifdef __cplusplus
 }
 #endif

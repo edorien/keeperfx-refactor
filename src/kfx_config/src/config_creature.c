@@ -630,7 +630,7 @@ long creature_model_id(const char * name)
     for (int i = 0; i < kfx_config_state.conf.crtr_conf.model_count; ++i)
     {
         if (strncmp(name, kfx_config_state.conf.crtr_conf.model[i].name, COMMAND_WORD_LEN) == 0) {
-            return i + 1;
+            return i;
         }
     }
 

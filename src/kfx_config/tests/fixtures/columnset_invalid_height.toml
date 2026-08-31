@@ -1,0 +1,5 @@
+# Fixture for config_slabsets_test.cpp's out-of-range Height rejection
+# test. COLUMN_STACK_HEIGHT is 8, so Height=9 is invalid.
+[column0]
+Height = 9
+SolidMask = 255

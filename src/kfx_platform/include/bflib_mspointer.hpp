@@ -31,6 +31,13 @@
 #define CURSOR_SCALING_YSTEPS MAX_SUPPORTED_SCREEN_HEIGHT/10
 extern int32_t cursor_xsteps_array[2*CURSOR_SCALING_XSTEPS];
 extern int32_t cursor_ysteps_array[2*CURSOR_SCALING_YSTEPS];
+
+// Had real external linkage but no header declaration at all -- added,
+// the usual "add the missing declaration" fix.
+void LbCursorSpriteSetScalingWidthClipped(long x, long swidth, long dwidth, long gwidth);
+void LbCursorSpriteSetScalingWidthSimple(long x, long swidth, long dwidth);
+void LbCursorSpriteSetScalingHeightClipped(long y, long sheight, long dheight, long gheight);
+void LbCursorSpriteSetScalingHeightSimple(long y, long sheight, long dheight);
 /******************************************************************************/
 
 // Exported class

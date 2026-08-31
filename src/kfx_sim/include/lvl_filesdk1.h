@@ -41,6 +41,7 @@ extern long level_file_version;
 extern char *level_strings[];
 /******************************************************************************/
 unsigned char *load_single_map_file_to_buffer(LevelNumber lvnum,const char *fext,int32_t *ldsize,unsigned short flags);
+long get_level_number_from_file_name(const char *fname);
 TbBool find_and_load_lif_files(void);
 TbBool find_and_load_lof_files(void);
 long convert_old_column_file(LevelNumber lv_num);

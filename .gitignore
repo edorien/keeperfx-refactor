@@ -75,6 +75,11 @@ res/keeperfx_icon.ico
 keeperfx.log
 crash_log.txt
 debug.log
+# Local staging of the real, proprietary Dungeon Keeper data files (not
+# ours to distribute -- see CLAUDE.md/src/ftests/README.md) used to run
+# src/ftests/ and the KFX_FUNCTESTING+KFX_TEST_COVERAGE `coverage` target
+# locally.
+/core_files/
 .local/
 .vscode/compile_and_copy_files.ps1
 third_party/

@@ -61,6 +61,7 @@ struct SlabMap {
 
 #pragma pack()
 /******************************************************************************/
+extern struct SlabMap bad_slabmap_block;
 #define INVALID_SLABMAP_BLOCK (&bad_slabmap_block)
 /******************************************************************************/
 SlabCodedCoords get_slab_number(MapSlabCoord slb_x, MapSlabCoord slb_y);

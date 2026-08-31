@@ -48,3 +48,30 @@ TEST_CASE("condition_inactive returns false (not inactive) for an out-of-range i
     CHECK_FALSE(condition_inactive(-1));
     CHECK_FALSE(condition_inactive(CONDITIONS_COUNT));
 }
+
+// get_script_current_condition/set_script_current_condition/pop_condition
+// all read/write module-private statics (script_current_condition/
+// condition_stack/condition_stack_pos), none exposed through any
+// accessor except these three functions themselves. condition_stack_pos
+// in particular has no setter at all -- only command_add_condition()
+// (real script-parsing state, not attempted here) ever pushes onto it --
+// so the only pop_condition() branch reachable from a test is the
+// "stack empty" one, relying on condition_stack_pos being left at its
+// zero-initialized default (nothing else in this test binary touches
+// it).
+TEST_CASE("set_script_current_condition/get_script_current_condition round-trip", "[kfx_game][lvl_script_conditions]") {
+    set_script_current_condition(7);
+    CHECK(get_script_current_condition() == 7);
+}
+
+TEST_CASE("pop_condition on an already-ENDIF'd script logs an error and returns -1 without changing state", "[kfx_game][lvl_script_conditions]") {
+    set_script_current_condition(CONDITION_ALWAYS);
+    CHECK(pop_condition() == -1);
+    CHECK(get_script_current_condition() == CONDITION_ALWAYS);
+}
+
+TEST_CASE("pop_condition with an empty condition_stack resets to CONDITION_ALWAYS", "[kfx_game][lvl_script_conditions]") {
+    set_script_current_condition(3); // anything other than CONDITION_ALWAYS
+    CHECK(pop_condition() == CONDITION_ALWAYS);
+    CHECK(get_script_current_condition() == CONDITION_ALWAYS);
+}

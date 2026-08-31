@@ -131,6 +131,13 @@ unsigned short display_id = 0;
 /** Vertical sync for the software present; set from keeperfx.cfg (VSYNC), on by default. */
 TbBool vsync_enabled = 1;
 
+/** Set by -headless (main.cpp): forces SDL's "dummy" video driver instead of
+  * probing for a real display, so PlatformLinux::VideoInit()/
+  * PlatformWindows::VideoInit() can still succeed (a real window/surface,
+  * just never actually shown) in a display-less environment -- for running
+  * src/ftests/ headlessly, e.g. under coverage instrumentation in CI. */
+TbBool VideoDisabled;
+
 static unsigned char fade_started;
 static unsigned char from_pal[PALETTE_SIZE];
 static unsigned char to_pal[PALETTE_SIZE];
@@ -506,6 +513,7 @@ TbResult LbScreenInitialize(void)
         ERRORLOG("SDL init: %s",SDL_GetError());
         return Lb_FAIL;
     }
+    SYNCLOG("SDL video driver: %s", SDL_GetCurrentVideoDriver());
     return Lb_SUCCESS;
 }
 

@@ -1,0 +1,69 @@
+# Fixture for config_effects_test.cpp -- one populated block of each of
+# config_effects.c's three kinds (effect/effectGenerator/effectElement),
+# plus a second, name-only effect/effectElement block at id 1 so
+# effect_or_effect_element_id()'s "found at id 0" quirk (get_id()
+# returning 0, which the `id > 0` check treats the same as not-found)
+# can be exercised against a slot where it doesn't misfire.
+[effect0]
+Name = "EFFECT_TEST"
+Health = 50
+GenerationType = 2
+GenerationAccelXYRange = [1, 5]
+GenerationAccelZRange = [2, 6]
+GenerationKindRange = [10, 20]
+AreaAffectType = 3
+Sound = 7
+AffectedByWind = 1
+LightRadius = 2
+LightIntensity = 9
+LightFlags = 1
+ElementsCount = 4
+AlwaysGenerate = 1
+HitType = 1
+SpellEffect = 3
+
+[effect1]
+Name = "EFFECT_SECOND"
+
+[effectGenerator0]
+Name = "EFFECTGEN_TEST"
+GenerationDelayMin = 10
+GenerationDelayMax = 20
+GenerationAmount = 3
+EffectModel = 0
+IgnoreTerrain = 1
+SpawnHeight = 256
+AccelerationMin = [1, 2, 3]
+AccelerationMax = [4, 5, 6]
+Sound = [11, 2]
+
+[effectElement0]
+Name = "EFFECTEL_TEST"
+DrawClass = 1
+MoveType = 2
+Unanimated = 0
+Lifespan = [100, 10]
+AnimationId = 55
+SpriteSize = [1, 2]
+AnimateOnce = 1
+SpriteSpeed = [3, 4]
+AnimateOnFloor = true
+Unshaded = true
+Transparent = 1
+ThroughWalls = 1
+SizeChange = 2
+FallAcceleration = 1
+InertiaFloor = 5
+InertiaAir = 6
+SubeffectModel = 7
+SubeffectDelay = 8
+Movable = true
+Impacts = false
+TransformModel = 9
+LightRadius = 3
+LightIntensity = 4
+LightFlags = 1
+AffectedByWind = 1
+
+[effectElement1]
+Name = "EFFECTEL_SECOND"

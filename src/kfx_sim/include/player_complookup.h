@@ -48,6 +48,7 @@ unsigned long num_gem_slabs;
 void check_map_for_gold(void);
 struct GoldLookup *get_gold_lookup(long idx);
 long gold_lookup_index(const struct GoldLookup *gldlook);
+long smaller_gold_vein_lookup_idx(long higher_gold_slabs, long higher_gem_slabs);
 /******************************************************************************/
 #ifdef __cplusplus
 }

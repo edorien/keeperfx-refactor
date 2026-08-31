@@ -40,8 +40,13 @@ extern "C" {
 // Global variables
 static long NoSoundEmitters = SOUND_EMITTERS_MAX;
 struct SoundEmitter emitter[128];
-static long MaxNoSounds;
-static struct S3DSample SampleList[SOUNDS_MAX_COUNT];
+// MaxNoSounds/SampleList were file-scope static; un-static'd (declared
+// extern in bflib_sound.h) so tests can construct "sample already
+// playing" scenarios via direct field writes, without ever calling the
+// real-OpenAL-touching start_emitter_playing()/play_sample() -- same
+// "expose the module-level global" pattern kfx_config's `campaign` used.
+long MaxNoSounds;
+struct S3DSample SampleList[SOUNDS_MAX_COUNT];
 static S3D_LineOfSight_Func LineOfSightFunction;
 static long deadzone_radius;
 

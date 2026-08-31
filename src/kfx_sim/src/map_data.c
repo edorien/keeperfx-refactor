@@ -472,9 +472,9 @@ TbBool set_coords_add_velocity(struct Coord3d *pos, const struct Coord3d *source
  */
 SubtlCodedCoords get_subtile_number(MapSubtlCoord stl_x, MapSubtlCoord stl_y)
 {
-  if (stl_x > kfx_sim_state.map_subtiles_x+1u)
+  if (stl_x > kfx_sim_state.map_subtiles_x+1)
       stl_x = kfx_sim_state.map_subtiles_x+1;
-  if (stl_y > kfx_sim_state.map_subtiles_y+1u)
+  if (stl_y > kfx_sim_state.map_subtiles_y+1)
       stl_y = kfx_sim_state.map_subtiles_y+1;
   if (stl_x < 0)
       stl_x = 0;

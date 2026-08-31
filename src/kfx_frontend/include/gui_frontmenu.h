@@ -55,6 +55,7 @@ struct GuiMenu *get_active_menu(MenuNumber num);
 void refresh_active_button_sprites_for_player(PlayerNumber plyr_idx);
 MenuNumber menu_id_to_number(MenuID menu_id);
 int first_monopoly_menu(void);
+int point_is_over_gui_menu(long x, long y);
 void update_busy_doing_gui_on_menu(void);
 
 void turn_on_menu(MenuID idx);

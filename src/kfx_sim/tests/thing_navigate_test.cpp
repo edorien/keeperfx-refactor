@@ -1,0 +1,119 @@
+// kfx_sim "thing" cluster depth increment, per docs/refactor/testing/
+// comprehensive/stage-08b-kfx-sim-clusters.md's "still open" list:
+// thing_navigate.c's lava/toxicity predicates -- the only self-contained,
+// non-pathfinding functions in this file. creature_stats_get_from_thing's
+// default ConfigReloadCallbacks (get_thing_model always 0) resolves every
+// creature to kfx_config_state.conf.crtr_conf.model[0], the same
+// default-model-0 reliance used throughout this plan. Extends the small
+// map+Column fixture (thing_doors_test.cpp's DoorAngleFixture) one level
+// further: a "lava" subtile needs its Column's top cube to resolve
+// (via cube_is_lava, a direct-by-id config lookup, not routed through
+// ConfigReloadCallbacks) to a cube_cfgstats entry with CPF_IsLava set.
+// The pathfinding-heavy functions (creature_move_to_using_gates,
+// setup_person_move_*, hug_can_move_on, etc.) need a real Ariadne
+// route-planning fixture and are left for a later increment.
+#include <catch2/catch_test_macros.hpp>
+
+#include "thing_navigate.h"
+#include "thing_data.h"
+#include "map_data.h"
+#include "map_columns.h"
+#include "slab_data.h"
+#include "kfx_config_state.h"
+#include "kfx_sim_state.h"
+
+#include <cstring>
+
+namespace {
+struct NavigateFixture {
+    static constexpr MapSubtlCoord kStlX = 4;
+    static constexpr MapSubtlCoord kStlY = 4;
+    static constexpr long kLavaCubeId = 5;
+
+    struct Thing *creatng;
+
+    NavigateFixture() {
+        std::memset(&kfx_sim_state, 0, sizeof(kfx_sim_state));
+        std::memset(&kfx_config_state, 0, sizeof(kfx_config_state));
+        kfx_sim_state.map_subtiles_x = 10;
+        kfx_sim_state.map_subtiles_y = 10;
+        kfx_sim_state.map_tiles_x = 4;
+        kfx_sim_state.map_tiles_y = 4;
+
+        creatng = thing_get(1);
+    }
+
+    // Makes (kStlX, kStlY)'s top cube resolve to a lava-flagged cube.
+    void make_lava_subtile() {
+        set_mapblk_column_index(get_map_block_at(kStlX, kStlY), 1);
+        kfx_sim_state.columns_data[1].bitfields = 0x10; // floor_filled_subtiles == 1
+        kfx_sim_state.columns_data[1].cubes[0] = kLavaCubeId;
+        kfx_config_state.conf.cube_conf.cube_cfgstats[kLavaCubeId].properties_flags = CPF_IsLava;
+    }
+};
+}
+
+TEST_CASE_METHOD(NavigateFixture, "creature_can_travel_over_lava is true when unaffected by lava or currently flying", "[kfx_sim][thing_navigate]") {
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 0;
+    CHECK(creature_can_travel_over_lava(creatng));
+
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 5;
+    CHECK_FALSE(creature_can_travel_over_lava(creatng));
+
+    creatng->movement_flags |= TMvF_Flying;
+    CHECK(creature_can_travel_over_lava(creatng)); // flying overrides being hurt by lava
+}
+
+TEST_CASE_METHOD(NavigateFixture, "can_step_on_unsafe_terrain_at_position is false off lava regardless of the creature", "[kfx_sim][thing_navigate]") {
+    get_slabmap_block(subtile_slab(kStlX), subtile_slab(kStlY))->kind = SlbT_CLAIMED;
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 5;
+
+    CHECK_FALSE(can_step_on_unsafe_terrain_at_position(creatng, kStlX, kStlY));
+}
+
+TEST_CASE_METHOD(NavigateFixture, "can_step_on_unsafe_terrain_at_position on a lava slab delegates to creature_can_travel_over_lava", "[kfx_sim][thing_navigate]") {
+    get_slabmap_block(subtile_slab(kStlX), subtile_slab(kStlY))->kind = SlbT_LAVA;
+
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 0;
+    CHECK(can_step_on_unsafe_terrain_at_position(creatng, kStlX, kStlY));
+
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 5;
+    CHECK_FALSE(can_step_on_unsafe_terrain_at_position(creatng, kStlX, kStlY));
+}
+
+TEST_CASE_METHOD(NavigateFixture, "terrain_toxic_for_creature_at_position is false when the creature isn't hurt by lava, even standing on it", "[kfx_sim][thing_navigate]") {
+    make_lava_subtile();
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 0;
+
+    CHECK_FALSE(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
+}
+
+TEST_CASE_METHOD(NavigateFixture, "terrain_toxic_for_creature_at_position is false off lava even when the creature is vulnerable to it", "[kfx_sim][thing_navigate]") {
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 5;
+    // No make_lava_subtile() call -- the top cube stays the default, non-lava cube 0.
+
+    CHECK_FALSE(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
+}
+
+TEST_CASE_METHOD(NavigateFixture, "terrain_toxic_for_creature_at_position is true on lava for a vulnerable, grounded creature", "[kfx_sim][thing_navigate]") {
+    make_lava_subtile();
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 5;
+
+    CHECK(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
+}
+
+TEST_CASE_METHOD(NavigateFixture, "terrain_toxic_for_creature_at_position is false only when flying is both active and the creature's natural ability", "[kfx_sim][thing_navigate]") {
+    make_lava_subtile();
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 5;
+    creatng->movement_flags |= TMvF_Flying;
+
+    kfx_config_state.conf.crtr_conf.model[0].flying = false;
+    // Currently flying (e.g. a temporary spell) but not a natural flier --
+    // still toxic. A real, if subtle, distinction found by reading the
+    // body's "!movement_flags_flying || !crconf->flying" condition rather
+    // than assuming "currently flying" alone is enough.
+    CHECK(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
+
+    kfx_config_state.conf.crtr_conf.model[0].flying = true;
+    CHECK_FALSE(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
+}

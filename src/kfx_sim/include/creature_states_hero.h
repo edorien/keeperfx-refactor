@@ -68,6 +68,7 @@ short setup_person_tunnel_to_position(struct Thing *creatng, MapSubtlCoord stl_x
 long get_best_dungeon_to_tunnel_to(struct Thing *creatng);
 TbBool send_tunneller_to_point_in_dungeon(struct Thing *creatng, PlayerNumber plyr_idx, struct Coord3d *pos);
 TbBool is_hero_tunnelling_to_attack(struct Thing *creatng);
+long check_out_hero_has_money_for_treasure_room(struct Thing* thing);
 struct Thing *script_process_new_tunneler(unsigned char plyr_idx, TbMapLocation location, TbMapLocation heading, CrtrExpLevel exp_level, unsigned long carried_gold);
 /******************************************************************************/
 #ifdef __cplusplus

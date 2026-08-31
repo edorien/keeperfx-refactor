@@ -55,6 +55,7 @@ TbBool door_will_open_for_thing(const struct Thing *doortng,const struct Thing *
 struct Thing *create_door(struct Coord3d *pos, ThingModel tngmodel, unsigned char orient, PlayerNumber plyr_idx, TbBool is_locked);
 TbBool thing_is_deployed_door(const struct Thing *thing);
 TbBool thing_is_sellable_door(const struct Thing* thing);
+TbBool door_can_stand(struct Thing *thing);
 TbBool slab_has_sellable_door(MapSlabCoord slb_x, MapSlabCoord slb_y);
 void init_keys();
 void lock_door(struct Thing *thing);

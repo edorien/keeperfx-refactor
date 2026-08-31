@@ -235,6 +235,9 @@ TbBool lock_cursor_in_possession(void);
 TbBool use_relative_mouse_mode(void);
 TbBool pause_music_when_game_paused(void);
 TbBool mute_audio_on_focus_lost(void);
+// Had real external linkage but no header declaration at all; added
+// (same situation as config_settings.c's setup_default_settings()).
+TbBool prepare_diskpath(char *buf, long buflen);
 /******************************************************************************/
 const char *get_language_lwrstr(int lang_id);
 TbBool is_dbc_language(short language);

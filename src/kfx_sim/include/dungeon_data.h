@@ -325,6 +325,7 @@ TbBool mark_creature_joined_dungeon(struct Thing *creatng);
 
 void player_add_offmap_gold(PlayerNumber plyr_idx, GoldAmount value);
 
+void init_dungeon_essential_position(struct Dungeon *dungeon);
 void init_dungeons_essential_position(void);
 const struct Coord3d *dungeon_get_essential_pos(PlayerNumber plyr_idx);
 TbBool player_has_heart(PlayerNumber plyr_idx);

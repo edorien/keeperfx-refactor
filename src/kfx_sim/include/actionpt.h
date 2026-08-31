@@ -60,6 +60,8 @@ TbBool action_point_exists(const struct ActionPoint *apt);
 TbBool action_point_exists_idx(ActionPointId apt_idx);
 ActionPointId action_point_number_to_index(ActionPointNumber apt_num);
 TbBool action_point_is_invalid(const struct ActionPoint *apt);
+struct ActionPoint *action_point_get_free(void);
+void delete_action_point_structure(struct ActionPoint *apt);
 
 TbBool action_point_reset_idx(ActionPointId apt_idx, PlayerNumber plyr_idx);
 TbBool action_point_trigger_idx(ActionPointId apt_idx, PlayerNumber plyr_idx);

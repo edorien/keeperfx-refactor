@@ -109,6 +109,7 @@
             "name": "x86-MinGW32-Debug",
             "displayName": "x86-MinGW32-Debug",
             "inherits": [ "MingGW32-Base", "x86", "Debug" ],
+            "binaryDir": "${sourceDir}/out/windows/cmake-build-debug",
             "cacheVariables": {
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "on"
             }

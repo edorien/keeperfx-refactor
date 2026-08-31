@@ -3,6 +3,7 @@
 #include "platform/FileFind.h"
 #include "platform.h"
 #include "bflib_fileio.h"
+#include "bflib_video.h"
 #include <SDL3/SDL.h>
 #include <cstdlib>
 #define WIN32_LEAN_AND_MEAN
@@ -99,6 +100,10 @@ bool PlatformWindows::VideoInit()
     // SDL disables the screensaver by default, which can disrupt the HDR
     // compositor; re-allow it before initialising video.
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1");
+    // -headless (main.cpp): force SDL's "dummy" driver -- see the matching
+    // comment in PlatformLinux::VideoInit().
+    if (VideoDisabled)
+        SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
     if (!SDL_Init(SDL_INIT_VIDEO))
         return false;
     atexit(SDL_Quit);

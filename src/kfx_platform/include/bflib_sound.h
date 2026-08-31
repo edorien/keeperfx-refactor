@@ -125,11 +125,39 @@ extern long MaxSoundDistance;
 extern struct SoundReceiver Receiver;
 extern long Non3DEmitter;
 extern long SpeechEmitter;
+extern struct SoundEmitter emitter[128];
+// Un-static'd for the same reason as MaxNoSounds/SampleList above --
+// direct fixture access, no real-OpenAL-touching call needed.
+extern long MaxNoSounds;
+extern struct S3DSample SampleList[SOUNDS_MAX_COUNT];
 #pragma pack()
 /******************************************************************************/
 // Exported functions
 long S3DSetSoundReceiverPosition(int pos_x, int pos_y, int pos_z);
 long S3DSetSoundReceiverOrientation(int ori_a, int ori_b, int ori_c);
+// The following had real external linkage but no header declaration at
+// all (only ever called from within bflib_sound.c itself) -- added so
+// tests can call them directly, the usual "add the missing declaration"
+// fix.
+TbBool S3DSoundEmitterInvalid(struct SoundEmitter *emit);
+TbBool emitter_is_playing(struct SoundEmitter *emit);
+TbBool remove_active_samples_from_emitter(struct SoundEmitter *emit);
+SoundEmitterID allocate_free_sound_emitter(void);
+void delete_sound_emitter(SoundEmitterID idx);
+void delete_all_sound_emitters(void);
+void init_sample_list(void);
+long get_sample_id(struct S3DSample *sample);
+long get_sound_distance(const struct SoundCoord3d *pos1, const struct SoundCoord3d *pos2);
+long get_sound_squareedge_distance(const struct SoundCoord3d *pos1, const struct SoundCoord3d *pos2);
+long get_emitter_distance(struct SoundReceiver *recv, struct SoundEmitter *emit);
+long get_emitter_sight(struct SoundReceiver *recv, struct SoundEmitter *emit);
+long get_emitter_volume(const struct SoundReceiver *recv, const struct SoundEmitter *emit, long dist);
+long get_emitter_pan(const struct SoundReceiver *recv, const struct SoundEmitter *emit);
+long get_emitter_pitch_from_doppler(const struct SoundReceiver *recv, struct SoundEmitter *emit);
+long get_emitter_pan_volume_pitch(struct SoundReceiver *recv, struct SoundEmitter *emit, int32_t *pan, int32_t *volume, int32_t *pitch);
+long set_emitter_pan_volume_pitch(struct SoundEmitter *emit, long pan, long volume, long pitch);
+short find_slot(long fild8, struct SoundEmitter *emit, long ctype, long spcmax);
+long dummy_line_of_sight_function(long receiver_x, long receiver_y, long receiver_z, long emitter_x, long emitter_y, long emitter_z);
 void S3DSetSoundReceiverSensitivity(unsigned short nsensivity);
 long S3DDestroySoundEmitter(SoundEmitterID);
 TbBool S3DEmitterHasFinishedPlaying(SoundEmitterID);

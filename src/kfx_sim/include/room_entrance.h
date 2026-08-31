@@ -35,6 +35,8 @@ extern "C" {
 #pragma pack()
 /******************************************************************************/
 TbBool generation_due_for_dungeon(struct Dungeon * dungeon);
+TbBool generation_available_to_dungeon(const struct Dungeon * dungeon);
+long calculate_attractive_room_quantity(RoomKind room_kind, PlayerNumber plyr_idx, int crmodel);
 
 void process_entrance_generation(void);
 struct Thing *create_creature_at_entrance(struct Room * room, ThingModel crtr_kind);

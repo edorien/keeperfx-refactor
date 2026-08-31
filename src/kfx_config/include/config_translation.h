@@ -26,6 +26,9 @@ extern "C" {
 /******************************************************************************/
 extern TextStringId get_string_id_by_alias(const char* alias);
 extern const char* get_translation_file_string(TextStringId string_id);
+// Had real external linkage but no header declaration at all -- added,
+// the usual "add the missing declaration" fix.
+extern void clear_translation_table(void);
 
 extern const struct ConfigFileData keeper_translation_file_data;
 

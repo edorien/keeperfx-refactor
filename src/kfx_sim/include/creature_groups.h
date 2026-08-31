@@ -90,6 +90,10 @@ struct Thing* get_best_creature_to_lead_group(struct Thing* grptng);
 long get_no_creatures_in_group(const struct Thing *grptng);
 TbBool get_free_position_behind_leader(struct Thing *leadtng, struct Coord3d *pos);
 
+void internal_update_leader_index_in_group(struct Thing *leadtng);
+void internal_remove_member_from_group_chain(struct Thing *creatng);
+void internal_add_member_to_group_chain_head(struct Thing *creatng, struct Thing *leadtng);
+
 TbBool add_creature_to_group(struct Thing *crthing, struct Thing *grthing);
 long add_creature_to_group_as_leader(struct Thing *thing1, struct Thing *thing2);
 TbBool remove_creature_from_group(struct Thing *thing);

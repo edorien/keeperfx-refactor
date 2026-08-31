@@ -15,6 +15,7 @@
 #include "platform/FileFind.h"
 #include "platform.h"
 #include "bflib_fileio.h"
+#include "bflib_video.h"
 #include "cdrom.h"
 #include "steam_api.hpp"
 #include "post_inc.h"
@@ -97,7 +98,12 @@ extern "C" int PlatformManager_GetIsAppActive(void)
 }
 
 extern "C" int PlatformManager_OwnsDisplay(void)             { return GetPlatform()->OwnsDisplay() ? 1 : 0; }
-extern "C" int PlatformManager_ForcesAllModesAvailable(void) { return GetPlatform()->ForcesAllModesAvailable() ? 1 : 0; }
+// -headless (main.cpp): SDL's dummy driver reports zero real display
+// modes, so LbHwCheckIsModeAvailable() (bflib_video.c) would reject every
+// resolution -- including the 320x200 failsafe -- and fail startup
+// entirely. VideoDisabled short-circuits through this same
+// already-existing "trust the requested mode" escape hatch.
+extern "C" int PlatformManager_ForcesAllModesAvailable(void) { return (VideoDisabled || GetPlatform()->ForcesAllModesAvailable()) ? 1 : 0; }
 
 extern "C" unsigned int PlatformManager_GetWindowFlags(void)
 {

@@ -34,6 +34,7 @@ extern "C" {
 
 #pragma pack()
 /******************************************************************************/
+void recompute_rooms_count_in_dungeons(void);
 void process_rooms(void);
 
 TbBool delete_room_slab(MapSlabCoord slb_x, MapSlabCoord slb_y, TbBool is_destroyed);

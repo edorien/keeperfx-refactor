@@ -539,18 +539,16 @@ heavylog: CXXFLAGS += $(HVLOGFLAGS)
 heavylog: CFLAGS += $(HVLOGFLAGS)
 heavylog: hvlog-before $(HVLOGBIN) hvlog-after
 
-# not nice but necessary for make -j to work
-FOLDERS = bin obj/std obj/hvlog \
-obj/std/ftests \
-obj/std/ftests/tests \
-obj/tests obj/cu \
-obj/std/centitoml obj/hvlog/centitoml \
-obj/std/kfx/platform obj/hvlog/kfx/platform \
-obj/std/kfx/renderer/software obj/hvlog/kfx/renderer/software \
-obj/std/kfx/renderer obj/hvlog/kfx/renderer \
-sdl/for_final_package
-
-$(shell $(MKDIR) $(FOLDERS))
+# Output directories (bin/, obj/std/**, obj/hvlog/**, obj/cu, obj/tests)
+# are created lazily, via an order-only "| $$(@D)/" prerequisite on each
+# rule that writes into them, rather than eagerly for the whole tree via
+# $(shell $(MKDIR) ...) at Makefile-parse time -- that ran unconditionally
+# for every invocation, including targets like pkg-enginegfx/pkg-assemble
+# that never touch obj/ or bin/, leaving stray empty directories behind.
+# $$(@D) needs .SECONDEXPANSION to see the actual target's directory.
+.SECONDEXPANSION:
+%/:
+	$(MKDIR) $@
 
 build-before: libexterns
 
@@ -582,7 +580,7 @@ clean-build:
 	-$(RM) res/*.ico
 	-$(RM) obj/keeperfx.*
 
-$(BIN): $(GENSRC) $(STDOBJS) $(STD_MAIN_OBJ) std-before
+$(BIN): $(GENSRC) $(STDOBJS) $(STD_MAIN_OBJ) std-before | $$(@D)/
 	-$(ECHO) 'Building target: $@'
 	$(CPP) -o "$@" $(STDOBJS) $(STD_MAIN_OBJ) $(LDFLAGS)
 ifdef CV2PDB
@@ -590,7 +588,7 @@ ifdef CV2PDB
 endif
 	-$(ECHO) ' '
 
-$(HVLOGBIN): $(GENSRC) $(HVLOGOBJS) $(HVLOG_MAIN_OBJ) hvlog-before
+$(HVLOGBIN): $(GENSRC) $(HVLOGOBJS) $(HVLOG_MAIN_OBJ) hvlog-before | $$(@D)/
 	-$(ECHO) 'Building target: $@'
 	$(CPP) -o "$@" $(HVLOGOBJS) $(HVLOG_MAIN_OBJ) $(LDFLAGS)
 ifdef CV2PDB
@@ -598,27 +596,27 @@ ifdef CV2PDB
 endif
 	-$(ECHO) ' '
 
-$(TEST_BIN): $(GENSRC) $(STDOBJS) $(TESTS_OBJ) $(CU_OBJS) std-before
+$(TEST_BIN): $(GENSRC) $(STDOBJS) $(TESTS_OBJ) $(CU_OBJS) std-before | $$(@D)/
 	-$(ECHO) 'Building target: $@'
 	$(CPP) -o "$@" $(TESTS_OBJ) $(STDOBJS) $(CU_OBJS) $(LDFLAGS)
 ifdef CV2PDB
 	$(CV2PDB) -C "$@"
 endif
 
-obj/std/centitoml/toml_api.o obj/hvlog/centitoml/toml_api.o: deps/centitoml/toml_api.c
+obj/std/centitoml/toml_api.o obj/hvlog/centitoml/toml_api.o: deps/centitoml/toml_api.c | $$(@D)/
 	-$(ECHO) 'Building file: $<'
 	$(CC) $(CFLAGS) -o"$@" "$<"
 	-$(ECHO) ' '
 
-obj/tests/%.o: src/tests/%.cpp $(GENSRC)
+obj/tests/%.o: src/tests/%.cpp $(GENSRC) | $$(@D)/
 	-$(ECHO) 'Building file: $<'
 	$(CPP) $(CXXFLAGS) -I"src/" $(CU_INC) -o"$@" "$<"
 	-$(ECHO) ' '
 
-obj/cu/%.o: $(CU_DIR)/Sources/Framework/%.c
+obj/cu/%.o: $(CU_DIR)/Sources/Framework/%.c | $$(@D)/
 	$(CPP) $(CXXFLAGS) $(CU_INC) -o"$@" "$<"
 
-obj/cu/%.o: $(CU_DIR)/Sources/Basic/%.c
+obj/cu/%.o: $(CU_DIR)/Sources/Basic/%.c | $$(@D)/
 	$(CPP) $(CXXFLAGS) $(CU_INC) -o"$@" "$<"
 
 
@@ -629,17 +627,17 @@ define BUILD_CPP_FILES_CMD
 	$(CPP) $(CXXFLAGS) -o"$@" "$<"
 endef
 
-obj/std/%.o: src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 # src/kfx_platform (stage 3): same rule, second source directory.
-obj/std/%.o: src/kfx_platform/src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/kfx_platform/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_platform/src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_platform/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 
@@ -650,62 +648,62 @@ define BUILD_CC_FILES_CMD
 	$(CC) $(CFLAGS) -o"$@" "$<"
 endef
 
-obj/std/%.o: src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
 # src/kfx_platform (stage 3): same rule, second source directory.
-obj/std/%.o: src/kfx_platform/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_platform/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_platform/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_platform/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
 # src/kfx_config (stage 4): same rule, third source directory.
-obj/std/%.o: src/kfx_config/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_config/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_config/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_config/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
 # src/kfx_pathfinding (stage 6a): ariadne pathfinding code extracted out of
 # src/kfx_sim, see docs/refactor/stage-06a-ariadne-pathfinding-interface.md.
-obj/std/%.o: src/kfx_pathfinding/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_pathfinding/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_pathfinding/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_pathfinding/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
 # src/kfx_sim (stage 6): same rule, fourth source directory. Landed
 # incrementally cluster-by-cluster, so both .c and .cpp variants are
 # needed from the start even though cluster 1 is C-only.
-obj/std/%.o: src/kfx_sim/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_sim/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_sim/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_sim/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/std/%.o: src/kfx_sim/src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/kfx_sim/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_sim/src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_sim/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 # src/kfx_render (stage 7): same rule, fifth source directory. Landed
 # incrementally cluster-by-cluster, so both .c and .cpp variants are
 # needed from the start even though cluster 1 is C-only.
-obj/std/%.o: src/kfx_render/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_render/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_render/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_render/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/std/%.o: src/kfx_render/src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/kfx_render/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_render/src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_render/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 # custom_sprites.c hits a GNU Make implicit-rule-resolution quirk: with
@@ -717,86 +715,86 @@ obj/hvlog/%.o: src/kfx_render/src/%.cpp libexterns $(GENSRC)
 # file actually lives. No other stem in this tree reproduces it. An
 # explicit (non-pattern) rule always wins over pattern rules, so this
 # sidesteps the ambiguity rather than relying on search order.
-obj/std/custom_sprites.o: src/kfx_render/src/custom_sprites.c libexterns $(GENSRC)
+obj/std/custom_sprites.o: src/kfx_render/src/custom_sprites.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/custom_sprites.o: src/kfx_render/src/custom_sprites.c libexterns $(GENSRC)
+obj/hvlog/custom_sprites.o: src/kfx_render/src/custom_sprites.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
 # src/kfx_net (stage 8): same rule, sixth source directory. Created
 # early (stage 8.3) to give kfx_net_state.h/.c a real home; the
 # physical-extraction clusters (stage 8.4) land the rest incrementally,
 # same shape as kfx_render above.
-obj/std/%.o: src/kfx_net/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_net/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_net/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_net/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/std/%.o: src/kfx_net/src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/kfx_net/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_net/src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_net/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 # src/kfx_game (stage 9): same rule, seventh source directory. Created
 # early (stage 9.3) to give kfx_game_state.h/.c a real home; the
 # physical-extraction clusters (stage 9.4) land the rest incrementally,
 # same shape as kfx_net above.
-obj/std/%.o: src/kfx_game/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_game/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_game/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_game/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/std/%.o: src/kfx_game/src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/kfx_game/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_game/src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_game/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 # src/kfx_frontend (stage 10): same rule, eighth source directory.
 # Created early (stage 10.1) to give kfx_frontend_state.h/.c a real
 # home; the physical-extraction clusters (stage 10.2+) land the rest
 # incrementally, same shape as kfx_game above.
-obj/std/%.o: src/kfx_frontend/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_frontend/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_frontend/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_frontend/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/std/%.o: src/kfx_frontend/src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/kfx_frontend/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_frontend/src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_frontend/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 # src/kfx_script (stage 11): same rule, ninth source directory. Moved
 # in a single pass (no incremental clusters -- see
 # src/kfx_script/CMakeLists.txt's comment for why).
-obj/std/%.o: src/kfx_script/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_script/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_script/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_script/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/std/%.o: src/kfx_script/src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/kfx_script/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_script/src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_script/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 # src/kfx_apploop (stage 12.5): top-level game/frontend session loop.
-obj/std/%.o: src/kfx_apploop/src/%.c libexterns $(GENSRC)
+obj/std/%.o: src/kfx_apploop/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_apploop/src/%.c libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_apploop/src/%.c libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CC_FILES_CMD)
 
-obj/std/%.o: src/kfx_apploop/src/%.cpp libexterns $(GENSRC)
+obj/std/%.o: src/kfx_apploop/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
-obj/hvlog/%.o: src/kfx_apploop/src/%.cpp libexterns $(GENSRC)
+obj/hvlog/%.o: src/kfx_apploop/src/%.cpp libexterns $(GENSRC) | $$(@D)/
 	$(BUILD_CPP_FILES_CMD)
 
 
@@ -808,10 +806,10 @@ define BUILD_RESOURCE_CMD
 	-$(ECHO) ' '
 endef
 
-obj/std/%.res: res/%.rc res/keeperfx_icon.ico $(GENSRC)
+obj/std/%.res: res/%.rc res/keeperfx_icon.ico $(GENSRC) | $$(@D)/
 	$(BUILD_RESOURCE_CMD)
 
-obj/hvlog/%.res: res/%.rc res/keeperfx_icon.ico $(GENSRC)
+obj/hvlog/%.res: res/%.rc res/keeperfx_icon.ico $(GENSRC) | $$(@D)/
 	$(BUILD_RESOURCE_CMD)
 
 

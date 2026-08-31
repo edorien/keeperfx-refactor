@@ -63,6 +63,10 @@ TbBool creature_drop_thing_to_another_room(struct Thing* thing, struct Room* ski
 TbBool set_creature_being_dragged_by(struct Thing *dragtng, struct Thing *thing);
 short creature_arms_trap_first_person(struct Thing *creatng);
 short creature_save_unconscious_creature(struct Thing *thing);
+long slab_is_my_door(long plyr_idx, long slb_x, long slb_y);
+long digger_work_experience(struct Thing *spdigtng);
+TbBool too_much_gold_lies_around_thing(const struct Thing *thing);
+GoldAmount take_from_gold_pile(MapSubtlCoord stl_x, MapSubtlCoord stl_y, long limit);
 
 /******************************************************************************/
 #ifdef __cplusplus

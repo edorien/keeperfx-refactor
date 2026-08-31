@@ -7,13 +7,14 @@
 #include "../ftest.h"
 #include "../ftest_util.h"
 
-#include "../../game_legacy.h"
+#include "game_legacy.h"
+#include "config_keeperfx.h"
 #include "player_instances.h"
+#include "player_data.h"
 #include "power_hand.h"
-#include "../../magic.h"
-#include "../../player_states.h"
-#include "../../front_input.h"
-#include "../../frontend.h"
+#include "magic_powers.h"
+#include "front_input.h"
+#include "frontend.h"
 #include "bflib_mouse.h"
 #include "bflib_planar.h"
 
@@ -197,7 +198,7 @@ FTestActionResult ftest_bug_invisible_units_cant_select_action003__pickup_unit(s
         // }
 
         // try to pickup creature (hand must be over creature for this to work!)
-        TbResult pickup_result = magic_use_power_hand(PLAYER0, vars->unit->mappos.x.stl.num, vars->unit->mappos.y.stl.num, 0);
+        TbResult pickup_result = magic_use_available_power_on_thing(PLAYER0, PwrK_HAND, 0, vars->unit->mappos.x.stl.num, vars->unit->mappos.y.stl.num, vars->unit, PwMod_Default);
         if(pickup_result != Lb_SUCCESS)
         {
             FTEST_FAIL_TEST("Cannot pick up %s index %d", thing_model_name(vars->unit), (int)vars->unit->index);

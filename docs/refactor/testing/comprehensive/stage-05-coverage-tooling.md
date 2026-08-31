@@ -325,3 +325,265 @@ Confirmed correct, not just "ran without error":
   needs a live rendering surface or real map/player world state, the
   same "significant harness change" territory as `kfx_platform`'s
   `bflib_vidraw.c` family.
+- **Re-measured again** after a sixth rung, `kfx_net` (612 tests):
+  **2.98% line coverage (3,722/124,942), 9.05% function coverage
+  (676/7,473)**. `kfx_net` itself went from 33 to 41 tests, 3.3%→4.0%
+  line / 6.4%→8.6% function coverage (`kfx_net/src/index.html`).
+  `net_checksums.c`'s `checksums_different()` (host-vs-client comparison,
+  found `get_host_player_id()` is hardcoded to `0` which simplified the
+  fixture) and `net_input_lag.c`'s two `network_is_active()`-gated early
+  returns landed; the rest of `net_input_lag.c` mixes zero-accessor
+  private state with real wall-clock reads and wasn't pursued further to
+  avoid Catch2-randomized-order test dependencies. Most of the rest of
+  this library (`net_matchmaking.c`, `net_game.c`,
+  `net_exchange_common.c`/`_gameplay.c`, `net_lobby.c`, `net_lan.c`,
+  `net_portforward.cpp`, `net_holepunch.c`, `net_main.c`) is genuine
+  ENet/socket networking; `packets_cheats.c` is three giant
+  `Thing`/`Room`/`Dungeon`-state dispatch functions, `kfx_sim`'s AI-
+  cluster-style fixture territory.
+- **Re-measured again** after a seventh rung, `kfx_game` (624 tests):
+  **3.03% line coverage (3,790/124,942), 9.23% function coverage
+  (690/7,473)**. `kfx_game` itself went from 13 to 25 tests, 0.3%→0.8%
+  line / 0.6%→2.5% function coverage (`kfx_game/src/index.html`) —
+  both roughly quadrupled off a very small starting base.
+  `game_saves.c`'s creature-transfer bookkeeping, `game_heap.c`'s
+  `setup_heap_manager` real-failure path (the "creature.jty" data file
+  genuinely doesn't exist in the unit-test environment) plus `he_alloc`,
+  and `lvl_script_conditions.c`'s `pop_condition`/`get_`/
+  `set_script_current_condition` all landed. The overwhelming majority
+  of this library is still untouched: `lvl_script_commands.c` (3,741
+  lines, the largest single file in the whole codebase), `console_cmd.c`
+  (1,990), `lvl_script_commands_old.c` (842), `lvl_script.c` (673), plus
+  `game_saves.c`'s actual save/load chunk I/O and `sounds.c`'s real
+  OpenAL/S3D functions — all needing the same kind of world-state or
+  live-subsystem fixture as `kfx_sim`'s AI cluster or `kfx_platform`'s
+  audio files.
+- **Re-measured again** after an eighth rung, `kfx_frontend` (643
+  tests): **3.08% line coverage (3,850/124,942), 9.38% function coverage
+  (701/7,473)**. `kfx_frontend` itself went from 9 to 28 tests,
+  0.2%→0.6% line / 0.6%→1.7% function coverage
+  (`kfx_frontend/src/index.html`) — roughly tripled off a very small
+  base, more than doubling the test count in the one library stage-08
+  called "genuinely the hardest ... for this exercise". Two clean whole-
+  file wins: `kfx_frontend_state.c` (raw-blob save/load/reset lifecycle,
+  a real file round trip reusing `kfx_platform`'s scratch-file
+  discipline) and `gui_frontmenu.c`'s pure `active_menus[]` scans (a
+  *complete* array type this time, unlike some other extern arrays hit
+  earlier). `gui_topmsg.c`'s `erstat_check` also landed, reusing
+  `kfx_platform`'s `GetGameTurnFunc` pattern-B fixture. Everything else
+  in this library remains genuinely GUI-widget-array/screen-coordinate
+  coupled the way stage-04g originally found -- `frontend.cpp` (2,026
+  lines), `front_input.c` (1,943), `frontmenu_ingame_tabs.c` (1,856),
+  and the rest don't reduce to a bare-struct test.
+- **Re-measured again** after a ninth rung, `kfx_script` (658 tests):
+  **3.13% line coverage (3,914/124,942), 9.48% function coverage
+  (708/7,473)**. `kfx_script` itself went from 8 to 23 tests, 4.6%→6.1%
+  line / 6.4%→8.5% function coverage (`kfx_script/src/index.html`) —
+  nearly tripled the test count. `lua_utils.c`'s `try_get_c_method`/
+  `try_get_from_methods` (the shared `__index` metamethod helpers) got a
+  real bare-`luaL_newstate()` fixture; `api.c`'s event-subscription
+  bookkeeping turned out to be pure array management with zero socket
+  involvement despite living in the external HTTP API server file, plus
+  `get_max_flags`. Eight functions in `api.c` had no header declaration
+  at all -- all added, though the var-subscription cluster (reaches into
+  `kfx_game`'s `get_condition_value()`) wasn't pursued this pass. The
+  rest of this library is the `lua_api_*.c` family's actual Lua-exposed
+  bindings and `lua_triggers.c`/`lua_cfg_funcs.c`, needing either a real
+  Thing/Room fixture behind the Lua call or the full `open_lua_script()`
+  init chain already used in `lua_base_test.cpp`.
+- **Re-measured again** after a tenth and final rung, `kfx_apploop` (662
+  tests): **3.29% line coverage (3,932/119,387), 9.71% function coverage
+  (710/7,308)**. The denominator here (119,387/7,308) is a correction to
+  the previous bullet's (124,942/7,473) -- both numerators (3,914 lines,
+  708 functions) are identical to the pre-this-round state, confirmed by
+  remeasuring that exact commit after a clean `.gcda` wipe, so nothing
+  regressed; the `coverage` target's `lcov --extract` pattern has simply
+  never matched the 16 files one level below `src/kfx_platform/src/`
+  (moved there by the recent platform/renderer flatten commit), and a
+  stale build tree was masking that gap in the prior measurement. See
+  `docs/Architecture/testing-harness.md` §10 for the full root-cause and
+  the still-open tooling fix. `kfx_apploop` itself (a single file,
+  `game_session_loop.cpp`) went from 4 to 8 tests, 4.5%→8.3% line /
+  15%→25% function coverage (per-file, since this library has no
+  `index.html` breakdown of its own beyond the one file). Landed the
+  "threshold crossed" branch of `find_frame_rate()`/
+  `packet_load_find_frame_rate()` (each already reached, but only their
+  "still accumulating" branch, by the pre-existing tests' fixed-0 fake
+  clock) by making that fake clock settable; `keeper_screen_swap()`
+  (safe here -- its `RendererPresentFrame()` call no-ops on a
+  default-null renderer in this test binary); one safe branch of
+  `keeper_wait_for_next_turn()` that returns before touching the wall
+  clock at all. The rest of this library -- `update()`, `game_loop()`,
+  `wait_at_frontend()`, `keeper_gameplay_loop()` -- is the ladder's own
+  composition root by design, not reducible to a unit test. This closes
+  the ten-library "focus on the lowest-ranked library" push that started
+  with `kfx_platform`.
+- **Fixed the coverage-extract-pattern gap** the previous bullet
+  flagged as still-open. Root cause was a missing `VERBATIM` on the
+  `coverage` custom target (`CMakeLists.txt`), not the `--extract`
+  pattern's shape: without it, CMake emitted the pattern unquoted on the
+  generated Ninja command line, so the shell glob-expanded
+  `src/kfx_*/src/*` against the real filesystem -- one path segment per
+  `*` -- before lcov's own `*` -> `.*` regex matcher (already correct,
+  already able to cross `/`) ever saw a literal `*`. Confirmed by
+  reading the generated `build.ninja` directly (no quotes at all around
+  the argument), then confirmed fixed the same way after adding
+  `VERBATIM` (the argument now appears quoted). The 16 previously-
+  invisible files under `src/kfx_platform/src/{platform,renderer,
+  renderer/software}/` now appear in `coverage.info` (262 -> 277 `SF:`
+  entries). Corrected overall totals, still 662 tests: **3.1% line
+  coverage (3,949/125,589), 9.4% function coverage (715/7,629)** -- both
+  the numerator and denominator moved up from the previous bullet's
+  figures, since these files carry real coverage from earlier rounds on
+  top of previously-uncounted total lines. See
+  `docs/Architecture/testing-harness.md` §10 for the full record.
+- **Deep pass with fixtures, restarting from the bottom of the ladder**
+  (2026-08-30, per an explicit request to keep going past the earlier
+  low-hanging-fruit-only passes, building fixtures/fake callbacks as
+  needed this time). `kfx_platform` revisited first: 662 -> 735 tests,
+  **3.6% line coverage (4,468/125,589), 10.5% function coverage
+  (803/7,629)**. `kfx_platform` itself: 175 -> 248 tests, 6.1%->9.5%
+  line / 12.7%->19.5% function coverage. The headline finding: the
+  original pass's "real OpenAL device" verdict on `bflib_sound.c` was
+  too coarse -- re-reading every function body found it's almost
+  entirely pure 3D-audio bookkeeping (distance/volume/pan/pitch math,
+  emitter/sample array management), with real OpenAL calls concentrated
+  in a handful of specific branches (`stop_sample`/`play_sample`/
+  `SetSample*`/`GetCurrentSoundMasterVolume`, still declined). Un-static'd
+  `MaxNoSounds`/`SampleList` (extern in `bflib_sound.h`) to make "sample
+  already playing" scenarios constructible via direct field writes
+  instead of the real playback path -- the same pattern `kfx_config`'s
+  `campaign` global already established, applied here for the first
+  time in this library; landed ~30 functions this way. Also landed:
+  `renderer/RendererManager.cpp` (not part of the original pass at all --
+  its `s_active_renderer==nullptr`-guarded surface turned out to cover
+  almost the entire file, plus a first pattern-B fake for its
+  `RendererDrawCallbacks` seam), `bflib_vidraw.c`'s pure
+  `LbSpriteSetScaling*Array`/`LbSpriteClearScaling*Array` functions (no
+  screen buffer touched -- first coverage this 2,117-line file has ever
+  had) and `bflib_mspointer.cpp`'s thin wrappers around them,
+  `bflib_cpu.c`'s bit-field decoders, `bflib_netsession.c`,
+  `moonphase.c`'s process-start-zero default. Twelve functions had real
+  external linkage but no header declaration; all added. Full detail:
+  `docs/Architecture/testing-harness.md` §8/§10.
+- **`kfx_config` revisited next in the same deep pass**: 740 tests total,
+  **3.68% line coverage (4,627/125,589), 12.22% function coverage
+  (932/7,629)**. `kfx_config` itself: 104 -> 109 tests, 8.8%->10.5%
+  line / 32.2%->46.3% function coverage. `sim_feedback.c` was an eighth
+  `*Callbacks`-registration file the original sweep of seven simply
+  missed -- same shape (113 tiny static noop functions), landed with one
+  exhaustive test, most of this round's function-coverage jump.
+  `config_powerhands.c` got a second worked TOML-fixture-loader example.
+  The ~20 remaining `config_*.c` loaders are still a volume problem, not
+  attempted exhaustively. Full detail: `docs/Architecture/
+  testing-harness.md` §8/§10.
+- **`kfx_config`, second sub-round (2026-08-30, after an explicit
+  redirect to keep pushing the config_*.c volume rather than stop at
+  one or two examples)**: 771 tests total, **4.09% line coverage
+  (5,142/125,589), 13.61% function coverage (1,038/7,629)**.
+  `kfx_config` itself: 109 -> 138 tests, 10.5%->15.9% line /
+  46.3%->57.6% function coverage. Found a ninth missed `*Callbacks`
+  file -- `config.c`'s own 93-field `ConfigReloadCallbacks`, the
+  largest in this library, landed in one test case (72 assertions).
+  Found and confirmed via an actual failing test (not read-only
+  inspection) that `config_cubes.c`'s `Name` field is spelled with the
+  wrong case for `config.c`'s `set_defaults()` auto-registration check
+  (needs `"NAME"`, has `"Name"`), so `cube_desc[]` never populates and
+  `cube_code_name()` always returns "INVALID" -- dormant, nothing
+  outside the file calls it. Landed three worked examples of a second,
+  previously-zero-coverage loader family, `NamedField`/
+  `parse_named_field_blocks` (9 files use it): `config_cubes.c`,
+  `config_lenses.c`, `config_crtrstates.c`. Plus `config_translation.c`
+  (TOML-backed alias lookup) and `highscores.c`'s
+  `add_high_score_entry()` (sorted-array insertion algorithm on the
+  module-level `campaign` global). ~15 `config_*.c` loaders remain, now
+  with two proven fixture patterns instead of one.
+- **`kfx_pathfinding` revisited in the same deep pass**: `kfx_pathfinding`
+  itself: 58 -> 60 tests, 9.7%->9.9% line / 28.7%->29.7% function
+  coverage. `ariadne.c` (largest of the "big three", 3,313 lines) got
+  its first-ever coverage via a minimal single-field
+  `PathfindingWorldCallbacks` fake (`thing_nav_block_sizexy`/
+  `thing_nav_sizexy`, each calling exactly one callback). A third
+  candidate, `tag_open_closed_init()`, turned out to be dead code inside
+  a `/* TODO PATHFINDING Enable when needed */` comment block -- caught
+  by a link failure, not assumed from reading. The rest of the "big
+  three" still needs the full 51-entry functional fake. Full detail:
+  `docs/Architecture/testing-harness.md` §8/§10.
+- **`kfx_config`, third sub-round**: 779 tests total, **4.14% line
+  coverage (5,205/125,589), 13.72% function coverage (1,047/7,629)**.
+  `kfx_config` itself: 138 -> 146 tests, 15.9%->16.6% line /
+  57.6%->58.6% function coverage. `config_objects.c` -- a fourth
+  `NamedField` worked example, plus room-role capacity branches and
+  `crate_thing_to_workshop_item_class`/`_model` exercised directly
+  against `config_reload_callbacks`'s already-verified default no-op
+  stubs. `config_effects.c` surveyed and found to mix both loader
+  families (raw TOML dict traversal plus a nested `NamedField`
+  sub-config) in one file -- a third shape, not attempted. ~14
+  `config_*.c` loaders remain, still a volume problem. Full detail:
+  `docs/Architecture/testing-harness.md` §8/§10.
+- **Fourth `kfx_config` sub-round + second `kfx_pathfinding` sub-round**
+  (user pointed out more was reachable in both), 788 tests total,
+  **4.22% line coverage (5,300/125,589), 13.83% function coverage
+  (1,055/7,629)**. `kfx_config`: 146 -> 153 tests, 17.4% line / 58.9%
+  function coverage. `config_slabsets.c` split in two:
+  `load_columns_config_file()` needed no fake (writes straight into
+  `kfx_config_state`); `load_slabset_config_file()`/`clear_slabsets()`
+  needed a real `ConfigReloadCallbacks` fake with real backing arrays
+  -- the first `*Callbacks` reach in this library where the *default*
+  itself isn't safe to call (`get_slabset_array`/etc. all default to
+  `NULL`). Found and fixed a dotted-TOML-header parse failure
+  (`[slab0.S]` alone doesn't parse without an explicit `[slab0]`
+  parent under this codebase's bundled TOML impl) by matching the real
+  `config/fxdata/slabset.toml`'s own structure. `kfx_pathfinding`: 60
+  -> 62 tests, 10.3% line / 32.2% function coverage. `ariadne_update.c`
+  (second-largest of the "big three") got its first-ever coverage: five
+  pure `kfx_pathfinding_state` bookkeeping functions, no map/callback
+  dependency. `ariadne_wallhug.c`'s `set_hugging_pos_using_blocked_flags`
+  was assessed and declined -- its coordinate math writes through
+  `struct Coord3d`'s packed union in a way that depends on unconfirmed
+  platform struct layout, not something safely hand-verifiable. Full
+  detail: `docs/Architecture/testing-harness.md` §8/§10.
+- **Fifth `kfx_config` sub-round** (explicit "keep going until
+  significant line coverage" request), 821 tests total, **4.40% line
+  coverage (5,524/125,589), 14.38% function coverage (1,097/7,629)**.
+  `kfx_config`: 153 -> 186 tests, 19.8% line / 63.5% function coverage.
+  A technique shift for `config_terrain.c`/`config_trapdoor.c`/
+  `config_rules.c`/`config_settings.c`: direct `kfx_config_state` field
+  writes (pattern A) instead of a real loader fixture, reaching a dozen
+  pure slab/room-kind predicates in `config_terrain.c` alone.
+  `create_manufacture_array_from_trapdoor_data()` fully covered. Found
+  a real bug in `config_rules.c`, confirmed by an actual failing test:
+  `sac_compare_fn` (the `qsort` comparator for `add_sacrifice_victim`'s
+  victim list) returns a plain bool, never negative -- violates
+  `qsort`'s contract, so the sort order is implementation-defined; the
+  test was rewritten to not depend on it. `config_settings.c`'s
+  `load_settings()`/`save_settings()` declined -- unlike every other
+  loader here, they hardcode a real save-directory path with no `fname`
+  parameter to redirect. Full detail: `docs/Architecture/
+  testing-harness.md` §8/§10.
+- **`kfx_pathfinding`'s full functional fake** (same "keep going until
+  significant line coverage" request, continued for this library), 892
+  tests total, **5.96% line coverage (7,489/125,589), 16.48% function
+  coverage (1,257/7,629)**. `kfx_pathfinding`: 62 -> 87 tests, **10.3%
+  -> 40.4% line coverage, 32.2% -> 77.2% function coverage**. Built the
+  full 51-entry `PathfindingWorldCallbacks` fake the two prior
+  sub-rounds explicitly deferred (`pathfinding_fake_world.h`) -- a
+  reusable grid-backed fake with real controllable backing storage for
+  map/slab/thing state, since those structs are opaque to ariadne and
+  never dereferenced by production code. `ariadne_wallhug.c` (2,178
+  lines, zero coverage before this round) now covered via its 5
+  real-external-linkage entry points, transitively exercising every
+  `static` helper in the file. `ariadne_update.c`'s
+  `init_navigation()`/`update_navigation_triangulation()` now drive the
+  real Delaunay triangulation algorithm end-to-end (68.4% line
+  coverage), transitively exercising real triangulation machinery
+  across five other files for the first time. `ariadne.c`'s
+  route-lifecycle entry points driven across a genuinely-triangulated
+  map took it from 2.5% to 25.3% line coverage. Caught and fixed a real
+  order-dependent test bug via the routine 3x `--order rand` stability
+  check: a pre-existing `ariadne_update_test.cpp` assertion compared
+  `count_Triangles` against a "before" snapshot that isn't a reliable
+  bound once another test triangulates the identical map shape first
+  (re-triangulating an identical-shaped map is idempotent, not
+  cumulative) -- fixed to assert an absolute structural bound instead.
+  Full detail: `docs/Architecture/testing-harness.md` §8/§10.

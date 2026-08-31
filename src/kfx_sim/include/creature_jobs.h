@@ -51,6 +51,14 @@ TbBool creature_find_and_perform_anger_job(struct Thing *thing);
 TbBool attempt_job_preference(struct Thing *creatng, long jobpref);
 TbBool creature_try_doing_secondary_job(struct Thing *creatng);
 TbBool creature_will_reject_job(const struct Thing* creatng, CreatureJob jobpref);
+TbBool creature_dislikes_job(const struct Thing *creatng, CreatureJob jobpref);
+TbBool creature_can_do_job_always_for_player(const struct Thing *creatng, PlayerNumber plyr_idx, CreatureJob new_job);
+TbBool creature_can_do_research_for_player(const struct Thing *creatng, PlayerNumber plyr_idx, CreatureJob new_job);
+TbBool creature_can_do_manufacturing_for_player(const struct Thing *creatng, PlayerNumber plyr_idx, CreatureJob new_job);
+TbBool creature_can_join_fight_for_player(const struct Thing *creatng, PlayerNumber plyr_idx, CreatureJob new_job);
+TbBool creature_can_do_barracking_for_player(const struct Thing *creatng, PlayerNumber plyr_idx, CreatureJob new_job);
+TbBool is_correct_owner_to_perform_job(const struct Thing *creatng, PlayerNumber plyr_idx, CreatureJob new_job);
+TbBool is_correct_position_to_perform_job(const struct Thing *creatng, MapSubtlCoord stl_x, MapSubtlCoord stl_y, CreatureJob new_job);
 
 // Assigning jobs by making creature go to the workplace, or dropping the creature at it
 TbBool creature_can_do_job_for_player(const struct Thing *creatng, PlayerNumber plyr_idx, CreatureJob new_job, unsigned long flags);

@@ -4,14 +4,15 @@
 
 #include "pre_inc.h"
 
-#include "../game_legacy.h"
+#include "game_legacy.h"
+#include "config_keeperfx.h"
 #include "bflib_math.h"
 #include "lvl_filesdk1.h"
 #include "slab_data.h"
 #include "room_util.h"
 #include "thing_physics.h"
 #include "creature_states.h"
-#include "../frontend.h"
+#include "frontend.h"
 #include "bflib_mouse.h"
 #include "bflib_planar.h"
 
@@ -44,7 +45,7 @@ TbBool ftest_util_replace_slabs(MapSlabCoord slb_x_from, MapSlabCoord slb_y_from
             
             if(!replace_slab_from_script(x, y, slab_kind))
             {
-                ERRORLOG("Failed to replace slab at (%d,%d)", x, y);
+                ERRORLOG("Failed to replace slab at (%lu,%lu)", x, y);
                 result = false;
             }
         }
@@ -248,14 +249,14 @@ struct Thing* ftest_util_create_random_creature(MapCoord x, MapCoord y, PlayerNu
     struct Thing* thing = create_creature(&pos, crmodel, owner);
     if (thing_is_invalid(thing))
     {
-        ERRORLOG("Cannot create creature %s at (%ld,%ld)",creature_code_name(crmodel),x,y);
+        ERRORLOG("Cannot create creature %s at (%d,%d)",creature_code_name(crmodel),x,y);
         return false;
     }
     pos.z.val = get_thing_height_at(thing, &pos);
     if (thing_in_wall_at(thing, &pos))
     {
         delete_thing_structure(thing, 0);
-        ERRORLOG("Creature %s at (%ld,%ld) deleted because is in wall",creature_code_name(crmodel),x,y);
+        ERRORLOG("Creature %s at (%d,%d) deleted because is in wall",creature_code_name(crmodel),x,y);
         return false;
     }
     thing->mappos.x.val = pos.x.val;
@@ -278,14 +279,14 @@ struct Thing* ftest_util_create_creature(MapCoord x, MapCoord y, PlayerNumber ow
     struct Thing* thing = create_creature(&pos, creature_model, owner);
     if (thing_is_invalid(thing))
     {
-        ERRORLOG("Cannot create creature %s at (%ld,%ld)",creature_code_name(creature_model),x,y);
+        ERRORLOG("Cannot create creature %s at (%d,%d)",creature_code_name(creature_model),x,y);
         return false;
     }
     pos.z.val = get_thing_height_at(thing, &pos);
     if (thing_in_wall_at(thing, &pos))
     {
         delete_thing_structure(thing, 0);
-        ERRORLOG("Creature %s at (%ld,%ld) deleted because is in wall",creature_code_name(creature_model),x,y);
+        ERRORLOG("Creature %s at (%d,%d) deleted because is in wall",creature_code_name(creature_model),x,y);
         return false;
     }
     thing->mappos.x.val = pos.x.val;
@@ -426,7 +427,7 @@ TbBool ftest_util_action__create_and_fill_torture_room(struct FTestActionArgs* c
     struct Thing* torture_victim = ftest_util_create_creature(center_of_room_pos.x.val, center_of_room_pos.y.val, vars->victim_player_owner, vars->victim_max_level, vars->victim_creature_model);
     if(thing_is_invalid(torture_victim))
     {
-        FTEST_FAIL_TEST("Cannot create creature %s at (%ld,%ld)",creature_code_name(vars->victim_creature_model), center_of_room_pos.x.val, center_of_room_pos.y.val);
+        FTEST_FAIL_TEST("Cannot create creature %s at (%d,%d)",creature_code_name(vars->victim_creature_model), center_of_room_pos.x.val, center_of_room_pos.y.val);
         return true;
     }
 

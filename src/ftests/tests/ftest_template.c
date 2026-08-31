@@ -7,9 +7,10 @@
 #include "../ftest.h"
 #include "../ftest_util.h"
 
-#include "../../game_legacy.h"
+#include "game_legacy.h"
+#include "config_keeperfx.h"
 #include "player_instances.h"
-#include "../../gui_msgs.h"
+#include "gui_msgs.h"
 
 #include "post_inc.h"
 

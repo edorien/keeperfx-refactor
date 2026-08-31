@@ -46,6 +46,11 @@
 
 #include "kfx_config_state.h"
 #include "kfx_sim_state.h"
+
+#ifdef FUNCTESTING
+#include "ftests/ftest.h"
+#endif
+
 #include "post_inc.h"
 
 #ifdef __cplusplus

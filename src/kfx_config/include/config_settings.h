@@ -90,6 +90,9 @@ extern struct GameSettings settings; // KFX settings
 /******************************************************************************/
 TbBool load_settings(void);
 short save_settings(void);
+// Had real external linkage but no header declaration at all -- added,
+// the usual "add the missing declaration" fix.
+void setup_default_settings(void);
 
 int get_max_i_can_see_from_settings(void);
 /******************************************************************************/

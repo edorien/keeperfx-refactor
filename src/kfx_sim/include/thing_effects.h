@@ -72,6 +72,7 @@ struct Thing *script_create_effect(struct Coord3d *pos, EffectOrEffElModel mdl, 
 void create_effects_line(TbMapLocation from, TbMapLocation to, char curvature, unsigned char spatial_stepping, unsigned char temporal_stepping, EffectOrEffElModel effct_id);
 
 TbBool area_effect_can_affect_thing(const struct Thing *thing, HitTargetFlags hit_targets, PlayerNumber shot_owner);
+TbBool effect_can_affect_thing(struct Thing *efftng, struct Thing *thing);
 long explosion_affecting_area(struct Thing *tngsrc, const struct Coord3d *pos, MapCoord max_dist,
     HitPoints max_damage, long blow_strength, HitTargetFlags hit_targets);
     

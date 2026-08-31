@@ -214,6 +214,10 @@ TbBool emulate_integer_overflow(unsigned short nbits);
 
 const char *player_code_name(PlayerNumber plyr_idx);
 int sac_compare_fn(const void* ptr_a, const void* ptr_b);
+// Had real external linkage but no header declaration at all -- added,
+// the usual "add the missing declaration" fix.
+void clear_sacrifice_recipes(void);
+TbBool add_sacrifice_victim(struct SacrificeRecipe *sac, ThingModel crtr_idx);
 
 extern const struct NamedCommand rules_sacrifices_commands[];
 extern const struct NamedCommand sacrifice_unique_desc[];

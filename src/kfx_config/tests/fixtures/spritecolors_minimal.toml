@@ -1,0 +1,9 @@
+# Fixture for config_spritecolors_test.cpp -- each array is a list of
+# per-base-sprite rows. Row layout: [base_icon_idx, color0, color1, ...,
+# color9] (PLAYER_COLORS_COUNT == 11: index 0 is the match key, indices
+# 1..10 are get_player_color_idx()+1 -- colors 0..9).
+gui_panel_sprites = [[867, 900, 901, 902, 903, 904, 905, 906, 907, 908, 909]]
+pointer_sprites = [[10, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]]
+button_sprite = [[5, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]]
+animationIds = [[867, 970, 971, 972, 973, 974, 975, 976, 977, 978, 979]]
+objects = [[100, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159]]

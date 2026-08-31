@@ -136,6 +136,11 @@ TbBool creature_has_melee_attack(const struct Thing *creatng);
 CrInstance creature_instance_get_available_id_for_pos(struct Thing *thing, int req_avail_pos);
 
 TbBool instance_draws_possession_swipe(CrInstance inum);
+TbBool instance_is_disarming_weapon(CrInstance inum);
+TbBool instance_is_ranged_weapon(CrInstance inum);
+TbBool instance_is_ranged_weapon_vs_objects(CrInstance inum);
+TbBool instance_is_used_for_going_postal(CrInstance inum);
+TbBool instance_is_melee_attack(CrInstance inum);
 
 void delay_teleport(struct Thing *creatng);
 void delay_heal_sleep(struct Thing *creatng);

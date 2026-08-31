@@ -17,6 +17,15 @@ They also skip the trademark/cutscene by default for super fast launch.
 - `bug_imp_tp_attack_door__deadbody`
 - `bug_imp_goldseam_dig`
 - `bug_pathing_stair_treasury`
+- `creature_combat_power_hand` -- not a bug repro: a coverage-driven test (docs/Architecture/testing-harness.md §7.7) exercising real creature-vs-creature combat and a POWER_HAND pickup/drop, on map00011 ("Hearth")
+- `creature_temple_prayer` -- coverage-driven: a creature assigned TEMPLE_PRAY reaching CrSt_AtTemple/CrSt_PrayingInTemple, on map00011
+- `creature_lair_healing` -- coverage-driven: a hurt creature reaching CrSt_CreatureSleep/CrSt_AtLairToSleep in its lair, on map00011
+- `creature_garden_eating` -- coverage-driven: a hungry creature reaching a garden-eating state, on map00011
+- `creature_training` -- coverage-driven: a creature assigned TRAIN reaching CrSt_AtTrainingRoom/CrSt_Training, on map00011
+- `creature_guard_post` -- coverage-driven: a creature assigned GUARD reaching CrSt_AtGuardPostRoom/CrSt_Guarding, on map00011
+- `creature_barracks` -- coverage-driven: a creature assigned BARRACK reaching CrSt_AtBarrackRoom/CrSt_Barracking, on map00011
+- `creature_prison_capture` -- coverage-driven: an enemy creature captured via controlled_creature_drop_thing() reaching CrSt_CreatureArrivedAtPrison/CrSt_CreatureInPrison while keeping its own owner, on map00011
+- `creature_torture_ownership` -- coverage-driven: contrasts process_torture_function()'s room-owner-vs-creature-owner branches (own creature: harmless; enemy creature: torture points actually accumulate), on map00011
 
 ## Run Existing Test
 
@@ -40,6 +49,11 @@ They also skip the trademark/cutscene by default for super fast launch.
     - optionally view the keeperfx.log to view details on why the test failed
         - example failure message: `FTest: [20] ftest_template_action001__spawn_imp: Failed to level up imp`
         - the above message tells us that at game turn 20, the test failed at function `ftest_template_action001__spawn_imp` because `Failed to level up imp`
+6. (optional) `-headless`: for running in CI/sandboxed environments with no real display or audio device (e.g. under coverage instrumentation). Forces SDL's "dummy" video driver (a real window/surface still gets created, just never actually shown) and disables audio the same way `-nosound` does. Check `keeperfx.log` for `SDL video driver: dummy` to confirm it took effect.
+
+## Building with CMake
+
+The CMake build (see the repo root `CLAUDE.md`) needs `-DKFX_FUNCTESTING=ON` to compile this directory in at all -- without it, every `#ifdef FUNCTESTING` block here (and in kfx_platform/kfx_config/kfx_sim/kfx_game/kfx_frontend/kfx_apploop) compiles to nothing and `-ftests` is silently ignored. `KFX_FUNCTESTING` cannot be combined with `-DKFX_BUILD_TESTS=ON` in the same build tree (see the option's own comment in the root `CMakeLists.txt` for why); use separate build trees for the Catch2 unit-test suite and for this harness. Combine with `-DKFX_TEST_COVERAGE=ON` and `-DKFX_FTEST_DATA_DIR=<path to a real KeeperFX install>` for a gcov/lcov coverage report driven by real game execution -- `cmake --build <dir> --target coverage` stages the needed game-data subset, builds keeperfx, and runs every registered (non-long-running) test via `-headless -exitonfailedtest` before capturing. Full details -- headless mode internals, what data gets staged and why, the known GUI-dependent-test gap, and merging this with the unit-test suite's own coverage report into one combined one (`scripts/merge_coverage.sh`) -- are in [`docs/Architecture/testing-harness.md`](../../docs/Architecture/testing-harness.md) §7.
 
 ## Create New Test
 

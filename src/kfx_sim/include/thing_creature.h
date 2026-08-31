@@ -206,6 +206,7 @@ void create_light_for_possession(struct Thing *creatng);
 void illuminate_creature(struct Thing *creatng);
 
 long get_spell_slot(const struct Thing *thing, SpellKind spkind);
+TbBool fill_spell_slot(struct Thing *thing, SpellKind spell_idx, GameTurnDelta spell_power, CrtrExpLevel spell_level, PlayerNumber plyr_idx, int slot_idx);
 TbBool free_spell_slot(struct Thing *thing, int slot_idx);
 
 void controlled_creature_pick_thing_up(struct Thing *creatng, struct Thing *picktng, PlayerNumber plyr_idx);

@@ -37,6 +37,7 @@ extern "C" {
 /******************************************************************************/
 long calculate_free_lair_space(struct Dungeon * dungeon);
 TbBool creature_model_is_lair_enemy(const short lair_enemy[CREATURE_TYPES_MAX], short crmodel);
+TbBool creature_model_is_hostile_towards(const short hostile_towards[CREATURE_TYPES_MAX], short crmodel);
 struct Room *get_best_new_lair_for_creature(struct Thing *thing);
 void count_lair_occupants_on_slab(struct Room *room,MapSlabCoord slb_x, MapSlabCoord slb_y);
 void count_lair_occupants(struct Room *room);

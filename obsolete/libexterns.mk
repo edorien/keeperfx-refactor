@@ -42,8 +42,14 @@ ifneq (,$(findstring .tar.gz,$(SDL_PACKAGE)))
 
 libsdl: $(SDL_MAIN_LIBRARY)
 
+# sdl/for_final_package/ is created on demand via this order-only
+# prerequisite, rather than by the parent Makefile eagerly mkdir-ing it
+# for every invocation (including targets that never call into this file).
+sdl/for_final_package/:
+	$(MKDIR) $@
+
 # If we have tar gzip prebuild, download and extract it
-$(SDL_MAIN_LIBRARY): sdl/$(SDL_PACKAGE)
+$(SDL_MAIN_LIBRARY): sdl/$(SDL_PACKAGE) | sdl/for_final_package/
 	-$(ECHO) 'Extracting package: $<'
 	# Grep is used to remove bogus error messages, return state of tar is also ignored
 	-cd "$(<D)"; \
@@ -76,7 +82,7 @@ ifneq (,$(findstring .tar.gz,$(SDL_MIXER_PACKAGE)))
 
 libsdlmixer: sdl/lib/libSDL3_mixer.dll.a
 
-sdl/lib/libSDL3_mixer.dll.a: sdl/$(SDL_MIXER_PACKAGE)
+sdl/lib/libSDL3_mixer.dll.a: sdl/$(SDL_MIXER_PACKAGE) | sdl/for_final_package/
 	-$(ECHO) 'Extracting package: $<'
 	$(MKDIR) sdl/lib sdl/include
 	cd "$(<D)"; \
@@ -108,7 +114,7 @@ ifneq (,$(findstring .tar.gz,$(SDL_IMAGE_PACKAGE)))
 
 libsdlimage: sdl/lib/libSDL3_image.dll.a
 
-sdl/lib/libSDL3_image.dll.a: sdl/$(SDL_IMAGE_PACKAGE)
+sdl/lib/libSDL3_image.dll.a: sdl/$(SDL_IMAGE_PACKAGE) | sdl/for_final_package/
 	-$(ECHO) 'Extracting package: $<'
 	$(MKDIR) sdl/lib sdl/include
 	cd "$(<D)"; \

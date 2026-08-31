@@ -1,0 +1,20 @@
+# Fixture for config_powerhands_test.cpp -- a minimal powerhands.toml
+# exercising load_powerhands_config_file()'s real field-mapping logic,
+# a second worked example of the per-loader-schema TOML-fixture pattern
+# config_textures_test.cpp established.
+[hand0]
+Name = "HAND0"
+HoldAnim = 100
+HoldGoldAnim = 101
+HoverAnim = 102
+PickupAnim = 103
+SideHoverAnim = 104
+SideSlapAnim = 105
+SlapAnim = 106
+HoldSpeed = 1
+HoldGoldSpeed = 2
+HoverSpeed = 3
+PickupSpeed = 4
+SideHoverSpeed = 5
+SideSlapSpeed = 6
+SlapSpeed = 7
