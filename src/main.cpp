@@ -1321,6 +1321,7 @@ short setup_game(void)
       &get_icon_id, &get_anim_id, &get_anim_id_,
       &get_button_sprite, &get_panel_sprite,
       &get_ensign_id, &init_custom_campaign_sprites,
+      &load_sprites_for_multi_front,
   };
   set_sprite_lookup_callbacks(&sprite_lookup_impl);
   static const struct RenderOverlayCallbacks render_overlay_impl = {

@@ -34,6 +34,7 @@
 #include "config_terrain.h"
 #include "config_keeperfx.h"
 #include "sim_feedback.h"
+#include "sprite_lookup.h"
 #include "map_ceiling.h"
 #include "map_blocks.h"
 #include "map_utils.h"
@@ -372,6 +373,8 @@ TbBool level_lof_file_parse(const char *fname, char *buf, long len)
         return 0;
     }
     lvinfo->location = LvLc_Custom;
+
+    sprite_lookup->load_sprites_for_multi_front(lvinfo->lvnum);
     pos = 0;
 #define COMMAND_TEXT(cmd_num) get_conf_parameter_text(cmpgn_map_commands,cmd_num)
     while (pos<len)
@@ -483,8 +486,15 @@ TbBool level_lof_file_parse(const char *fname, char *buf, long len)
                 }
                 else
                 {
-                    WARNMSG("Invalid value '%s' for \"%s\" in '%s' file.", word_buf,
-                        COMMAND_TEXT(cmd_num), fname);
+                    k = sprite_lookup->get_ensign_id(word_buf);
+
+                    if (k >= 0)
+                    {
+                        lvinfo->ensign_type = CUSTOM_ENSIGN_BASE + k;
+                    } else {
+                        WARNMSG("Invalid value '%s' for \"%s\" in '%s' file.", word_buf,
+                            COMMAND_TEXT(cmd_num), fname);
+                    }
                 }
             }
             break;

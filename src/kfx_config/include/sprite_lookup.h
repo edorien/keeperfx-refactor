@@ -39,6 +39,10 @@ struct SpriteLookupCallbacks {
     // triggers loading that campaign's custom ensign sprite sheet.
     short (*get_ensign_id)(const char *name);
     void (*init_custom_campaign_sprites)(const char *dir_path, const char *dir_desc);
+    // custom_sprites.h -- lvl_filesdk1.c triggers loading a multiplayer
+    // map's own custom ensign/sprite sheet (map%05lu.zip) while parsing
+    // its .lof file.
+    void (*load_sprites_for_multi_front)(LevelNumber lvnum);
 };
 void set_sprite_lookup_callbacks(const struct SpriteLookupCallbacks *callbacks);
 extern const struct SpriteLookupCallbacks *sprite_lookup;
