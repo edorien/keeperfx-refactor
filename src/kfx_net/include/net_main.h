@@ -21,29 +21,19 @@
 
 #include "bflib_basics.h"
 #include "bflib_netsession.h"
+#include "bflib_netsp.h"
 #include "ver_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TIMEOUT_CONNECT_HOLEPUNCH 5000
-#define TIMEOUT_CONNECT_DIRECT_IPV6 5000
-#define TIMEOUT_CONNECT_DIRECT_IPV4 5000
 #define TIMEOUT_JOIN_LOBBY 2000
 #define TIMEOUT_LOBBY_EXCHANGE 5000
 #define TIMEOUT_WAIT_FOR_ALL_PLAYERS 30000
-#define PEER_TIMEOUT_LIMIT 0
-#define PEER_TIMEOUT_MIN_MS 5000
-#define PEER_TIMEOUT_MAX_MS 30000
 
-#define MAX_NET_USERS 4
-#define MAX_NET_PEERS (MAX_NET_USERS - 1)
-#define SERVER_ID 0
 #define NET_MSG_BUFFER_SIZE 5000
 #define INVALID_USER_ID 23456
-
-typedef int NetUserId;
 
 // Moved from front_network.h (stage 8 prep, docs/refactor/
 // stage-08-kfx-net.md) -- net_game.h's public setup_network_service()
@@ -54,11 +44,6 @@ enum FrontendNetService {
     FrontendNetSvc_Skirmish = -1,
     FrontendNetSvc_Online = 0,
     FrontendNetSvc_LAN = 1,
-};
-
-enum NetDropReason {
-    NETDROP_MANUAL,
-    NETDROP_ERROR,
 };
 
 enum NetMessageType {
@@ -74,24 +59,6 @@ enum NetMessageType {
     NETMSG_CHATMESSAGE,
     NETMSG_GAMEPLAY_REPAIR,
     NETMSG_GAMEPLAY_TURN_SYNC,
-};
-
-typedef TbBool (*NetNewUserCallback)(NetUserId *assigned_id);
-typedef void (*NetDropCallback)(NetUserId id, enum NetDropReason reason);
-
-struct NetSP
-{
-    TbError (*init)(NetDropCallback drop_callback, NetNewUserCallback new_user_callback);
-    void (*exit)();
-    TbError (*host)(const char *session, void *options);
-    TbError (*join)(const char *session, void *options);
-    void (*update)(NetNewUserCallback new_user);
-    void (*sendmsg_single)(NetUserId destination, const char *buffer, size_t size);
-    void (*sendmsg_single_unsequenced)(NetUserId destination, const char *buffer, size_t size);
-    void (*sendmsg_all)(const char *buffer, size_t size);
-    size_t (*msgready)(NetUserId source, unsigned timeout);
-    size_t (*readmsg)(NetUserId source, char *buffer, size_t max_size);
-    void (*drop_user)(NetUserId id);
 };
 
 enum NetUserProgress {

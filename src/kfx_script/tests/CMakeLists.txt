@@ -42,7 +42,7 @@ target_link_libraries(kfx_script_utest PRIVATE
     kfx_common_opts
     kfx_luajit
     centitoml
-    kfx_test_main)
+    Catch2::Catch2WithMain)
 target_include_directories(kfx_script_utest PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 include(CTest)

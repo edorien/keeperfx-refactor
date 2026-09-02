@@ -57,6 +57,11 @@ static TbBool noop_lua_resync_import(const char *data, size_t len) { return true
 static void noop_lua_set_random_seed(unsigned int seed) {}
 static void noop_lua_cleanup_serialized_data(void) {}
 
+static const char *noop_resync_export_game_state(size_t *len) { *len = 0; return ""; }
+static TbBool noop_resync_import_game_state(const char *data, size_t len) { return true; }
+static const char *noop_resync_export_frontend_state(size_t *len) { *len = 0; return ""; }
+static TbBool noop_resync_import_frontend_state(const char *data, size_t len) { return true; }
+
 static void noop_network_yield_draw_gameplay(void) {}
 static void noop_network_yield_waiting_gameplay_packets(void) {}
 static void noop_network_yield_draw_frontend(void) {}
@@ -120,6 +125,11 @@ static const struct NetCallbacks default_net_callbacks = {
     &noop_lua_resync_import,
     &noop_lua_set_random_seed,
     &noop_lua_cleanup_serialized_data,
+
+    &noop_resync_export_game_state,
+    &noop_resync_import_game_state,
+    &noop_resync_export_frontend_state,
+    &noop_resync_import_frontend_state,
 
     &noop_network_yield_draw_gameplay,
     &noop_network_yield_waiting_gameplay_packets,

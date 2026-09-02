@@ -25,6 +25,9 @@
 #include "tests/ftest_creature_barracks.h"
 #include "tests/ftest_creature_prison_capture.h"
 #include "tests/ftest_creature_torture_ownership.h"
+#include "tests/ftest_net_resync_fake_multiplayer.h"
+#include "tests/ftest_net_enet_loopback_host.h"
+#include "tests/ftest_net_enet_loopback_join.h"
 // append your test include here, eg: #include "tests/ftest_your_test_header.h"
 
 #include "post_inc.h"
@@ -56,6 +59,7 @@ struct ftest_onlyappendtests__config ftest_onlyappendtests__conf = {
          { .test_name="creature_barracks",                  .init_func=ftest_creature_barracks_init,                .level_file="keeporig", .level=11, .frame_skip=8 },
          { .test_name="creature_prison_capture",             .init_func=ftest_creature_prison_capture_init,          .level_file="keeporig", .level=11, .frame_skip=8 },
          { .test_name="creature_torture_ownership",          .init_func=ftest_creature_torture_ownership_init,       .level_file="keeporig", .level=11, .frame_skip=8 },
+         { .test_name="net_resync_fake_multiplayer",         .init_func=ftest_net_resync_fake_multiplayer_init,      .level_file="keeporig", .level=11, .frame_skip=8 },
 
          // GUI/cursor-dependent, not headless-safe: drives mouse-cursor/thing-under-hand
          // selection (ftest_util_center_cursor_over_dungeon_view(), player->thing_under_hand)
@@ -77,6 +81,19 @@ struct ftest_onlyappendtests__config ftest_onlyappendtests__conf = {
     // place long-running tests in this list, to include them use the -includelongtests flag
     .long_running_tests_list = {
         { .test_name="bug_ai_bridge",                      .init_func=ftest_bug_ai_bridge_init,                    .level_file="keeporig", .level=15, .frame_skip=128, .seed=1, .repeat_n_times=100 },
+
+        // Not actually long-running -- placed here (rather than tests_list)
+        // for the same reason bug_invisible_units_cant_select is commented
+        // out above: a bare `-ftests` sweep runs every tests_list entry in
+        // one process, and these two are each only one half of a real
+        // two-process ENet session (docs/refactor/todo/ftest-fake-multiplayer.md
+        // Phase 2) -- run alone, net_enet_loopback_host stalls waiting for a
+        // client that never connects, which would wedge the same
+        // KFX_FUNCTESTING+KFX_TEST_COVERAGE `coverage` target this comment's
+        // neighbor above was excluded to protect. Run together via
+        // scripts/run_ftest_net_enet_loopback.sh, not via -includelongtests.
+        { .test_name="net_enet_loopback_host",              .init_func=ftest_net_enet_loopback_host_init,           .level_file="keeporig", .level=11, .frame_skip=8 },
+        { .test_name="net_enet_loopback_join",              .init_func=ftest_net_enet_loopback_join_init,           .level_file="keeporig", .level=11, .frame_skip=8 },
     }
 };
 

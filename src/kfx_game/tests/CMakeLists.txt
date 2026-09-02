@@ -23,7 +23,7 @@ target_link_libraries(kfx_game_utest PRIVATE
     kfx_common_opts
     centitoml
     kfx_frontend_state_test_stub
-    kfx_test_main)
+    Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)

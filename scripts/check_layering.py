@@ -84,19 +84,19 @@ LIB_DIR_NAMES = set(LIBRARY_ORDER) - {"app_entry"}
 # fails on anything NOT in this list, so a genuinely new violation still
 # blocks CI. Remove an entry here if a future change actually resolves it
 # -- don't let this list grow to paper over new violations.
+#
+# Empty as of docs/refactor/todo/remove-remaining-layering-violations.md:
+# both prior entries here (net_resync.cpp's kfx_frontend_state.h/
+# kfx_game_state.h/game_legacy.h raw-blob resync includes, and
+# bflib_enet.cpp's net_main.h include) turned out to be fixable once the
+# ftest coverage built in docs/refactor/todo/ftest-fake-multiplayer.md
+# made attempting the fix safe to verify. net_resync.cpp now exports/
+# imports the upper-layer structs via NetCallbacks (same pattern the file
+# already used for Lua's resync payload) instead of #include'ing them
+# directly; bflib_enet.cpp's struct NetSP contract moved down to
+# kfx_platform's bflib_netsp.h, the layer that actually implements it.
 # ---------------------------------------------------------------------------
-ACCEPTED_VIOLATIONS: set[tuple[str, str]] = {
-    # net_resync.cpp's intentionally-preserved raw-blob network resync
-    # serialization: game/kfx_game_state/kfx_frontend_state are memcpy'd
-    # wholesale. This is the wire format by design; no further action
-    # without restructuring netcode itself.
-    ("src/kfx_net/src/net_resync.cpp", "kfx_frontend_state.h"),
-    ("src/kfx_net/src/net_resync.cpp", "kfx_game_state.h"),
-    ("src/kfx_net/src/net_resync.cpp", "game_legacy.h"),
-    # struct NetSP's function-pointer signatures are ABI-shared with
-    # bflib_enet.h, already both included together in several files.
-    ("src/kfx_platform/src/bflib_enet.cpp", "net_main.h"),
-}
+ACCEPTED_VIOLATIONS: set[tuple[str, str]] = set()
 
 INCLUDE_RE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
 

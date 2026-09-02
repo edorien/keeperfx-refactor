@@ -62,9 +62,11 @@ TbSpriteData keepersprite_add[KEEPERSPRITE_ADD_NUM] = {
         0
 };
 
-struct KeeperSprite creature_table_add[KEEPERSPRITE_ADD_NUM] = {
-        {0}
-};
+// creature_table_add[] itself moved down to kfx_sim's creature_graphics.c
+// (docs/refactor/todo/remove-symbol-level-layering-residuals.md), next to
+// its sibling creature_table -- this file still populates it directly
+// during sprite loading below, exactly as before; only its storage's
+// physical location changed.
 
 struct SpriteContext
 {

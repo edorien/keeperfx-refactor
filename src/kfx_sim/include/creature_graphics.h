@@ -76,18 +76,25 @@ struct KeeperSpriteDisk {
     short offset_y;
 };
 
+// Duplicated from kfx_render's engine_render.h (KEEPERSPRITE_ADD_OFFSET/
+// KEEPERSPRITE_ADD_NUM) rather than included, to avoid a kfx_sim ->
+// kfx_render layering violation for two stable sprite-index-range
+// constants -- moved here from creature_graphics.c so creature_table_add[]'s
+// extern declaration below can also use it (needs a complete array type
+// for sizeof() at every #include site, e.g. kfx_render's custom_sprites.c).
+// See docs/refactor/stage-13-enforce-and-document.md.
+#define SIM_KEEPERSPRITE_ADD_OFFSET 16384
+#define SIM_KEEPERSPRITE_ADD_NUM 16383
+
 /******************************************************************************/
 //extern unsigned short creature_graphics[][22];
 extern struct KeeperSprite *creature_table;
-// creature_table_add[] (unlike creature_table above) is really defined
-// and populated in kfx_render's custom_sprites.c -- creature_graphics.c
-// dereferences struct KeeperSprite fields directly and pervasively, so
-// the type has to live at or below kfx_sim's own layer (same shape as
-// packet_data.h's struct Packet split from kfx_net's packets.h); "a
-// higher-ranked library implementing a lower-ranked interface is fine --
-// only the reverse is a violation." See docs/refactor/todo/
-// check-layering-symbol-level-blind-spot.md.
-extern struct KeeperSprite creature_table_add[];
+// creature_table_add[] is now defined here too (creature_graphics.c),
+// next to creature_table above -- moved down from kfx_render's
+// custom_sprites.c (docs/refactor/todo/
+// remove-symbol-level-layering-residuals.md), which still legitimately
+// *populates* it during sprite loading from its higher-ranked layer.
+extern struct KeeperSprite creature_table_add[SIM_KEEPERSPRITE_ADD_NUM];
 extern size_t creature_table_length;
 /******************************************************************************/
 

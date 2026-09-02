@@ -260,7 +260,7 @@ void fronttorture_input(void)
     // Exchange packet with other players
     if (network_is_active())
     {
-        if (LbNetwork_ExchangeFrontend(pckt, kfx_net_state.packets, sizeof(struct Packet)))
+        if (LbNetwork_ExchangeFrontend(pckt, sim_packets, sizeof(struct Packet)))
             ERRORLOG("LbNetwork_Exchange failed");
     }
     // Determine the controlling player and get his mouse coords

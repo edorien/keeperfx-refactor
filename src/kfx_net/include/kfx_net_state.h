@@ -23,7 +23,6 @@
 #include "thing_list.h"
 #include "player_data.h"
 #include "room_data.h"
-#include "net_game.h"
 #include "packets.h"
 
 #ifdef __cplusplus
@@ -141,8 +140,10 @@ struct KfxNetState {
     PlayerNumber local_plyr_idx;
     unsigned char packet_load_initialized; // something with packetload
 
-    // Per-turn input packets and network session bookkeeping.
-    struct Packet packets[PACKETS_COUNT];
+    // Per-turn input packets moved to kfx_sim's sim_packets[] (packet_data.h,
+    // docs/refactor/todo/remove-symbol-level-layering-residuals.md) --
+    // this file's own packets.c/packets_misc.c/net_exchange_gameplay.c
+    // still write into it directly, just no longer as a field here.
     int input_lag_turns;
     char active_players_count;
 

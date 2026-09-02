@@ -6,7 +6,7 @@
 // existing kfx_sim/kfx_render call site into these accepted-residual
 // symbols was covered, but never the accessors themselves.
 //
-// All pattern A: kfx_sim_state.players[]/kfx_net_state.packets[] are
+// All pattern A: kfx_sim_state.players[]/sim_packets[] are
 // plain arrays, get_player_f()/get_packet_direct() are simple index
 // checks, no callback fakes needed. Declared in kfx_sim's packet_data.h
 // (see that header's own comment) but implemented here in kfx_net's
@@ -31,8 +31,8 @@ struct ResetStates {
 }
 
 TEST_CASE_METHOD(ResetStates, "get_packet_direct returns the packet at the given index", "[kfx_net][packets_misc]") {
-    kfx_net_state.packets[3].action = 42;
-    CHECK(get_packet_direct(3) == &kfx_net_state.packets[3]);
+    sim_packets[3].action = 42;
+    CHECK(get_packet_direct(3) == &sim_packets[3]);
     CHECK(get_packet_direct(3)->action == 42);
 }
 
@@ -43,8 +43,8 @@ TEST_CASE_METHOD(ResetStates, "get_packet_direct returns INVALID_PACKET for an o
 
 TEST_CASE_METHOD(ResetStates, "get_packet resolves through the player's packet_num", "[kfx_net][packets_misc]") {
     kfx_sim_state.players[2].packet_num = 5;
-    kfx_net_state.packets[5].action = 7;
-    CHECK(get_packet(2) == &kfx_net_state.packets[5]);
+    sim_packets[5].action = 7;
+    CHECK(get_packet(2) == &sim_packets[5]);
     CHECK(get_packet(2)->action == 7);
 }
 
@@ -62,7 +62,7 @@ TEST_CASE_METHOD(ResetStates, "set_players_packet_action writes the action kind 
     kfx_sim_state.players[1].packet_num = 4;
     struct PlayerInfo* player = &kfx_sim_state.players[1];
     set_players_packet_action(player, 9, 11, 22, 33, 44);
-    struct Packet* pckt = &kfx_net_state.packets[4];
+    struct Packet* pckt = &sim_packets[4];
     CHECK(pckt->action == 9);
     CHECK(pckt->actn_par1 == 11);
     CHECK(pckt->actn_par2 == 22);
@@ -79,16 +79,16 @@ TEST_CASE_METHOD(ResetStates, "get_players_packet_action reads back the action k
 
 TEST_CASE_METHOD(ResetStates, "set_players_packet_control ORs the flag into the player's packet without clearing existing flags", "[kfx_net][packets_misc]") {
     kfx_sim_state.players[0].packet_num = 2;
-    kfx_net_state.packets[2].control_flags = 0x01;
+    sim_packets[2].control_flags = 0x01;
     set_players_packet_control(&kfx_sim_state.players[0], 0x04);
-    CHECK(kfx_net_state.packets[2].control_flags == 0x05);
+    CHECK(sim_packets[2].control_flags == 0x05);
 }
 
 TEST_CASE_METHOD(ResetStates, "unset_players_packet_control clears only the given flag", "[kfx_net][packets_misc]") {
     kfx_sim_state.players[0].packet_num = 2;
-    kfx_net_state.packets[2].control_flags = 0x07;
+    sim_packets[2].control_flags = 0x07;
     unset_players_packet_control(&kfx_sim_state.players[0], 0x02);
-    CHECK(kfx_net_state.packets[2].control_flags == 0x05);
+    CHECK(sim_packets[2].control_flags == 0x05);
 }
 
 TEST_CASE_METHOD(ResetStates, "set_players_packet_position sets coordinates, the map-valid flag, and the context bits", "[kfx_net][packets_misc]") {
@@ -150,8 +150,8 @@ TEST_CASE_METHOD(ResetStates, "is_mouse_on_map is false at the right/bottom edge
 TEST_CASE_METHOD(ResetStates, "remember_cursor_subtile updates cursor_subtile_x/y from the player's packet position", "[kfx_net][packets_misc]") {
     struct PlayerInfo* player = &kfx_sim_state.players[0];
     player->packet_num = 1;
-    kfx_net_state.packets[1].pos_x = 5 * 256;
-    kfx_net_state.packets[1].pos_y = 7 * 256;
+    sim_packets[1].pos_x = 5 * 256;
+    sim_packets[1].pos_y = 7 * 256;
     remember_cursor_subtile(player);
     CHECK(player->cursor_subtile_x == 5);
     CHECK(player->cursor_subtile_y == 7);
@@ -163,9 +163,9 @@ TEST_CASE_METHOD(ResetStates, "remember_cursor_subtile carries the old position 
     player->cursor_subtile_x = 2;
     player->cursor_subtile_y = 3;
     player->interpolated_tagging = false;
-    kfx_net_state.packets[1].pos_x = 9 * 256;
-    kfx_net_state.packets[1].pos_y = 9 * 256;
-    kfx_net_state.packets[1].control_flags = 0; // no LBtnHeld/LBtnRelease
+    sim_packets[1].pos_x = 9 * 256;
+    sim_packets[1].pos_y = 9 * 256;
+    sim_packets[1].control_flags = 0; // no LBtnHeld/LBtnRelease
     remember_cursor_subtile(player);
     CHECK(player->previous_cursor_subtile_x == 2);
     CHECK(player->previous_cursor_subtile_y == 3);
@@ -177,9 +177,9 @@ TEST_CASE_METHOD(ResetStates, "remember_cursor_subtile snaps previous_cursor_sub
     player->cursor_subtile_x = 2;
     player->cursor_subtile_y = 3;
     player->interpolated_tagging = false;
-    kfx_net_state.packets[1].pos_x = 9 * 256;
-    kfx_net_state.packets[1].pos_y = 9 * 256;
-    kfx_net_state.packets[1].control_flags = PCtr_LBtnHeld;
+    sim_packets[1].pos_x = 9 * 256;
+    sim_packets[1].pos_y = 9 * 256;
+    sim_packets[1].control_flags = PCtr_LBtnHeld;
     remember_cursor_subtile(player);
     CHECK(player->previous_cursor_subtile_x == 9);
     CHECK(player->previous_cursor_subtile_y == 9);
@@ -189,7 +189,7 @@ TEST_CASE_METHOD(ResetStates, "remember_cursor_subtile sets interpolated_tagging
     struct PlayerInfo* player = &kfx_sim_state.players[0];
     player->packet_num = 1;
     player->mouse_on_map = true;
-    kfx_net_state.packets[1].control_flags = PCtr_LBtnClick;
+    sim_packets[1].control_flags = PCtr_LBtnClick;
     remember_cursor_subtile(player);
     CHECK(player->interpolated_tagging);
 }
@@ -199,7 +199,7 @@ TEST_CASE_METHOD(ResetStates, "remember_cursor_subtile clears interpolated_taggi
     player->packet_num = 1;
     player->mouse_on_map = false;
     player->interpolated_tagging = true;
-    kfx_net_state.packets[1].control_flags = PCtr_LBtnClick;
+    sim_packets[1].control_flags = PCtr_LBtnClick;
     remember_cursor_subtile(player);
     CHECK_FALSE(player->interpolated_tagging);
 }

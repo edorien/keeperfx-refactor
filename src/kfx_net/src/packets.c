@@ -114,15 +114,6 @@ float camera_movement_y = 0.0f;
 #define RESYNC_LIMIT_BEFORE_COOLDOWN 5
 #define RESYNC_COOLDOWN_MS (5 * 60 * 1000)
 
-void set_packet_action(struct Packet *pckt, unsigned char pcktype, long par1, long par2, unsigned short par3, unsigned short par4)
-{
-    pckt->actn_par1 = par1;
-    pckt->actn_par2 = par2;
-    pckt->actn_par3 = par3;
-    pckt->actn_par4 = par4;
-    pckt->action = pcktype;
-}
-
 TbBool is_packet_empty(const struct Packet *pckt) {
     if (pckt->turn != 0 ||
         pckt->checksum != 0 ||
@@ -1498,22 +1489,22 @@ static void load_old_packets(void)
         const char* player_name = (i == 0) ? "Host" : "Client";
         const struct Packet *packet = get_history_packet(i, historical_turn);
         if (packet != NULL) {
-            kfx_net_state.packets[i] = *packet;
+            sim_packets[i] = *packet;
             if (i <= 1) {
-                if (is_packet_empty(&kfx_net_state.packets[i])) {
+                if (is_packet_empty(&sim_packets[i])) {
                     MULTIPLAYER_LOG("load_input_lag_packets: loaded packet[%s] is EMPTY", player_name);
                 } else {
-                    MULTIPLAYER_LOG("load_input_lag_packets: loaded packet[%s] turn=%lu checksum=%08lx", player_name, (unsigned long)kfx_net_state.packets[i].turn, (unsigned long)kfx_net_state.packets[i].checksum);
+                    MULTIPLAYER_LOG("load_input_lag_packets: loaded packet[%s] turn=%lu checksum=%08lx", player_name, (unsigned long)sim_packets[i].turn, (unsigned long)sim_packets[i].checksum);
                 }
             }
             continue;
         }
-        memset(&kfx_net_state.packets[i], 0, sizeof(struct Packet));
+        memset(&sim_packets[i], 0, sizeof(struct Packet));
         if (i <= 1) {
             MULTIPLAYER_LOG("load_input_lag_packets: cleared packet[%s] (no stored packet)", player_name);
         }
     }
-    input_lag_observe_host_packet(&kfx_net_state.packets[get_host_player_id()]);
+    input_lag_observe_host_packet(&sim_packets[get_host_player_id()]);
 }
 
 void set_local_packet_turn(void) {
@@ -1545,7 +1536,7 @@ void exchange_packets(void)
             const char* player_name;
             if (player->packet_num == 0) {player_name = "Host";} else {player_name = "Client";}
             MULTIPLAYER_LOG("process_packets: SENDING packet[%s] turn=%lu checksum=%08lx", player_name, (unsigned long)my_packet->turn, (unsigned long)my_packet->checksum);
-            if (LbNetwork_ExchangeGameplay(my_packet, kfx_net_state.packets, sizeof(struct Packet)) != Lb_OK) {
+            if (LbNetwork_ExchangeGameplay(my_packet, sim_packets, sizeof(struct Packet)) != Lb_OK) {
                 ERRORLOG("LbNetwork_ExchangeGameplay failed");
             }
         }

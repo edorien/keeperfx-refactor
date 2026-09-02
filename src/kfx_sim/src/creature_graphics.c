@@ -39,16 +39,24 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-// Duplicated from kfx_render's engine_render.h rather than included, to
-// avoid a kfx_sim -> kfx_render layering violation for two stable
-// sprite-index-range constants. See
-// docs/refactor/stage-13-enforce-and-document.md.
-#define SIM_KEEPERSPRITE_ADD_OFFSET 16384
-#define SIM_KEEPERSPRITE_ADD_NUM 16383
+// SIM_KEEPERSPRITE_ADD_OFFSET/SIM_KEEPERSPRITE_ADD_NUM moved to this
+// file's own header (creature_graphics.h) -- see the comment there.
 /******************************************************************************/
 
 struct KeeperSprite *creature_table;
 size_t creature_table_length = 0;
+
+// Moved down from kfx_render's custom_sprites.c (docs/refactor/todo/
+// remove-symbol-level-layering-residuals.md), same shape as
+// creature_table above: this file dereferences struct KeeperSprite
+// fields directly and pervasively, so the storage has to live at or
+// below kfx_sim's own layer, but custom_sprites.c (kfx_render, a
+// higher-ranked library) still legitimately *populates* it during
+// sprite loading -- only a lower library reaching upward is a
+// violation, not the reverse.
+struct KeeperSprite creature_table_add[SIM_KEEPERSPRITE_ADD_NUM] = {
+        {0}
+};
 
 /******************************************************************************/
 static const unsigned short creature_list[CREATURE_FRAMELIST_LENGTH] = {

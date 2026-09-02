@@ -27,7 +27,10 @@
 extern "C" {
 #endif
 
-#define PACKETS_COUNT           9
+// PACKETS_COUNT moved to kfx_sim's packet_data.h (docs/refactor/todo/
+// remove-symbol-level-layering-residuals.md), reached here transitively
+// via packets.h's own #include of that header wherever this file's own
+// PACKETS_COUNT users (packets.c/packets_misc.c) already need it.
 
 /******************************************************************************/
 #pragma pack(1)

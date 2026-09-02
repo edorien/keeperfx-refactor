@@ -10,11 +10,11 @@ file(GLOB KFX_APPLOOP_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB KFX_APPLOOP_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 set(KFX_APPLOOP_SOURCES ${KFX_APPLOOP_SOURCES_C} ${KFX_APPLOOP_SOURCES_CXX})
 
-add_library(kfx_apploop OBJECT ${KFX_APPLOOP_SOURCES})
+add_library(kfx_apploop STATIC ${KFX_APPLOOP_SOURCES})
 target_link_libraries(kfx_apploop PRIVATE kfx_common_opts kfx_bfdebug_std)
 target_include_directories(kfx_apploop PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-add_library(kfx_apploop_hvlog OBJECT ${KFX_APPLOOP_SOURCES})
+add_library(kfx_apploop_hvlog STATIC ${KFX_APPLOOP_SOURCES})
 target_link_libraries(kfx_apploop_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
 target_include_directories(kfx_apploop_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 

@@ -88,8 +88,8 @@ a handful of genuine residual gaps need a stub.
 | `kfx_platform_utest` | — | — |
 | `kfx_config_utest` | `centitoml` (explicit — see §5) | — |
 | `kfx_pathfinding_utest` | `centitoml` | — |
-| `kfx_sim_utest` | `centitoml` | `kfx_packet_test_stubs`, `kfx_sim_test_stubs.cpp` (compiled in directly) |
-| `kfx_render_utest` | `centitoml` | `kfx_packet_test_stubs` |
+| `kfx_sim_utest` | `centitoml` | none (formerly `kfx_packet_test_stubs`, `kfx_sim_test_stubs.cpp` — removed, see §4) |
+| `kfx_render_utest` | `centitoml` | none (formerly `kfx_packet_test_stubs` — removed, see §4) |
 | `kfx_net_utest` | `centitoml` | `kfx_game_state_test_stubs`, `kfx_frontend_state_test_stub` |
 | `kfx_game_utest` | `centitoml` | `kfx_frontend_state_test_stub` only (not `kfx_game_state_test_stubs` — `kfx_game` itself provides the real symbols) |
 | `kfx_frontend_utest` | `centitoml` | none (linking `kfx_net`+`kfx_game`+`kfx_frontend` for real resolves everything) |
@@ -97,7 +97,8 @@ a handful of genuine residual gaps need a stub.
 | `kfx_apploop_utest` | `centitoml`, `kfx_luajit` | none |
 
 Every target also links `kfx_bfdebug_std` (the `BFDEBUG_LEVEL=0` variant
-— test binaries are never built `_hvlog`) and `kfx_test_main` (below).
+— test binaries are never built `_hvlog`) and `Catch2::Catch2WithMain`
+(see §4).
 `centitoml` needs an explicit link on every target that transitively
 reaches `kfx_config` (i.e. all of them): it's an OBJECT library wrapped
 two `INTERFACE`-library hops deep inside `kfx_common_opts`, which doesn't
@@ -107,27 +108,23 @@ rather than trusting the `INTERFACE` chain alone.
 
 ## 4. Shared test-support code
 
-**`kfx_test_main`** (`src/kfx_platform/tests/kfx_test_main.cpp`, defined
-first so every later `tests/CMakeLists.txt` can reference it by name — a
-CMake target name is global to the whole build) forwards `kfxmain()` —
-the entry point `kfx_platform`'s `PlatformLinux.cpp` really owns as the
-process `main()` — into `Catch::Session().run(argc, argv)`. Every
-`*_utest` target links plain `Catch2::Catch2` (via this library's
-`PUBLIC` dependency on it), never `Catch2::Catch2WithMain`, which would
-define its own `main` that a linker already holding `kfx_platform`'s
-object files would silently drop rather than conflict on.
+Every `*_utest` target links plain `Catch2::Catch2WithMain` directly — no
+shared shim needed. That wasn't always true: a `kfx_test_main` library used
+to sit here, forwarding `kfxmain()` into `Catch::Session().run(argc, argv)`,
+because `kfx_platform`'s `PlatformLinux.cpp`/`PlatformWindows.cpp` used to
+physically own the process `main()`/`WinMain()`, and every `*_utest`
+transitively linking `kfx_platform` couldn't also use
+`Catch2::Catch2WithMain` (its own `main` would conflict). Fixed by
+`docs/refactor/todo/remove-kfxmain-symbol-residual.md`: the native entry
+point moved down into `app_entry` (`src/native_entry.cpp`, `architecture.md`
+§2.10), so `kfx_platform` no longer defines `main()` at all.
 
-Four stub libraries paper over `check_layering_symbols.py`'s accepted
+Two stub libraries paper over `check_layering_symbols.py`'s accepted
 residuals (`architecture.md` §8.2) — cases where a *type* is declared in
 a lower-ranked library by design, but the functions operating on it are
 really implemented in a higher-ranked one, so a test binary that doesn't
 happen to link that higher library needs a stand-in:
 
-- **`kfx_packet_test_stubs`** (`src/kfx_sim/tests/packet_test_stubs.cpp`)
-  — fakes `get_packet`/`get_packet_direct`/`set_packet_action`/
-  `set_players_packet_action` (really implemented in `kfx_net`'s
-  `packets.c`). Shared: any `*_utest` that transitively links `kfx_sim`
-  but not `kfx_net` needs it (`kfx_sim_utest`, `kfx_render_utest`).
 - **`kfx_game_state_test_stubs`** / **`kfx_frontend_state_test_stub`**
   (`src/kfx_net/tests/`) — fake the `game`/`kfx_game_state` and
   `kfx_frontend_state` globals `net_resync.cpp`'s raw-blob resync
@@ -135,12 +132,14 @@ happen to link that higher library needs a stand-in:
   because each stops being needed on a different schedule as more
   libraries get linked for real (`kfx_game_utest` still needs the
   frontend one but not the game one).
-- **`kfx_sim_test_stubs.cpp`** (`src/kfx_sim/tests/`, *not* a shared
-  library — compiled directly into `kfx_sim_utest` only) — fakes
-  `creature_table_add[]` (really populated by `kfx_render`'s
-  `custom_sprites.c`). Not shared like the others: the moment a test
-  target also links `kfx_render` for real, this stub would become a
-  duplicate-definition error.
+
+(A third and fourth stub — `kfx_packet_test_stubs` for
+`get_packet`/`get_packet_direct`/`set_packet_action`/
+`set_players_packet_action`, and `kfx_sim_test_stubs.cpp` for
+`creature_table_add[]` — used to live here too. Both were removed once
+those symbols' real implementations moved down into `kfx_sim` itself
+(`packet_data.c`/`creature_graphics.c`), see
+`docs/refactor/todo/remove-symbol-level-layering-residuals.md`.)
 
 **Fixture-file path baking**: `kfx_config_utest` and `kfx_script_utest`
 each `configure_file()` a `*_test_paths.h.in` → generated header (the
@@ -791,17 +790,21 @@ coverage before that check.
 | `ariadne_regions.c` → `player_data.h` | **fixed** (2026-08-29, `07784c1f7`) — swapped for `kfx_config_state.h`'s own `PLAYERS_COUNT` copy | `ariadne_regions_test.cpp` (10 tests) |
 | `power_specials.c` → `api.h` | **fixed** (2026-08-29, `07784c1f7`) — redundant include deleted, `script_hooks.h` was already included directly | `power_specials_test.cpp` (6 tests) |
 | `console_cmd.c` → `game_session_loop.h` | was accepted, found **fully dead**, then **removed** (2026-08-29, `07784c1f7`) — its `ACCEPTED_VIOLATIONS` entry is gone too | none needed — no live code exercised it |
-| `net_resync.cpp` → `kfx_frontend_state.h`/`kfx_game_state.h`/`game_legacy.h` | accepted, by design (raw-blob resync wire format) | `net_resync_test.cpp` (4 tests) — covers other functions *in the same file*, not the blob-resync functions themselves |
-| `bflib_enet.cpp` → `net_main.h` | accepted, by design (`struct NetSP` ABI sharing) | none — real ENet networking, no meaningful unit-test surface found |
+| `net_resync.cpp` → `kfx_frontend_state.h`/`kfx_game_state.h`/`game_legacy.h` | **fixed** (`docs/refactor/todo/remove-remaining-layering-violations.md`) — `net_resync.cpp` now goes through callback-based opaque blobs (`resync_export_game_state`/`resync_import_game_state`/etc., wired in `main.cpp::setup_game()`) instead of `#include`-ing those headers directly | `net_resync_test.cpp` (4 tests) — covers other functions *in the same file*, not the blob-resync functions themselves |
+| `bflib_enet.cpp` → `net_main.h` | **fixed** (`docs/refactor/todo/remove-remaining-layering-violations.md`) — `struct NetSP`/`NetUserId`/etc. moved down into `src/kfx_platform/include/bflib_netsp.h`, so `bflib_enet.cpp` no longer needs `kfx_net`'s `net_main.h` at all | `src/ftests/tests/ftest_net_enet_loopback_*` — a real two-process ENet loopback functional test, not a Catch2 unit test (see `docs/refactor/todo/ftest-fake-multiplayer.md`) |
 
-`check_layering.py --strict` now reports **zero un-accepted violations**
-and 4 accepted permanent residuals (down from 5). The two fixes above
-were root-caused and test-covered in one session (recorded below and in
+`check_layering.py --strict` now reports **zero un-accepted violations**,
+and `ACCEPTED_VIOLATIONS` itself is empty — every `#include`-level
+residual this table ever tracked has been fixed, not just accepted. The
+first three fixes above were root-caused and test-covered in one session
+(recorded below and in
 [`docs/refactor/todo/two-remaining-layering-violations.md`](../refactor/todo/two-remaining-layering-violations.md))
 but deliberately left unapplied pending review; a separate concurrent
 session (`07784c1f7`, same day) picked them up, applied all three edits,
 and reverified against a clean two-variant build plus both layering
-checkers.
+checkers. The last two (`net_resync.cpp`, `bflib_enet.cpp`) were fixed in
+a later session, see
+[`remove-remaining-layering-violations.md`](../refactor/todo/remove-remaining-layering-violations.md).
 
 **Symbol-level (`check_layering_symbols.py`)** — 9 distinct symbol names
 across 15 accepted call sites:
@@ -810,7 +813,7 @@ across 15 accepted call sites:
 |---|---|---|
 | `get_packet_direct` | `engine_redraw.c`, `roomspace.c`, `roomspace_prediction.c` | `engine_redraw_test.cpp`, `roomspace_test.cpp`, plus the accessor itself directly in `packets_misc_test.cpp` — `roomspace_prediction.c`'s own call site is still untested (its `get_packet`/`set_packet_action` calls live inside one large orchestration function with `static`, module-private state — declined, see Known gaps) |
 | `creature_table_add` | `creature_graphics.c` | `creature_graphics_test.cpp` |
-| `kfxmain` | `PlatformLinux.cpp` | exercised by every single test run (`kfx_test_main.cpp` forwards it into Catch2), but never asserted on directly |
+| `kfxmain` | **fixed** (`docs/refactor/todo/remove-kfxmain-symbol-residual.md`) — `PlatformLinux.cpp`/`PlatformWindows.cpp` no longer own the process entry point; moved to `app_entry`'s `src/native_entry.cpp` | n/a — no longer a cross-layer call at all |
 | `get_packet` | `roomspace.c`, `roomspace_prediction.c` | the accessor itself now covered directly (`packets_misc_test.cpp`); neither production call site is |
 | `set_packet_action` | `roomspace.c`, `roomspace_prediction.c` | the accessor itself covered (`packets_test.cpp`, pattern A on a bare `struct Packet`); neither production call site is |
 | `set_players_packet_action` | `creature_instances.c`, `roomspace.c`, `thing_creature.c` | the accessor itself now covered directly (`packets_misc_test.cpp`, along with its siblings `get_players_packet_action`/`set_players_packet_control`/`unset_players_packet_control`); none of the three production call sites are |

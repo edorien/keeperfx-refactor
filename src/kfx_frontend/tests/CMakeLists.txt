@@ -4,10 +4,11 @@
 # *_utest so far.
 #
 # Needs none of the accepted-residual stub libraries earlier stages
-# introduced (kfx_packet_test_stubs, kfx_game_state_test_stubs,
-# kfx_frontend_state_test_stub): linking kfx_net, kfx_game, and
-# kfx_frontend all for real here resolves every symbol those stubs exist
-# to fake -- confirmed by the build succeeding without them, not assumed.
+# introduced (kfx_game_state_test_stubs, kfx_frontend_state_test_stub --
+# kfx_packet_test_stubs no longer exists at all, see kfx_net/tests/'s own
+# CMakeLists.txt comment): linking kfx_net, kfx_game, and kfx_frontend all
+# for real here resolves every symbol those stubs exist to fake --
+# confirmed by the build succeeding without them, not assumed.
 file(GLOB KFX_FRONTEND_TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
 add_executable(kfx_frontend_utest ${KFX_FRONTEND_TEST_SOURCES})
@@ -23,7 +24,7 @@ target_link_libraries(kfx_frontend_utest PRIVATE
     kfx_bfdebug_std
     kfx_common_opts
     centitoml
-    kfx_test_main)
+    Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)

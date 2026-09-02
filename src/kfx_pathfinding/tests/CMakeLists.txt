@@ -18,7 +18,7 @@ target_link_libraries(kfx_pathfinding_utest PRIVATE
     kfx_bfdebug_std
     kfx_common_opts
     centitoml
-    kfx_test_main)
+    Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)

@@ -11,11 +11,11 @@ file(GLOB KFX_RENDER_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB KFX_RENDER_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 set(KFX_RENDER_SOURCES ${KFX_RENDER_SOURCES_C} ${KFX_RENDER_SOURCES_CXX})
 
-add_library(kfx_render OBJECT ${KFX_RENDER_SOURCES})
+add_library(kfx_render STATIC ${KFX_RENDER_SOURCES})
 target_link_libraries(kfx_render PRIVATE kfx_common_opts kfx_bfdebug_std)
 target_include_directories(kfx_render PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-add_library(kfx_render_hvlog OBJECT ${KFX_RENDER_SOURCES})
+add_library(kfx_render_hvlog STATIC ${KFX_RENDER_SOURCES})
 target_link_libraries(kfx_render_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
 target_include_directories(kfx_render_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 

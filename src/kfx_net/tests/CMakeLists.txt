@@ -26,12 +26,12 @@ list(REMOVE_ITEM KFX_NET_TEST_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/kfx_game_state_test_stubs.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/kfx_frontend_state_test_stub.cpp")
 
-# NOT kfx_packet_test_stubs (unlike kfx_sim_utest/kfx_render_utest):
-# kfx_net physically contains packets.c/packets_misc.c, the *real*
-# get_packet/set_packet_action/etc. implementations that stub exists to
-# fake for libraries that don't link kfx_net -- linking both here would
-# be a duplicate-definition error, the same reasoning stage-04d applied
-# to kfx_render_utest and creature_table_add[].
+# (kfx_packet_test_stubs, formerly linked by kfx_sim_utest/
+# kfx_render_utest for get_packet/set_packet_action/etc., no longer
+# exists -- those functions' real implementations moved down into
+# kfx_sim's own packet_data.c, docs/refactor/todo/
+# remove-symbol-level-layering-residuals.md, so kfx_sim provides them for
+# real wherever it's linked, this target included.)
 add_executable(kfx_net_utest ${KFX_NET_TEST_SOURCES})
 target_link_libraries(kfx_net_utest PRIVATE
     kfx_net
@@ -45,7 +45,7 @@ target_link_libraries(kfx_net_utest PRIVATE
     centitoml
     kfx_game_state_test_stubs
     kfx_frontend_state_test_stub
-    kfx_test_main)
+    Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)

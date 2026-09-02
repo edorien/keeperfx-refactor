@@ -36,7 +36,6 @@ extern "C" {
 /******************************************************************************/
 #define PACKET_TURN_SIZE (PACKETS_COUNT*sizeof(struct Packet) + sizeof(TbBigChecksum))
 #define MULTIPLAYER_PAUSE_COOLDOWN_MS 500
-struct Packet bad_packet;
 unsigned long initial_replay_seed;
 unsigned long last_pause_toggle_time = 0;
 extern TbBool IMPRISON_BUTTON_DEFAULT;
@@ -48,17 +47,6 @@ extern TbBool keeper_screen_redraw(void);
 #ifdef __cplusplus
 }
 #endif
-
-void set_players_packet_action(struct PlayerInfo *player, unsigned char pcktype,
-        unsigned long par1, unsigned long par2, unsigned short par3, unsigned short par4)
-{
-    struct Packet* pckt = get_packet_direct(player->packet_num);
-    pckt->actn_par1 = par1;
-    pckt->actn_par2 = par2;
-    pckt->actn_par3 = par3;
-    pckt->actn_par4 = par4;
-    pckt->action = pcktype;
-}
 
 unsigned char get_players_packet_action(struct PlayerInfo *player)
 {
@@ -97,37 +85,11 @@ void set_players_packet_position(struct Packet *pckt, long x, long y, unsigned c
     pckt->additional_packet_values |= (context << 1);
 }
 
-/**
- * Gives a pointer for the player's packet.
- * @param plyr_idx The player index for which we want the packet.
- * @return Returns Packet pointer. On error, returns a dummy structure.
- */
-struct Packet *get_packet(long plyr_idx)
-{
-    struct PlayerInfo* player = get_player(plyr_idx);
-    if (player_invalid(player))
-        return INVALID_PACKET;
-    if (player->packet_num >= PACKETS_COUNT)
-        return INVALID_PACKET;
-    return &kfx_net_state.packets[player->packet_num];
-}
-/**
- * Gives a pointer to packet of given index.
- * @param pckt_idx Packet index in the array. Note that it may differ from player index.
- * @return Returns Packet pointer. On error, returns a dummy structure.
- */
-struct Packet *get_packet_direct(long pckt_idx)
-{
-    if ((pckt_idx < 0) || (pckt_idx >= PACKETS_COUNT))
-        return INVALID_PACKET;
-    return &kfx_net_state.packets[pckt_idx];
-}
-
 void clear_packets(void)
 {
     for (int i = 0; i < PACKETS_COUNT; i++)
     {
-        memset(&kfx_net_state.packets[i], 0, sizeof(struct Packet));
+        memset(&sim_packets[i], 0, sizeof(struct Packet));
     }
 }
 
@@ -220,7 +182,7 @@ short save_packets(void)
     LbFileSeek(kfx_net_state.packet_save_fp, 0, Lb_FILE_SEEK_END);
     // Prepare data in the buffer
     for (int i = 0; i < PACKETS_COUNT; i++)
-        memcpy(&pckt_buf[i*sizeof(struct Packet)], &kfx_net_state.packets[i], sizeof(struct Packet));
+        memcpy(&pckt_buf[i*sizeof(struct Packet)], &sim_packets[i], sizeof(struct Packet));
     memcpy(&pckt_buf[PACKETS_COUNT*sizeof(struct Packet)], &chksum, sizeof(TbBigChecksum));
     // Write buffer into file
     if (LbFileWrite(kfx_net_state.packet_save_fp, &pckt_buf, turn_data_size) != turn_data_size)
@@ -228,7 +190,7 @@ short save_packets(void)
         ERRORLOG("Packet file write error");
     }
     for (int i = 0; i < PACKETS_COUNT; i++) {
-        if (kfx_net_state.packets[i].action == PckA_PlyrMsgEnd) {
+        if (sim_packets[i].action == PckA_PlyrMsgEnd) {
             if (LbFileWrite(kfx_net_state.packet_save_fp, get_player(i)->mp_pending_message, PLAYER_MP_MESSAGE_LEN) != PLAYER_MP_MESSAGE_LEN) {
                 ERRORLOG("Chat message file write error");
             }
@@ -266,7 +228,7 @@ void write_debug_packets(void)
     //be several players writing to same directory if testing on local machine
     char filename[32];
     snprintf(filename, sizeof(filename), "%s%u.%s", "keeperd", my_player_number, "pck");
-    dump_memory_to_file(filename, (char*) kfx_net_state.packets, sizeof(kfx_net_state.packets));
+    dump_memory_to_file(filename, (char*) sim_packets, sizeof(sim_packets));
 }
 
 void write_debug_screenpackets(void)
@@ -358,9 +320,9 @@ void load_packets_for_turn(GameTurn nturn)
     }
     kfx_net_state.packet_file_pos += turn_data_size;
     for (long i = 0; i < PACKETS_COUNT; i++)
-        memcpy(&kfx_net_state.packets[i], &pckt_buf[i * sizeof(struct Packet)], sizeof(struct Packet));
+        memcpy(&sim_packets[i], &pckt_buf[i * sizeof(struct Packet)], sizeof(struct Packet));
     for (long i = 0; i < PACKETS_COUNT; i++) {
-        if (kfx_net_state.packets[i].action == PckA_PlyrMsgEnd) {
+        if (sim_packets[i].action == PckA_PlyrMsgEnd) {
             if (LbFileRead(kfx_net_state.packet_save_fp, get_player(i)->mp_pending_message, PLAYER_MP_MESSAGE_LEN) == PLAYER_MP_MESSAGE_LEN) {
                 kfx_net_state.packet_file_pos += PLAYER_MP_MESSAGE_LEN;
             } else {

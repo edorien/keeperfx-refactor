@@ -16,11 +16,11 @@ file(GLOB KFX_FRONTEND_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB KFX_FRONTEND_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 set(KFX_FRONTEND_SOURCES ${KFX_FRONTEND_SOURCES_C} ${KFX_FRONTEND_SOURCES_CXX})
 
-add_library(kfx_frontend OBJECT ${KFX_FRONTEND_SOURCES})
+add_library(kfx_frontend STATIC ${KFX_FRONTEND_SOURCES})
 target_link_libraries(kfx_frontend PRIVATE kfx_common_opts kfx_bfdebug_std)
 target_include_directories(kfx_frontend PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-add_library(kfx_frontend_hvlog OBJECT ${KFX_FRONTEND_SOURCES})
+add_library(kfx_frontend_hvlog STATIC ${KFX_FRONTEND_SOURCES})
 target_link_libraries(kfx_frontend_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
 target_include_directories(kfx_frontend_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 

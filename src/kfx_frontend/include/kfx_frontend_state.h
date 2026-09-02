@@ -124,6 +124,13 @@ TbBool load_frontend_state(TbFileHandle fhandle);
 void reset_frontend_state(void);
 size_t get_frontend_state_size(void);
 
+// Registered on NetCallbacks (src/kfx_config/include/net_callbacks.h) --
+// same reasoning as the save/load pair above, just for the network resync
+// payload (net_resync.cpp) instead of the save-game file format. See
+// docs/refactor/todo/remove-remaining-layering-violations.md.
+const char *resync_export_frontend_state(size_t *len);
+TbBool resync_import_frontend_state(const char *data, size_t len);
+
 /******************************************************************************/
 #ifdef __cplusplus
 }

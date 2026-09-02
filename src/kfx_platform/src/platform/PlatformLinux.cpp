@@ -1,7 +1,6 @@
 #include "pre_inc.h"
 #include "platform/PlatformLinux.h"
 #include "platform/FileFind.h"
-#include "platform.h" // kfxmain
 #include "bflib_fileio.h"
 #include "bflib_video.h"
 #include <SDL3/SDL.h>
@@ -95,11 +94,3 @@ void   PlatformLinux::StopRedbookTrack() {}
 
 int  PlatformLinux::InitSteam() { return -1; }
 void PlatformLinux::ShutdownSteam() {}
-
-/******************************************************************************/
-// Process entry point.
-
-extern "C" int main(int argc, char *argv[])
-{
-    return kfxmain(argc, argv);
-}

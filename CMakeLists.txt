@@ -452,17 +452,39 @@ message(STATUS "kfx: ${KFX_OBJECT_LIBS_STD} grouped; ${KFX_SOURCES_REMAINING} le
 # Order matters: the default linker on both platforms (ld.bfd -- confirmed
 # on both native Linux and mingw-w64) resolves static-library symbols in a
 # single left-to-right pass. kfx_common_opts carries kfx_sdl3 -- if it's
-# listed before the OBJECT libraries that need SDL3 symbols, the linker
-# would already have moved past it by the time the .o files referencing
-# them are reached. Object libraries needing symbols must come before the
+# listed before the libraries that need SDL3 symbols, the linker would
+# already have moved past it by the time the .o files referencing them
+# are reached. Libraries needing symbols must come before the
 # static/shared libraries providing them; kfx_link_dependencies() (called
-# below, after the OBJECT libraries) carries the rest of Dependencies.cmake's
-# targets for exactly this reason.
+# below, after these) carries the rest of Dependencies.cmake's targets
+# for exactly this reason.
+#
+# Every kfx_* library is now a real STATIC archive (docs/refactor/todo/
+# remove-symbol-level-layering-residuals.md's "Next steps"), not an
+# OBJECT library -- so unlike before, *this list's own internal order*
+# now matters too: a real archive only gets its needed members pulled in
+# to satisfy symbols already undefined at that point in the scan, whereas
+# OBJECT .o files were unconditionally included regardless of position.
+# KFX_OBJECT_LIBS_STD/_HVLOG is built lowest-ranked-first (kfx_platform,
+# kfx_config, ... kfx_apploop -- each add_subdirectory() appends itself in
+# that call order); references only ever flow from a higher-ranked
+# library down to a lower-ranked one (check_layering.py/
+# check_layering_symbols.py --strict both report zero violations), so the
+# link line needs the *reverse*: highest-ranked first, most-fundamental
+# last. Every kfx_*_utest's own hand-written link order already lists
+# libraries this same way (confirmed by inspection, not assumed) -- this
+# just reverses the one list built in construction order instead of
+# hand-ordering it again.
+set(KFX_STATIC_LIBS_STD ${KFX_OBJECT_LIBS_STD})
+list(REVERSE KFX_STATIC_LIBS_STD)
+set(KFX_STATIC_LIBS_HVLOG ${KFX_OBJECT_LIBS_HVLOG})
+list(REVERSE KFX_STATIC_LIBS_HVLOG)
+
 add_executable(keeperfx ${KFX_SOURCES_REMAINING})
-target_link_libraries(keeperfx PRIVATE ${KFX_OBJECT_LIBS_STD} kfx_bfdebug_std kfx_common_opts)
+target_link_libraries(keeperfx PRIVATE ${KFX_STATIC_LIBS_STD} kfx_bfdebug_std kfx_common_opts)
 
 add_executable(keeperfx_hvlog ${KFX_SOURCES_REMAINING})
-target_link_libraries(keeperfx_hvlog PRIVATE ${KFX_OBJECT_LIBS_HVLOG} kfx_bfdebug_hvlog kfx_common_opts)
+target_link_libraries(keeperfx_hvlog PRIVATE ${KFX_STATIC_LIBS_HVLOG} kfx_bfdebug_hvlog kfx_common_opts)
 
 if(KFX_FUNCTESTING)
     target_link_libraries(keeperfx PRIVATE kfx_ftests)

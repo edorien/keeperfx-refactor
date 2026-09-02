@@ -32,6 +32,14 @@ void store_localised_game_structure(void);
 void recall_localised_game_structure(void);
 void resync_game(void);
 
+// Declared here (previously only usable from within net_resync.cpp
+// itself) so a caller can drive the host/client halves of a resync
+// directly without going through resync_game()'s my_player_number-based
+// dispatch -- see src/ftests/tests/ftest_net_resync_fake_multiplayer.c
+// and docs/refactor/todo/ftest-fake-multiplayer.md.
+TbBool send_resync_game(void);
+TbBool receive_resync_game(void);
+
 void intentional_desync();
 
 #ifdef __cplusplus

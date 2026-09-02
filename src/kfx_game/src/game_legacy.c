@@ -21,6 +21,7 @@
 
 #include "globals.h"
 #include "bflib_basics.h"
+#include <string.h>
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -36,6 +37,33 @@ struct Game game;
 GameTurn game_legacy_get_gameturn(void)
 {
     return kfx_game_state.play_gameturn;
+}
+
+// Static buffer, not malloc'd -- mirrors lua_resync_export()'s (pointer,
+// length) shape (kfx_script/src/lua_base.c) but neither of these structs
+// need real serialization, just a wholesale memcpy, so there's nothing to
+// allocate/free per call the way Lua's variable-length export needs.
+static char resync_game_state_buffer[sizeof(struct Game) + sizeof(struct KfxGameState)];
+
+const char *resync_export_game_state(size_t *len)
+{
+    char *write_ptr = resync_game_state_buffer;
+    memcpy(write_ptr, &game, sizeof(game));
+    write_ptr += sizeof(game);
+    memcpy(write_ptr, &kfx_game_state, sizeof(kfx_game_state));
+    *len = sizeof(resync_game_state_buffer);
+    return resync_game_state_buffer;
+}
+
+TbBool resync_import_game_state(const char *data, size_t len)
+{
+    if (len != sizeof(resync_game_state_buffer)) {
+        ERRORLOG("Received game state with wrong size: %u != %u", (unsigned)len, (unsigned)sizeof(resync_game_state_buffer));
+        return false;
+    }
+    memcpy(&game, data, sizeof(game));
+    memcpy(&kfx_game_state, data + sizeof(game), sizeof(kfx_game_state));
+    return true;
 }
 /******************************************************************************/
 #ifdef __cplusplus

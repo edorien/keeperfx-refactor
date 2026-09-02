@@ -101,6 +101,21 @@ struct NetCallbacks {
     void (*lua_set_random_seed)(unsigned int seed);
     void (*lua_cleanup_serialized_data)(void);
 
+    /* game_legacy.h/kfx_game_state.h/kfx_frontend_state.h -- upper-state
+       resync payload (net_resync.cpp), same export/import shape as the
+       Lua pair above and for the same reason: kfx_net can't #include
+       kfx_game's/kfx_frontend's headers to memcpy `game`/`kfx_game_state`/
+       `kfx_frontend_state` wholesale as part of the raw-blob resync wire
+       format (architecture.md §6.2) -- see
+       docs/refactor/todo/remove-remaining-layering-violations.md. Unlike
+       the Lua pair, these return a pointer to a fixed-size static buffer,
+       not a freshly allocated one -- there's no cleanup callback because
+       there's nothing to free. */
+    const char *(*resync_export_game_state)(size_t *len);
+    TbBool (*resync_import_game_state)(const char *data, size_t len);
+    const char *(*resync_export_frontend_state)(size_t *len);
+    TbBool (*resync_import_frontend_state)(const char *data, size_t len);
+
     /* game_session_loop.h (kfx_apploop, stage 12.5) -- yield points hit
        while kfx_net is blocked waiting on network I/O, letting the
        gameplay/frontend loop still draw/poll input/update timing during

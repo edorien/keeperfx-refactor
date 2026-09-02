@@ -13,7 +13,6 @@
 #include "platform/PlatformWindows.h"
 #include "platform/PlatformLinux.h"
 #include "platform/FileFind.h"
-#include "platform.h"
 #include "bflib_fileio.h"
 #include "bflib_video.h"
 #include "cdrom.h"

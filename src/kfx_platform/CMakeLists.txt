@@ -5,10 +5,19 @@
 # real directory with its own include/ -- so it globs its own sources
 # directly instead of being carved out of KEEPERFX_SOURCES_C/_CXX.
 #
-# Its two OBJECT library variants (std/hvlog) are appended to
-# KFX_OBJECT_LIBS_STD/_HVLOG in the parent scope, exactly like
-# kfx_add_component()'s components, so the final executables link them the
-# same way.
+# Every kfx_* library is a real STATIC library, not an OBJECT one
+# (docs/refactor/todo/remove-symbol-level-layering-residuals.md's "Next
+# steps" -- proved out first on just this library before converting the
+# rest). Still appended to KFX_OBJECT_LIBS_STD/_HVLOG in the parent scope
+# the same way as before (the variable name is now a slight misnomer,
+# kept to avoid a repo-wide rename) -- the root CMakeLists.txt reverses
+# that list before linking, since a real archive only gets its needed
+# members pulled in to satisfy symbols already undefined at that point in
+# ld.bfd's single left-to-right pass (unlike OBJECT .o files, which are
+# unconditionally included regardless of position). Every kfx_*_utest's
+# own hand-written link order already happened to list libraries
+# highest-rank-first for the same reason, confirmed by inspection before
+# relying on it.
 
 file(GLOB KFX_PLATFORM_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB KFX_PLATFORM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
@@ -45,11 +54,11 @@ endif()
 
 set(KFX_PLATFORM_SOURCES ${KFX_PLATFORM_SOURCES_C} ${KFX_PLATFORM_SOURCES_CXX})
 
-add_library(kfx_platform OBJECT ${KFX_PLATFORM_SOURCES})
+add_library(kfx_platform STATIC ${KFX_PLATFORM_SOURCES})
 target_link_libraries(kfx_platform PRIVATE kfx_common_opts kfx_bfdebug_std)
 target_include_directories(kfx_platform PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-add_library(kfx_platform_hvlog OBJECT ${KFX_PLATFORM_SOURCES})
+add_library(kfx_platform_hvlog STATIC ${KFX_PLATFORM_SOURCES})
 target_link_libraries(kfx_platform_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
 target_include_directories(kfx_platform_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 

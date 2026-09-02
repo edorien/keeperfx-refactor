@@ -54,46 +54,15 @@ from check_layering import LIBRARY_ORDER, RANK  # noqa: E402
 # defining_library). --strict does not fail on these.
 # ---------------------------------------------------------------------------
 ACCEPTED_SYMBOL_VIOLATIONS: set[tuple[str, str, str]] = {
-    # kfx_platform's PlatformLinux.cpp/PlatformWindows.cpp define the
-    # process's actual main(), which calls kfxmain() -- declared in
-    # kfx_platform's own platform.h but *defined* in app_entry's
-    # main.cpp. This is the OS-callable-entry-point pattern (the
-    # platform layer legitimately needs to be what the OS calls first,
-    # then hand control to the app) -- inverse direction by design, not
-    # an oversight. See docs/refactor/todo/
-    # check-layering-symbol-level-blind-spot.md.
-    ("kfx_platform", "kfxmain", "app_entry"),
-    # kfx_sim's packet_data.h (split out of kfx_net's packets.h, stage
-    # 13.3) deliberately declares struct Packet's trivial accessors at
-    # kfx_sim's own layer -- kfx_sim/kfx_render dereference struct Packet
-    # fields directly and pervasively, so the type has to live at or
-    # below kfx_sim, but the accessors' real implementation stays in
-    # kfx_net's packets.c/packets_misc.c. Documented in packet_data.h
-    # itself as intentional: "a higher-ranked library implementing a
-    # lower-ranked interface is fine -- only the reverse is a violation."
-    # See docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
-    ("kfx_sim", "get_packet", "kfx_net"),
-    ("kfx_sim", "get_packet_direct", "kfx_net"),
-    ("kfx_sim", "set_packet_action", "kfx_net"),
-    ("kfx_sim", "set_players_packet_action", "kfx_net"),
-    ("kfx_render", "get_packet_direct", "kfx_net"),
-    # net_resync.cpp's intentionally-preserved raw-blob network resync
-    # serialization: game/kfx_game_state/kfx_frontend_state are memcpy'd
-    # wholesale. This is the wire format by design -- already listed in
-    # check_layering.py's own ACCEPTED_VIOLATIONS for the #include edges
-    # this symbol usage corresponds to (kfx_frontend_state.h/
-    # kfx_game_state.h/game_legacy.h).
-    ("kfx_net", "kfx_frontend_state", "kfx_frontend"),
-    ("kfx_net", "kfx_game_state", "kfx_game"),
-    ("kfx_net", "game", "kfx_game"),
-    # creature_table_add[] (kfx_sim's creature_graphics.h) is the same
-    # deliberate interface-split shape as packet_data.h's struct Packet:
-    # creature_graphics.c dereferences struct KeeperSprite fields
-    # directly and pervasively, so the type/array declaration has to
-    # live at kfx_sim's layer, but the real storage stays in kfx_render's
-    # custom_sprites.c ("a higher-ranked library implementing a
-    # lower-ranked interface is fine").
-    ("kfx_sim", "creature_table_add", "kfx_render"),
+    # Empty: every known symbol-level residual has been fixed by moving
+    # either the storage (get_packet/get_packet_direct/set_packet_action/
+    # set_players_packet_action, creature_table_add -- see docs/refactor/
+    # todo/remove-symbol-level-layering-residuals.md) or the code itself
+    # (kfxmain -- kfx_platform's PlatformLinux.cpp/PlatformWindows.cpp used
+    # to physically own the process main()/WinMain() and call up into
+    # app_entry's kfxmain(); the native entry point moved down into
+    # app_entry itself, src/native_entry.cpp, see docs/refactor/todo/
+    # remove-kfxmain-symbol-residual.md) down to where it actually belongs.
 }
 
 OBJ_DIR_RE = re.compile(r"/src/(kfx_\w+)/CMakeFiles/(\w+)\.dir/")

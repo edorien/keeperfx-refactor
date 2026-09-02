@@ -29,7 +29,7 @@ target_link_libraries(kfx_apploop_utest PRIVATE
     kfx_common_opts
     kfx_luajit
     centitoml
-    kfx_test_main)
+    Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)

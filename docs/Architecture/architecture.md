@@ -358,10 +358,11 @@ extracted from `src/main.cpp` in stage 12.5.
   on network I/O (kfx_net is lower-ranked than kfx_apploop, so it can't call
   these directly).
 
-### 2.10 `app_entry` — `src/main.cpp`
+### 2.10 `app_entry` — `src/main.cpp` + `src/native_entry.cpp`
 
-**Owns:** the composition root. The only free-standing file under `src/`
-(aside from the exempt `ftests/`). **1,821 lines.**
+**Owns:** the composition root. Two free-standing files under `src/` (aside
+from the exempt `ftests/`): `main.cpp` (**1,821 lines**) and the small
+`native_entry.cpp`.
 
 - `kfxmain()` → `LbBullfrogMain()`: log setup → `process_command_line` →
   `LbTimerInit` → `RendererScreenInitialize` → `RendererInit(RENDERER_SOFTWARE)`
@@ -375,6 +376,13 @@ extracted from `src/main.cpp` in stage 12.5.
 - `main.cpp` is the one translation unit that `#include`s headers from every
   layer — which is exactly the point: the cross-layer knowledge is isolated in
   a single file instead of being smeared across the codebase via `#include`.
+- `native_entry.cpp` is the OS-native process entry point: `main()` on Linux,
+  `WinMain()` (plus the vectored-exception-handler crash parachute) on
+  Windows, both just handing off to `kfxmain()`. Used to live in
+  `kfx_platform` (`PlatformLinux.cpp`/`PlatformWindows.cpp`) — the one
+  documented case of a lower-ranked library calling up into `app_entry`; moved
+  here since only `app_entry` is allowed to depend on every layer. See
+  `docs/refactor/todo/remove-kfxmain-symbol-residual.md`.
 
 ---
 
@@ -383,7 +391,7 @@ extracted from `src/main.cpp` in stage 12.5.
 The call chain from process start to a single game turn:
 
 ```
-main()  (OS)
+main()  (OS)                                  [app_entry / native_entry.cpp]
 └─ kfxmain()                                  [app_entry / main.cpp]
    └─ LbBullfrogMain()                        [app_entry / main.cpp]
       ├─ process_command_line / LbTimerInit / Renderer*Init   [kfx_platform]
@@ -582,11 +590,14 @@ blobs — in three places:
 - **Level reset** — `kfx_game/src/main_game.c::clear_complete_game()`
 
 At all three call sites the per-library state structs are synced/saved/reset
-*alongside one another* as a single fixed chain. This is why `net_resync.cpp`
-is allowed (in the `ACCEPTED_VIOLATIONS` list, §8) to `#include`
-`kfx_frontend_state.h`, `kfx_game_state.h`, and `game_legacy.h` despite being
-lower-ranked: the wire/save format is an intentional raw blob, and
-restructuring it would mean restructuring the netcode itself.
+*alongside one another* as a single fixed chain. `net_resync.cpp` used to
+reach this by `#include`-ing `kfx_frontend_state.h`/`kfx_game_state.h`/
+`game_legacy.h` directly (a `kfx_net -> kfx_game`/`kfx_frontend` layering
+violation, previously an accepted residual — §8.2) — fixed by exporting/
+importing those three structs as opaque blobs through `NetCallbacks`
+instead (same pattern the file already used for the Lua resync payload),
+so the raw-blob wire format itself is unchanged but `net_resync.cpp` no
+longer needs the higher layers' headers to produce it.
 
 Save-game loading tolerates a chunk-size mismatch
 (`hdr.len != sizeof(struct Game)` → WARNLOG + skip), so an old save loses only
@@ -692,11 +703,19 @@ found to have no viable fix without a deeper redesign out of scope for the
 refactor. **Don't let this list grow to paper over new violations** — remove an
 entry when a future change actually resolves it.
 
-| From                              | To                                                          | Why it's irreducible                                                                                                                   |
-| --------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `kfx_game/src/console_cmd.c`      | `game_session_loop.h`                                       | the one legitimate direct call to the real per-frame `update()` dispatcher, from a debug console command that manually advances a turn |
-| `kfx_net/src/net_resync.cpp`      | `kfx_frontend_state.h`, `kfx_game_state.h`, `game_legacy.h` | intentionally-preserved raw-blob network resync: those state structs are `memcpy`'d wholesale — the wire format by design              |
-| `kfx_platform/src/bflib_enet.cpp` | `net_main.h`                                                | `struct NetSP`'s function-pointer signatures are ABI-shared with `bflib_enet.h`; both are already included together in several files   |
+**Currently empty** — the last two entries (`kfx_net/src/net_resync.cpp`'s
+raw-blob resync includes and `kfx_platform/src/bflib_enet.cpp`'s `net_main.h`
+include) were fixed once real functional-test coverage of both files existed
+to verify the fix against (`docs/refactor/todo/ftest-fake-multiplayer.md`,
+`docs/refactor/todo/remove-remaining-layering-violations.md`): `net_resync.cpp`
+now exports/imports `game`/`kfx_game_state`/`kfx_frontend_state` as opaque
+blobs via `NetCallbacks` instead of `#include`-ing their headers directly
+(same pattern already used there for the Lua resync payload), and
+`bflib_enet.cpp` now includes a new `kfx_platform/include/bflib_netsp.h`
+(holding `struct NetSP` and its supporting types) instead of reaching up into
+`kfx_net/include/net_main.h`. A third entry, `kfx_game/src/console_cmd.c` →
+`game_session_loop.h`, was found to be dead code and removed earlier
+(`docs/refactor/todo/two-remaining-layering-violations.md`).
 
 ---
 

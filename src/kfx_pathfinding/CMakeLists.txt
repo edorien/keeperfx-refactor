@@ -7,11 +7,11 @@ file(GLOB KFX_PATHFINDING_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB KFX_PATHFINDING_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 set(KFX_PATHFINDING_SOURCES ${KFX_PATHFINDING_SOURCES_C} ${KFX_PATHFINDING_SOURCES_CXX})
 
-add_library(kfx_pathfinding OBJECT ${KFX_PATHFINDING_SOURCES})
+add_library(kfx_pathfinding STATIC ${KFX_PATHFINDING_SOURCES})
 target_link_libraries(kfx_pathfinding PRIVATE kfx_common_opts kfx_bfdebug_std)
 target_include_directories(kfx_pathfinding PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-add_library(kfx_pathfinding_hvlog OBJECT ${KFX_PATHFINDING_SOURCES})
+add_library(kfx_pathfinding_hvlog STATIC ${KFX_PATHFINDING_SOURCES})
 target_link_libraries(kfx_pathfinding_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
 target_include_directories(kfx_pathfinding_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 

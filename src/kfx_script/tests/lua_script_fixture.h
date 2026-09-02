@@ -1,8 +1,8 @@
 // Shared Tier 2 fixture (docs/refactor/testing/comprehensive/
 // stage-06-kfx-script-luajit.md §3) for any kfx_script test that needs
 // the real, fully-loaded production Lua environment -- not shared as a
-// separate library the way kfx_test_main/kfx_packet_test_stubs are (no
-// second *_utest target needs it), just a header both of this target's
+// separate library the way kfx_game_state_test_stubs is (no second
+// *_utest target needs it), just a header both of this target's
 // own test files include, to avoid duplicating the same ~10 lines twice
 // within one binary.
 #pragma once

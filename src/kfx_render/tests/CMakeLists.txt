@@ -3,14 +3,15 @@
 # ../../kfx_sim/tests/CMakeLists.txt). Explicit centitoml link for the
 # same transitive-kfx_config reason.
 #
-# kfx_render_utest transitively links kfx_sim, which needs the same
+# kfx_render_utest transitively links kfx_sim, which used to need the
 # get_packet/set_packet_action/etc. accepted-residual stubs
-# kfx_sim_utest does -- reuses kfx_sim/tests/'s kfx_packet_test_stubs
-# rather than duplicating it. Does NOT need kfx_sim_test_stubs.cpp's
-# creature_table_add[] stub: kfx_render's own custom_sprites.c (linked
-# here as part of the real kfx_render library) provides the real
-# definition -- linking that stub too would be a duplicate-definition
-# error.
+# (kfx_sim/tests/kfx_packet_test_stubs) -- removed once those functions'
+# real implementations moved down into kfx_sim itself (packet_data.c,
+# docs/refactor/todo/remove-symbol-level-layering-residuals.md), so
+# kfx_sim provides them for real now. Also doesn't need
+# kfx_sim_test_stubs.cpp's former creature_table_add[] stub for the same
+# reason -- creature_table_add[] moved into kfx_sim's own
+# creature_graphics.c too.
 file(GLOB KFX_RENDER_TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
 add_executable(kfx_render_utest ${KFX_RENDER_TEST_SOURCES})
@@ -23,8 +24,7 @@ target_link_libraries(kfx_render_utest PRIVATE
     kfx_bfdebug_std
     kfx_common_opts
     centitoml
-    kfx_packet_test_stubs
-    kfx_test_main)
+    Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)

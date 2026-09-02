@@ -559,7 +559,7 @@ static void gameplay_loop_network()
     if (! network_is_active())
         return;
 
-    network_update(kfx_net_state.packets, sizeof(struct Packet));
+    network_update(sim_packets, sizeof(struct Packet));
 }
 
 static void gameplay_loop_timestep()

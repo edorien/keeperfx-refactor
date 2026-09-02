@@ -13,7 +13,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 
-#include "platform.h"
+#include "kfxmain.h"
 #include "platform/PlatformManager.h"
 #include "renderer/RendererManager.h"
 #include "globals.h"
@@ -1391,6 +1391,9 @@ short setup_game(void)
 
       &net_callbacks_lua_script_active, &lua_resync_export, &lua_resync_import,
       &lua_set_random_seed, &cleanup_serialized_data,
+
+      &resync_export_game_state, &resync_import_game_state,
+      &resync_export_frontend_state, &resync_import_frontend_state,
 
       &network_yield_draw_gameplay, &network_yield_waiting_gameplay_packets,
       &network_yield_draw_frontend,

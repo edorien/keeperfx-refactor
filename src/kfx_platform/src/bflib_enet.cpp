@@ -15,7 +15,7 @@
 #include "pre_inc.h"
 #include "bflib_enet.h"
 #include "bflib_datetm.h"
-#include "net_main.h"
+#include "bflib_netsp.h"
 #include "bflib_math.h"
 // Real usage: SDL_Delay(). Used to arrive transitively via player_data.h;
 // made explicit after that (unrelated) include was removed (see

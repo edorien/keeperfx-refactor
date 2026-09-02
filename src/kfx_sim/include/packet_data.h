@@ -14,12 +14,16 @@
  *     same shape as camera_data.h's struct Camera split out of
  *     engine_camera.h. The accessor functions declared here
  *     (get_packet/get_packet_direct/set_packet_action/...) are trivial
- *     wrappers around kfx_net_state.packets[] + get_player(); their
- *     implementations stay in kfx_net's packets.c/packets_misc.c (a
- *     higher-ranked library implementing a lower-ranked interface is
- *     fine -- only the reverse is a violation), so no state actually
- *     moves. packets.h keeps re-including this header, so none of its
- *     other (same-or-higher-ranked) consumers need any changes.
+ *     wrappers around sim_packets[] + get_player() -- both now defined
+ *     here too (packet_data.c), moved down from kfx_net's
+ *     packets.c/packets_misc.c/kfx_net_state.h (docs/refactor/todo/
+ *     remove-symbol-level-layering-residuals.md) now that nothing about
+ *     them is actually net-specific. kfx_net's own packet-exchange code
+ *     still legitimately *writes* into sim_packets[] from above (a
+ *     higher-ranked library writing into a lower-ranked library's state
+ *     is fine -- only a lower library reaching upward is a violation).
+ *     packets.h keeps re-including this header, so none of its other
+ *     (same-or-higher-ranked) consumers need any changes.
  *
  *     The packet *processing* functions (process_packets/
  *     exchange_packets/process_camera_controls/process_first_person_look/
@@ -301,7 +305,29 @@ struct PacketSaveHead {
 
 #pragma pack()
 
+// Moved down from kfx_net's net_game.h (docs/refactor/todo/
+// remove-symbol-level-layering-residuals.md) alongside sim_packets[]
+// below -- both were the last thing keeping get_packet()/get_packet_direct()/
+// set_packet_action()/set_players_packet_action()'s real implementations in
+// kfx_net despite the interface already living here. kfx_net's own
+// packets.c/packets_misc.c/net_exchange_gameplay.c still need this too, for
+// their own genuinely net-owned logic (checksums, wire buffer packing,
+// turn-history exchange) -- reached via packets.h's existing #include of
+// this header, no new #include needed there.
+#define PACKETS_COUNT 9
+
 extern struct Packet bad_packet;
+
+// Per-turn input packets, one per connected player slot. Moved down from
+// kfx_net_state (kfx_net_state.h) for the same reason as PACKETS_COUNT
+// above -- kfx_net's packet-exchange code still legitimately *writes*
+// into this from above (a higher-ranked library writing into a
+// lower-ranked library's storage is fine, only the reverse is a
+// violation -- see this header's own file comment). Deliberately a bare
+// extern, not folded into kfx_sim_state: it isn't one of architecture.md
+// §6.2's three raw-blob sync payloads today, and folding it into
+// kfx_sim_state would silently add it to all of them.
+extern struct Packet sim_packets[PACKETS_COUNT];
 
 /******************************************************************************/
 struct Packet *get_packet_direct(long pckt_idx);

@@ -16,11 +16,11 @@ file(GLOB KFX_GAME_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB KFX_GAME_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 set(KFX_GAME_SOURCES ${KFX_GAME_SOURCES_C} ${KFX_GAME_SOURCES_CXX})
 
-add_library(kfx_game OBJECT ${KFX_GAME_SOURCES})
+add_library(kfx_game STATIC ${KFX_GAME_SOURCES})
 target_link_libraries(kfx_game PRIVATE kfx_common_opts kfx_bfdebug_std)
 target_include_directories(kfx_game PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-add_library(kfx_game_hvlog OBJECT ${KFX_GAME_SOURCES})
+add_library(kfx_game_hvlog STATIC ${KFX_GAME_SOURCES})
 target_link_libraries(kfx_game_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
 target_include_directories(kfx_game_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 

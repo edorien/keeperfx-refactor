@@ -11,11 +11,11 @@ file(GLOB KFX_SIM_SOURCES_C "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB KFX_SIM_SOURCES_CXX "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 set(KFX_SIM_SOURCES ${KFX_SIM_SOURCES_C} ${KFX_SIM_SOURCES_CXX})
 
-add_library(kfx_sim OBJECT ${KFX_SIM_SOURCES})
+add_library(kfx_sim STATIC ${KFX_SIM_SOURCES})
 target_link_libraries(kfx_sim PRIVATE kfx_common_opts kfx_bfdebug_std)
 target_include_directories(kfx_sim PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-add_library(kfx_sim_hvlog OBJECT ${KFX_SIM_SOURCES})
+add_library(kfx_sim_hvlog STATIC ${KFX_SIM_SOURCES})
 target_link_libraries(kfx_sim_hvlog PRIVATE kfx_common_opts kfx_bfdebug_hvlog)
 target_include_directories(kfx_sim_hvlog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 

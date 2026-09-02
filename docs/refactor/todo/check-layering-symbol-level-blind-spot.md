@@ -114,14 +114,20 @@ used throughout this codebase (`SoundStateCallbacks`,
 
 ### 3. Not a violation — by design
 
-`src/kfx_platform/src/kfx/platform/PlatformLinux.cpp` (and
-`PlatformWindows.cpp`) define the process's actual `main()`, which calls
-`kfxmain()` — declared in kfx_platform's own `platform.h` but *defined*
-in `main.cpp` (`app_entry`). This is the OS-callable-entry-point pattern
-(the platform layer legitimately needs to be what the OS calls first,
-then hand control to the app) — inverse direction by design. Left as-is,
-and added to the new post-build audit's accepted-residuals list (see
+**Revised, see below.** `src/kfx_platform/src/kfx/platform/PlatformLinux.cpp`
+(and `PlatformWindows.cpp`) define the process's actual `main()`, which
+calls `kfxmain()` — declared in kfx_platform's own `platform.h` but
+*defined* in `main.cpp` (`app_entry`). This is the OS-callable-entry-point
+pattern (the platform layer legitimately needs to be what the OS calls
+first, then hand control to the app) — inverse direction by design. Left
+as-is, and added to the new post-build audit's accepted-residuals list (see
 below) so it doesn't show up as noise.
+
+**Later revised** (`docs/refactor/todo/remove-kfxmain-symbol-residual.md`):
+this judgment turned out to be wrong. `kfx_platform` owned the *entry point
+itself*, not a platform service — moving `main()`/`WinMain()` down into
+`app_entry` (`src/native_entry.cpp`) removed the reverse reference
+entirely, so this is no longer an accepted residual at all.
 
 ## Fix: a post-build symbol audit (`scripts/check_layering_symbols.py`)
 

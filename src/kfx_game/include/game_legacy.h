@@ -295,6 +295,14 @@ struct Game {
 /******************************************************************************/
 extern struct Game game;
 GameTurn game_legacy_get_gameturn(void);
+
+// Registered on NetCallbacks (kfx_config/include/net_callbacks.h) so
+// net_resync.cpp (kfx_net) doesn't need to #include this header directly
+// just to memcpy `game`+`kfx_game_state` wholesale as part of the raw-blob
+// resync wire format -- see
+// docs/refactor/todo/remove-remaining-layering-violations.md.
+const char *resync_export_game_state(size_t *len);
+TbBool resync_import_game_state(const char *data, size_t len);
 // turns_per_second moved to kfx_sim_state.h (stage 13.3, docs/refactor/
 // stage-13-enforce-and-document.md).
 // fps_limit_current/main/secondary moved to kfx_platform's bflib_video.h

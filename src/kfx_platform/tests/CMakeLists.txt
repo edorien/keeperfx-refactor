@@ -3,37 +3,22 @@
 # KFX_BUILD_TESTS is ON (see ../CMakeLists.txt), so Catch2 and CTest are
 # already available by the time this file is processed.
 #
-# kfx_test_main: a small shared library, not specific to kfx_platform's own
-# tests, that every *_utest target links (added first, before any other
-# kfx_*/tests/ subdirectory, so later ones can reference it by name --
-# CMake target names are global to the whole build). Every kfx_*_utest
-# transitively links kfx_platform (directly, or via another library that
-# depends on it), and kfx_platform/src/platform/PlatformLinux.cpp
-# physically owns the process main() (by design -- see
-# docs/refactor/todo/check-layering-symbol-level-blind-spot.md's item 3).
-# kfx_test_main.cpp forwards that main()'s kfxmain() call into Catch2's
-# session runner, so every *_utest target links plain Catch2::Catch2 (via
-# this library's PUBLIC dependency) instead of Catch2::Catch2WithMain,
-# which would define its own `main` that never actually gets used (see
-# stage-01's note on how that failure mode manifested at link time).
-add_library(kfx_test_main STATIC kfx_test_main.cpp)
-target_link_libraries(kfx_test_main PUBLIC Catch2::Catch2)
-# Only needs platform.h's kfxmain() declaration, not kfx_platform's
-# compiled objects (those come from whichever *_utest target links
-# kfx_platform itself) -- an include dir, not a library link, avoids
-# pulling kfx_platform's objects in twice (once here, once directly) and
-# risking a multiple-definition link error.
-target_include_directories(kfx_test_main PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-
+# Used to need a kfx_test_main shim library here: kfx_platform's
+# PlatformLinux.cpp/PlatformWindows.cpp used to physically own the process
+# main()/WinMain(), so every *_utest transitively linking kfx_platform
+# couldn't use Catch2::Catch2WithMain (its own `main` would conflict).
+# Fixed by docs/refactor/todo/remove-kfxmain-symbol-residual.md: the native
+# entry point moved to src/native_entry.cpp (app_entry), so kfx_platform no
+# longer defines main() at all -- every *_utest target links plain
+# Catch2::Catch2WithMain now.
 file(GLOB KFX_PLATFORM_TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-list(REMOVE_ITEM KFX_PLATFORM_TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/kfx_test_main.cpp")
 
 add_executable(kfx_platform_utest ${KFX_PLATFORM_TEST_SOURCES})
 target_link_libraries(kfx_platform_utest PRIVATE
     kfx_platform
     kfx_bfdebug_std
     kfx_common_opts
-    kfx_test_main)
+    Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)

@@ -40,6 +40,26 @@ size_t get_frontend_state_size(void)
 {
     return sizeof(struct KfxFrontendState);
 }
+
+// Registered on NetCallbacks (kfx_config/include/net_callbacks.h) --
+// same reasoning as save_frontend_state()/load_frontend_state() above,
+// just returning a (pointer, length) blob for the network resync payload
+// (net_resync.cpp) instead of writing to a file handle.
+const char *resync_export_frontend_state(size_t *len)
+{
+    *len = sizeof(kfx_frontend_state);
+    return (const char *)&kfx_frontend_state;
+}
+
+TbBool resync_import_frontend_state(const char *data, size_t len)
+{
+    if (len != sizeof(kfx_frontend_state)) {
+        ERRORLOG("Received frontend state with wrong size: %u != %u", (unsigned)len, (unsigned)sizeof(kfx_frontend_state));
+        return false;
+    }
+    memcpy(&kfx_frontend_state, data, len);
+    return true;
+}
 /******************************************************************************/
 #ifdef __cplusplus
 }
