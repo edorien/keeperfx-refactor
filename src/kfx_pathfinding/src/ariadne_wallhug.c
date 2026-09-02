@@ -37,7 +37,7 @@ static TbBool check_forward_for_prospective_hugs(struct Thing *creatng, struct C
 static long get_angle_of_wall_hug(struct Thing *creatng, long slab_flags, long speed, PlayerBitFlags crt_owner_flags);
 static void set_hugging_pos_using_blocked_flags(struct Coord3d *dstpos, struct Thing *creatng, unsigned short block_flags, int nav_radius);
 static TbBool navigation_push_towards_target(struct Navigation *navi, struct Thing *creatng, const struct Coord3d *pos, MoveSpeed speed, MoveSpeed nav_radius, PlayerBitFlags crt_owner_flags);
-static TbBool find_approach_position_to_subtile(const struct Coord3d *srcpos, MapSubtlCoord stl_x, MapSubtlCoord stl_y, MoveSpeed spacing, struct Coord3d *aproachpos);
+static TbBool find_approach_position_to_subtile(const struct Thing *creatng, const struct Coord3d *srcpos, MapSubtlCoord stl_x, MapSubtlCoord stl_y, MoveSpeed spacing, struct Coord3d *aproachpos);
 static long creature_cannot_move_directly_to_with_collide(struct Thing *creatng, struct Coord3d *pos, long slab_flags, PlayerBitFlags crt_owner_flags);
 static unsigned short get_hugging_blocked_flags(struct Thing *creatng, struct Coord3d *pos, long slab_flags, PlayerBitFlags crt_owner_flags);
 
@@ -409,6 +409,9 @@ static long get_map_index_of_first_block_thing_colliding_with_at(struct Thing *c
 
             struct Map* mapblk = pathfinding_world->get_map_block_at(current_stl_x,current_stl_y);
             struct SlabMap* slb = pathfinding_world->get_slabmap_block(subtile_slab(current_stl_x), subtile_slab(current_stl_y));
+
+            if (!pathfinding_world->thing_is_flying(creatng) && pathfinding_world->subtile_has_abyss_on_top(current_stl_x, current_stl_y))
+                return pathfinding_world->get_subtile_number(current_stl_x,current_stl_y);
 
             // If the current subtile has none of the attribute flags passed to this function (as slab_flags) and is not ROCK
             // OR the current subtile is a dungeon wall that we should dig through.
@@ -1446,7 +1449,7 @@ static TbBool check_forward_for_prospective_hugs(struct Thing *creatng, struct C
     return true;
 }
 
-static TbBool find_approach_position_to_subtile(const struct Coord3d *srcpos, MapSubtlCoord stl_x, MapSubtlCoord stl_y, MoveSpeed spacing, struct Coord3d *aproachpos)
+static TbBool find_approach_position_to_subtile(const struct Thing *creatng, const struct Coord3d *srcpos, MapSubtlCoord stl_x, MapSubtlCoord stl_y, MoveSpeed spacing, struct Coord3d *aproachpos)
 {
     struct Coord3d targetpos;
     targetpos.x.val = subtile_coord_center(stl_x);
@@ -1462,7 +1465,8 @@ static TbBool find_approach_position_to_subtile(const struct Coord3d *srcpos, Ma
         tmpos.y.val = targetpos.y.val + dy;
         tmpos.z.val = 0;
         struct Map* mapblk = pathfinding_world->get_map_block_at(tmpos.x.stl.num, tmpos.y.stl.num);
-        if ((!pathfinding_world->map_block_is_invalid(mapblk)) && ((pathfinding_world->map_block_flags(mapblk) & SlbAtFlg_Blocking) == 0))
+        if ((!pathfinding_world->map_block_is_invalid(mapblk)) && ((pathfinding_world->map_block_flags(mapblk) & SlbAtFlg_Blocking) == 0)
+            && (pathfinding_world->thing_is_flying(creatng) || !pathfinding_world->subtile_has_abyss_on_top(tmpos.x.stl.num, tmpos.y.stl.num)))
         {
             MapCoordDelta dist = get_chessboard_distance(srcpos, &tmpos);
             if (min_dist > dist)
@@ -1652,7 +1656,7 @@ static TbBool navigation_push_towards_target(struct Navigation *navi, struct Thi
         navi->first_colliding_block = stl_num;
         MapSubtlCoord stl_x = slab_subtile_center(subtile_slab(pathfinding_world->stl_num_decode_x(stl_num)));
         MapSubtlCoord stl_y = slab_subtile_center(subtile_slab(pathfinding_world->stl_num_decode_y(stl_num)));
-        find_approach_position_to_subtile(&creatng_pos, stl_x, stl_y, nav_radius + 385, &navi->pos_next);
+        find_approach_position_to_subtile(creatng, &creatng_pos, stl_x, stl_y, nav_radius + 385, &navi->pos_next);
         navi->angle = get_angle_xy_to(&creatng_pos, &navi->pos_next);
         navi->navstate = NavS_WallhugDirectionCheck;
     }
@@ -1749,7 +1753,7 @@ long get_next_position_and_angle_required_to_tunnel_creature_to(struct Thing *cr
                 nav_radius = thing_nav_sizexy(creatng) / 2;
                 stl_x = slab_subtile_center(subtile_slab(pathfinding_world->stl_num_decode_x(stl_num)));
                 stl_y = slab_subtile_center(subtile_slab(pathfinding_world->stl_num_decode_y(stl_num)));
-                find_approach_position_to_subtile(&creatng_pos, stl_x, stl_y, nav_radius + 385, &navi->pos_next);
+                find_approach_position_to_subtile(creatng, &creatng_pos, stl_x, stl_y, nav_radius + 385, &navi->pos_next);
                 navi->angle = get_angle_xy_to(&creatng_pos, &navi->pos_next);
                 navi->navstate = NavS_WallhugDirectionCheck;
                 return 1;
@@ -1906,7 +1910,7 @@ long get_next_position_and_angle_required_to_tunnel_creature_to(struct Thing *cr
         nav_radius = thing_nav_sizexy(creatng) / 2;
         stl_x = slab_subtile_center(subtile_slab(pathfinding_world->stl_num_decode_x(stl_num)));
         stl_y = slab_subtile_center(subtile_slab(pathfinding_world->stl_num_decode_y(stl_num)));
-        find_approach_position_to_subtile(&creatng_pos, stl_x, stl_y, nav_radius + 385, &navi->pos_next);
+        find_approach_position_to_subtile(creatng, &creatng_pos, stl_x, stl_y, nav_radius + 385, &navi->pos_next);
         navi->angle = get_angle_xy_to(&creatng_pos, &navi->pos_next);
         navi->wallhug_retry_counter = 0;
         navi->wallhug_state = WallhugCurrentState_None;
@@ -1978,7 +1982,8 @@ long get_next_position_and_angle_required_to_tunnel_creature_to(struct Thing *cr
         navi->first_colliding_block = stl_num;
         navi->second_colliding_block = stl_num;
         mapblk = pathfinding_world->get_map_block_at_pos(navi->first_colliding_block);
-        if ((pathfinding_world->map_block_flags(mapblk) & SlbAtFlg_Blocking) != 0) {
+        if ((pathfinding_world->map_block_flags(mapblk) & SlbAtFlg_Blocking) != 0
+            || (!pathfinding_world->thing_is_flying(creatng) && pathfinding_world->subtile_has_abyss_on_top(stl_x, stl_y))) {
           return 2;
         }
         nav_radius = thing_nav_sizexy(creatng) / 2;
@@ -2007,7 +2012,8 @@ long get_next_position_and_angle_required_to_tunnel_creature_to(struct Thing *cr
         navi->first_colliding_block = stl_num;
         navi->second_colliding_block = stl_num;
         mapblk = pathfinding_world->get_map_block_at_pos(navi->first_colliding_block);
-        if ((pathfinding_world->map_block_flags(mapblk) & SlbAtFlg_Blocking) != 0) {
+        if ((pathfinding_world->map_block_flags(mapblk) & SlbAtFlg_Blocking) != 0
+            || (!pathfinding_world->thing_is_flying(creatng) && pathfinding_world->subtile_has_abyss_on_top(stl_x, stl_y))) {
             return 2;
         }
         navi->navstate = NavS_WallhugInProgress;

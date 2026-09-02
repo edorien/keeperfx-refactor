@@ -71,6 +71,7 @@ struct PathfindingWorldCallbacks {
     long           (*get_thing_height_at)(const struct Thing *thing, const struct Coord3d *pos);
     long           (*get_floor_height_under_thing_at)(const struct Thing *thing, const struct Coord3d *pos);
     TbBool         (*creature_can_travel_over_lava)(const struct Thing *creatng);
+    TbBool         (*thing_is_flying)(const struct Thing *thing); /* movement_flags & TMvF_Flying */
     const char    *(*thing_model_name)(const struct Thing *thing); /* debug logging only */
 
     /* Track 3 -- struct Thing position/angle/index/clipbox field access.
@@ -122,6 +123,13 @@ struct PathfindingWorldCallbacks {
     void  (*set_owner_player_navigating)(long plyr_idx);
     long  (*get_nav_thing_can_travel_over_lava)(void);
     void  (*set_nav_thing_can_travel_over_lava)(long can_travel);
+    long  (*get_nav_thing_is_flying)(void);
+    void  (*set_nav_thing_is_flying)(long is_flying);
+
+    /* map_columns.h -- Abyss dungeons (stage: Dungeons may now reach into
+       the Abyss, #5169): ariadne_update.c needs to know whether a subtile
+       has abyss on top of it to mark it NAVMAP_ABYSS in the nav tree. */
+    TbBool (*subtile_has_abyss_on_top)(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
 };
 void set_pathfinding_world_callbacks(const struct PathfindingWorldCallbacks *callbacks);
 extern const struct PathfindingWorldCallbacks *pathfinding_world;

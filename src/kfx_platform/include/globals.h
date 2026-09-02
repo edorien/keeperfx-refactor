@@ -64,6 +64,7 @@
 #include <algorithm>
 using std::min;
 using std::max;
+using std::clamp;
 extern "C" {
 #endif
 
@@ -333,6 +334,18 @@ enum SlabTypes {
     SlbT_DOORMIDAS1         =  58,
     SlbT_DOORMIDAS2         =  59,
     SlbT_DENSEGOLD          =  60,
+};
+
+// Moved from kfx_sim's slab_data.h (Abyss dungeons, #5169) -- same
+// pure-ID-vocabulary situation as enum SlabTypes above: kfx_config's
+// config_terrain.c (slab_kind_from_wlb_type/slab_kind_is_bridgeable)
+// needs these names, and kfx_config sits below kfx_sim.
+enum WlbType {
+    WlbT_None   = 0,
+    WlbT_Lava   = 1,
+    WlbT_Water  = 2,
+    WlbT_Bridge = 3,
+    WlbT_Abyss  = 4,
 };
 
 /** Type which stores spell kind index. */

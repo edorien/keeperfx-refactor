@@ -49,6 +49,7 @@
 #include "bflib_filelst.h"
 #include "net_exchange_gameplay.h"
 #include "net_lobby.h"
+#include "net_matchmaking.h"
 #include "net_resync.h"
 #include "bflib_planar.h"
 
@@ -57,6 +58,7 @@
 #include "custom_sprites.h"
 #include "custom_zip.h"
 #include "sprite_lookup.h"
+#include "matchmaking_config.h"
 #include "version.h"
 #include "front_simple.h"
 #include "frontend.h"
@@ -187,9 +189,14 @@
 #endif
 
 // autostart_multiplayer_campaign/autostart_multiplayer_level/
-// force_player_num moved into kfx_config's struct StartupParameters
-// (start_params) -- see config_keeperfx.h and docs/refactor/todo/
-// check-layering-symbol-level-blind-spot.md.
+// autostart_multiplayer_users_expected/force_player_num moved into
+// kfx_config's struct StartupParameters (start_params) -- see
+// config_keeperfx.h and docs/refactor/todo/
+// check-layering-symbol-level-blind-spot.md. default_loc_player moved to
+// kfx_game/src/main_game.c; turns_per_second to kfx_sim_state; the
+// remaining plain globals below moved into their owning library's state
+// struct (kfx_frontend_state/kfx_net_state/kfx_game_state/kfx_render_state)
+// during the src/ -> src/kfx_* refactor.
 
 #ifdef __cplusplus
 extern "C" {
@@ -358,6 +365,20 @@ static uint32_t *get_unsync_random_seed(void)
 static const struct NamedCommand *get_creature_desc(void)
 {
     return creature_desc;
+}
+
+// Wrappers registered with matchmaking_config.h's MatchmakingConfigCallbacks;
+// config_keeperfx.c's MATCHMAKING_SERVER config var can't reach
+// net_matchmaking.h's matchmaking_enabled/matchmaking_ws_url plain
+// extern variables directly (kfx_net is above kfx_config).
+static void matchmaking_config_set_enabled(TbBool enabled)
+{
+    matchmaking_enabled = enabled;
+}
+
+static const char *matchmaking_config_get_ws_url(void)
+{
+    return matchmaking_ws_url;
 }
 
 // Wrapper registered with config.h's ConfigReloadCallbacks (see
@@ -779,6 +800,18 @@ static long pathfinding_world_get_nav_thing_can_travel_over_lava(void)
 static void pathfinding_world_set_nav_thing_can_travel_over_lava(long can_travel)
 {
     nav_thing_can_travel_over_lava = can_travel;
+}
+static long pathfinding_world_get_nav_thing_is_flying(void)
+{
+    return nav_thing_is_flying;
+}
+static void pathfinding_world_set_nav_thing_is_flying(long is_flying)
+{
+    nav_thing_is_flying = is_flying;
+}
+static TbBool pathfinding_world_thing_is_flying(const struct Thing *thing)
+{
+    return flag_is_set(thing->movement_flags, TMvF_Flying);
 }
 
 static TbBool sim_feedback_is_best_roomspace_key_pressed(void)
@@ -1298,7 +1331,7 @@ short setup_game(void)
       &pathfinding_world_door_is_locked, &players_are_mutual_allies,
       &thing_is_invalid, &pathfinding_world_thing_get_owner,
       &get_thing_height_at, &get_floor_height_under_thing_at,
-      &creature_can_travel_over_lava, &thing_model_name,
+      &creature_can_travel_over_lava, &pathfinding_world_thing_is_flying, &thing_model_name,
       &pathfinding_world_thing_get_position, &pathfinding_world_thing_set_position,
       &pathfinding_world_thing_get_move_angle, &pathfinding_world_thing_set_move_angle,
       &pathfinding_world_thing_get_index, &pathfinding_world_thing_get_clipbox_size,
@@ -1315,6 +1348,8 @@ short setup_game(void)
       &creature_cannot_move_directly_to,
       &pathfinding_world_get_owner_player_navigating, &pathfinding_world_set_owner_player_navigating,
       &pathfinding_world_get_nav_thing_can_travel_over_lava, &pathfinding_world_set_nav_thing_can_travel_over_lava,
+      &pathfinding_world_get_nav_thing_is_flying, &pathfinding_world_set_nav_thing_is_flying,
+      &subtile_has_abyss_on_top,
   };
   set_pathfinding_world_callbacks(&pathfinding_world_impl);
   static const struct SpriteLookupCallbacks sprite_lookup_impl = {
@@ -1324,6 +1359,10 @@ short setup_game(void)
       &load_sprites_for_multi_front,
   };
   set_sprite_lookup_callbacks(&sprite_lookup_impl);
+  static const struct MatchmakingConfigCallbacks matchmaking_config_impl = {
+      &matchmaking_config_set_enabled, &matchmaking_set_server, &matchmaking_config_get_ws_url,
+  };
+  set_matchmaking_config_callbacks(&matchmaking_config_impl);
   static const struct RenderOverlayCallbacks render_overlay_impl = {
       &redraw_parchment_view, &render_overlay_load_and_redraw_minimal_overhead_view, &render_overlay_set_parchment_loaded,
       &is_parchment_loaded, &reload_parchment_file, &point_to_overhead_map,
@@ -1614,6 +1653,7 @@ TbBool set_default_startup_parameters(void)
     start_params.num_fps = 20;
     start_params.one_player = 1;
     start_params.computer_chat_flags = CChat_None;
+    start_params.autostart_multiplayer_users_expected = 2;
     clear_flag(start_params.mode_flags, MFlg_IsDemoMode);
     set_flag(start_params.mode_flags, MFlg_DemoMode);
     return true;
@@ -1828,6 +1868,11 @@ static short process_command_line(unsigned short argc, char *argv[])
           narg++;
           LbNetwork_InitSessionsFromCmdLine(pr2str);
           game_flags2 |= GF2_Connect;
+      }
+      else if (strcasecmp(parstr,"waitusers") == 0)
+      {
+          start_params.autostart_multiplayer_users_expected = clamp(atoi(pr2str), MIN_NET_USERS, MAX_NET_USERS);
+          narg++;
       }
       else if (strcasecmp(parstr,"server") == 0)
       {

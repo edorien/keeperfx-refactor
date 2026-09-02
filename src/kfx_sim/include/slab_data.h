@@ -36,13 +36,8 @@ extern "C" {
 // enum SlabTypes moved to kfx_platform's globals.h (stage 13.3, docs/
 // refactor/stage-13-enforce-and-document.md) -- pure ID vocabulary,
 // used across every library.
-
-enum WlbType {
-    WlbT_None   = 0,
-    WlbT_Lava   = 1,
-    WlbT_Water  = 2,
-    WlbT_Bridge = 3,
-};
+// enum WlbType moved there too (Abyss dungeons, #5169) for the same
+// reason: kfx_config's config_terrain.c needs it.
 
 /******************************************************************************/
 #pragma pack(1)
@@ -99,6 +94,7 @@ TbBool can_build_room_at_slab(PlayerNumber plyr_idx, RoomKind rkind,
 
 TbBool can_build_room_at_slab_fast(PlayerNumber plyr_idx, RoomKind rkind,
     MapSlabCoord slb_x, MapSlabCoord slb_y);
+TbBool room_can_build_on_bridge_slab(RoomKind rkind, SlabKind slbkind);
 
 int check_room_at_slab_loose(PlayerNumber plyr_idx, RoomKind rkind,
     MapSlabCoord slb_x, MapSlabCoord slb_y, int looseness);
@@ -116,7 +112,7 @@ void do_unprettying(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSlabCoord slb_
 
 TbBool slab_kind_has_no_ownership(SlabKind slbkind);
 
-TbBool players_land_by_slab_kind(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSlabCoord slb_y,SlabKind slbkind);
+TbBool players_land_by_bridgeable_slab(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSlabCoord slb_y);
 TbBool slab_by_players_land(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSlabCoord slb_y);
 TbBool player_can_claim_slab(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSlabCoord slb_y);
 SlabKind choose_rock_type(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSlabCoord slb_y);

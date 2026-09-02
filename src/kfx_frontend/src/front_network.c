@@ -56,10 +56,10 @@
 extern "C" {
 #endif
 
-// autostart_multiplayer_campaign/autostart_multiplayer_level now live in
-// kfx_config's struct StartupParameters (start_params), reached via
-// config_keeperfx.h. See docs/refactor/todo/
-// check-layering-symbol-level-blind-spot.md.
+// autostart_multiplayer_campaign/autostart_multiplayer_level/
+// autostart_multiplayer_users_expected now live in kfx_config's struct
+// StartupParameters (start_params), reached via config_keeperfx.h. See
+// docs/refactor/todo/check-layering-symbol-level-blind-spot.md.
 #include "config_keeperfx.h"
 
 /******************************************************************************/
@@ -542,7 +542,7 @@ void handle_autostart_multiplayer_messaging(void)
     TbBool player_joined = (net_number_of_enum_players > previous_enum_players);
     previous_enum_players = net_number_of_enum_players;
 
-    if (net_number_of_enum_players < 2) {
+    if (net_number_of_enum_players < start_params.autostart_multiplayer_users_expected) {
         return;
     }
 

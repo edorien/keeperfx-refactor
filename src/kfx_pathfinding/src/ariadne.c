@@ -308,13 +308,15 @@ static long navigation_rule_normal(NavColour treeA, NavColour treeB)
 {
     if ((treeB & NAVMAP_FLOORHEIGHT_MASK) - (treeA & NAVMAP_FLOORHEIGHT_MASK) > 1)
       return NavigationRule_Blocked;
-    if ((treeB & (NAVMAP_OWNERSELECT_MASK | NAVMAP_UNSAFE_SURFACE)) == 0)
+    if ((treeB & (NAVMAP_OWNERSELECT_MASK | NAVMAP_UNSAFE_SURFACE | NAVMAP_ABYSS)) == 0)
       return NavigationRule_Normal;
     if (pathfinding_world->get_owner_player_navigating() != -1)
     {
         if (get_navtree_owner_flags(treeB) & (1 << pathfinding_world->get_owner_player_navigating()))
           return NavigationRule_Blocked;
     }
+    if ((treeB & NAVMAP_ABYSS) != 0 && !pathfinding_world->get_nav_thing_is_flying())
+        return NavigationRule_Blocked;
     if ((treeB & NAVMAP_UNSAFE_SURFACE) == 0)
         return NavigationRule_Normal;
     if ((treeA & NAVMAP_UNSAFE_SURFACE) != 0)
@@ -2541,6 +2543,7 @@ static AriadneReturn ariadne_prepare_creature_route_to_target_f(const struct Thi
     memset(&path, 0, sizeof(struct Path));
     // Set the required parameters
     pathfinding_world->set_nav_thing_can_travel_over_lava(pathfinding_world->creature_can_travel_over_lava(thing));
+    pathfinding_world->set_nav_thing_is_flying(pathfinding_world->thing_is_flying(thing));
     if ((flags & AridRtF_NoOwner) != 0)
         pathfinding_world->set_owner_player_navigating(-1);
     else
@@ -2552,6 +2555,7 @@ static AriadneReturn ariadne_prepare_creature_route_to_target_f(const struct Thi
         dstpos->x.val, dstpos->y.val, -2, nav_sizexy, func_name);
     // Reset globals
     pathfinding_world->set_nav_thing_can_travel_over_lava(0);
+    pathfinding_world->set_nav_thing_is_flying(0);
     pathfinding_world->set_owner_player_navigating(-1);
     // Fill the Ariadne struct
     arid->startpos.x.val = srcpos->x.val;
@@ -2618,6 +2622,7 @@ long ariadne_count_waypoints_on_creature_route_to_target_f(const struct Thing *t
     memset(&path, 0, sizeof(struct Path));
     // Set the required parameters
     pathfinding_world->set_nav_thing_can_travel_over_lava(pathfinding_world->creature_can_travel_over_lava(thing));
+    pathfinding_world->set_nav_thing_is_flying(pathfinding_world->thing_is_flying(thing));
     if ((flags & AridRtF_NoOwner) != 0)
         pathfinding_world->set_owner_player_navigating(-1);
     else
@@ -2629,6 +2634,7 @@ long ariadne_count_waypoints_on_creature_route_to_target_f(const struct Thing *t
         dstpos->x.val, dstpos->y.val, -2, nav_sizexy, func_name);
     // Reset globals
     pathfinding_world->set_nav_thing_can_travel_over_lava(0);
+    pathfinding_world->set_nav_thing_is_flying(0);
     pathfinding_world->set_owner_player_navigating(-1);
     // Note: since this point, the function body should be identical to ariadne_prepare_creature_route_to_target().
     NAVIDBG(19,"%s: Finished, %d waypoints",func_name,(int)path.waypoints_num);

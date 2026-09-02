@@ -38,6 +38,7 @@ static PlayerNumber noop_thing_get_owner(const struct Thing *thing) { return 0; 
 static long noop_get_thing_height_at(const struct Thing *thing, const struct Coord3d *pos) { return 0; }
 static long noop_get_floor_height_under_thing_at(const struct Thing *thing, const struct Coord3d *pos) { return 0; }
 static TbBool noop_creature_can_travel_over_lava(const struct Thing *creatng) { return false; }
+static TbBool noop_thing_is_flying(const struct Thing *thing) { return false; }
 static const char *noop_thing_model_name(const struct Thing *thing) { return ""; }
 static struct Coord3d noop_thing_get_position(const struct Thing *thing) { struct Coord3d pos = {0}; return pos; }
 static void noop_thing_set_position(struct Thing *thing, const struct Coord3d *pos) {}
@@ -66,6 +67,9 @@ static long noop_get_owner_player_navigating(void) { return -1; }
 static void noop_set_owner_player_navigating(long plyr_idx) {}
 static long noop_get_nav_thing_can_travel_over_lava(void) { return 0; }
 static void noop_set_nav_thing_can_travel_over_lava(long can_travel) {}
+static long noop_get_nav_thing_is_flying(void) { return 0; }
+static void noop_set_nav_thing_is_flying(long is_flying) {}
+static TbBool noop_subtile_has_abyss_on_top(MapSubtlCoord stl_x, MapSubtlCoord stl_y) { return false; }
 
 static const struct PathfindingWorldCallbacks default_pathfinding_world = {
     &noop_get_map_size_x,
@@ -93,6 +97,7 @@ static const struct PathfindingWorldCallbacks default_pathfinding_world = {
     &noop_get_thing_height_at,
     &noop_get_floor_height_under_thing_at,
     &noop_creature_can_travel_over_lava,
+    &noop_thing_is_flying,
     &noop_thing_model_name,
     &noop_thing_get_position,
     &noop_thing_set_position,
@@ -121,6 +126,9 @@ static const struct PathfindingWorldCallbacks default_pathfinding_world = {
     &noop_set_owner_player_navigating,
     &noop_get_nav_thing_can_travel_over_lava,
     &noop_set_nav_thing_can_travel_over_lava,
+    &noop_get_nav_thing_is_flying,
+    &noop_set_nav_thing_is_flying,
+    &noop_subtile_has_abyss_on_top,
 };
 const struct PathfindingWorldCallbacks *pathfinding_world = &default_pathfinding_world;
 

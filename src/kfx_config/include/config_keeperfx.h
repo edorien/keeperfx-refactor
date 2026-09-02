@@ -114,6 +114,7 @@ struct StartupParameters {
     // both ranked below app_entry.
     char autostart_multiplayer_campaign[80];
     int autostart_multiplayer_level;
+    int autostart_multiplayer_users_expected;
     TbBool force_player_num;
 #ifdef FUNCTESTING
     unsigned char functest_flags;

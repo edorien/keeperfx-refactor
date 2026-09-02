@@ -33,6 +33,7 @@
 #include "config_campaigns.h"
 #include "kfx_config_state.h"
 #include "moonphase.h"
+#include "matchmaking_config.h"
 // Real usage: start_params/Clo_* (command-line override state). Used to
 // arrive transitively via bflib_datetm.h -> keeperfx.hpp; made explicit
 // after that transitive include was removed (see
@@ -189,6 +190,7 @@ const struct NamedCommand conf_commands[] = {
   {"VSYNC"                         , 44},
   {"RELATIVE_MOUSE_MODE"           , 45},
   {"CAPTURE_CURSOR"                , 46},
+  {"MATCHMAKING_SERVER"            , 47},
   {NULL,                   0},
   };
 
@@ -436,7 +438,7 @@ static void load_file_configuration(const char *fname, const char *sname, const 
       int cmd_num = recognize_conf_command(buf, &pos, len, conf_commands);
       // Now store the config item in correct place
       int k;
-      char word_buf[32];
+      char word_buf[128];
       switch (cmd_num)
       {
       case 1: // INSTALL_PATH
@@ -1064,6 +1066,21 @@ static void load_file_configuration(const char *fname, const char *sname, const 
             break;
           }
           if (i!=1) lbMouseGrab = false;
+          break;
+      case 47: // MATCHMAKING_SERVER
+          get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf));
+          if (get_id(logicval_type, word_buf) == 2)
+          {
+              matchmaking_config->set_enabled(false);
+              matchmaking_config->set_server(NULL);
+              SYNCLOG("Matchmaking disabled (server set to OFF)");
+          }
+          else
+          {
+              matchmaking_config->set_enabled(true);
+              matchmaking_config->set_server(word_buf);
+              SYNCLOG("Matchmaking server: %s", matchmaking_config->get_ws_url());
+          }
           break;
       case ccr_comment:
           break;
