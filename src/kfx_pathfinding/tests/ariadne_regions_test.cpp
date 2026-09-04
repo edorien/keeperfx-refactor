@@ -1,36 +1,37 @@
-// kfx_pathfinding: ariadne_regions.c -- targeted per the user's request to
-// focus coverage around scripts/check_layering.py's CURRENTLY-FAILING
-// (not accepted) kfx_pathfinding -> kfx_sim violation: this file
-// #includes kfx_sim's player_data.h, but only for two symbols --
-// PLAYERS_COUNT (a plain #define) and PlayerNumber (which is actually
-// typedef'd in kfx_platform's globals.h already, not player_data.h at
-// all). The one and only place PLAYERS_COUNT is used is
-// navigation_regions_connected()'s owner-range bounds check -- so that
-// function is this file's most direct test target for derisking a
-// future fix of the violation (e.g. passing the bound in as a parameter
-// instead of including the header for one constant).
+// kfx_pathfinding: ariadne_regions.c.
 //
-// region_store_init/region_get/region_put (a plain circular queue, no
-// dependencies) and regions_connected()'s early-return bounds/blocking
-// checks are covered too, both because they're cheap and because
-// navigation_regions_connected() delegates its own bounds/blocking
-// pass-through straight to regions_connected().
+// Was previously targeted (docs/refactor/todo/
+// two-remaining-layering-violations.md) around navigation_regions_connected(),
+// this file's reason for including kfx_sim's player_data.h (later
+// kfx_config_state.h) for PLAYERS_COUNT. Upstream's "Fix pathfinding lag
+// behind lava" (#5190) removed that function entirely -- its BFS moved
+// into ariadne.c as a static navigation_triangle_reachable() that no
+// longer takes an owner parameter at all (delegates to
+// navigation_rule_normal(), which reads owner_player_navigating via
+// pathfinding_world-> instead) -- so both the function and the header
+// include it justified are gone from this file now. Not independently
+// unit-tested: it's static in ariadne.c, unlike
+// navigation_regions_connected() which lived here as an
+// externally-linkable function.
 //
-// navigation_regions_connected()'s owner-in-range path additionally
-// requires regions_connected() to return true, which (for two
-// **never-yet-connected** triangles) means walking the real
-// region_connect()/region_lnk() BFS over Triangles[].tags[] -- exactly
-// the "needs a small triangulated fixture" territory stage-08's docs
-// flagged for this library's other untested functions. Built the
-// smallest possible one here: two triangles with a single mutual
-// tag-link at corner 0 (all other corners -1, i.e. open/border edges) --
-// hand-traced through region_alloc/region_lnk/region_connect's actual
-// bodies before asserting, confirmed against the real run, not assumed.
+// What's left to cover: region_store_init/region_get/region_put (a
+// plain circular queue, no dependencies) and regions_connected()'s
+// early-return bounds/blocking checks and real BFS path.
+//
+// regions_connected()'s "two never-yet-connected triangles" case means
+// walking the real region_connect()/region_lnk() BFS over
+// Triangles[].tags[] -- exactly the "needs a small triangulated
+// fixture" territory stage-08's docs flagged for this library's other
+// untested functions. Built the smallest possible one here: two
+// triangles with a single mutual tag-link at corner 0 (all other
+// corners -1, i.e. open/border edges) -- hand-traced through
+// region_alloc/region_lnk/region_connect's actual bodies before
+// asserting, confirmed against the real run, not assumed.
 #include <catch2/catch_test_macros.hpp>
 
 #include "ariadne_regions.h"
 #include "ariadne_tringls.h"
-#include "ariadne.h" // NAVMAP_FLOORHEIGHT_MAX/_MASK, NAVMAP_OWNERSELECT_BIT
+#include "ariadne.h" // NAVMAP_FLOORHEIGHT_MAX/_MASK
 
 #include <cstring>
 
@@ -97,43 +98,6 @@ TEST_CASE_METHOD(ResetRegions, "regions_connected reports two never-linked trian
     // region for A alone; B is never reached, so it stays in the
     // (different) default region.
     CHECK_FALSE(regions_connected(kTriA, kTriB));
-}
-
-TEST_CASE_METHOD(ResetRegions, "navigation_regions_connected passes through regions_connected's false result regardless of owner", "[kfx_pathfinding][ariadne_regions]") {
-    Triangles[kTriA].tree_alt = NAVMAP_FLOORHEIGHT_MAX;
-    CHECK_FALSE(navigation_regions_connected(kTriA, kTriB, 0));
-    CHECK_FALSE(navigation_regions_connected(kTriA, kTriB, -1));
-}
-
-TEST_CASE_METHOD(ResetRegions, "navigation_regions_connected is true for a connected pair with no owner-specific block set", "[kfx_pathfinding][ariadne_regions]") {
-    link_a_and_b();
-    CHECK(navigation_regions_connected(kTriA, kTriB, 3));
-}
-
-TEST_CASE_METHOD(ResetRegions, "navigation_regions_connected is true when the triangle is blocked for that specific owner", "[kfx_pathfinding][ariadne_regions]") {
-    // Counterintuitive on a first read: a region reserved/blocked for a
-    // given owner short-circuits to *true*, not false -- tested as the
-    // function's actual documented-by-code behavior, the same "test
-    // what's there" discipline used throughout this plan.
-    link_a_and_b();
-    Triangles[kTriA].tree_alt = (NavColour)(1 << (NAVMAP_OWNERSELECT_BIT + 2)); // blocks owner 2 only
-    CHECK(navigation_regions_connected(kTriA, kTriB, 2));
-}
-
-TEST_CASE_METHOD(ResetRegions, "navigation_regions_connected's owner-specific block doesn't affect a different owner", "[kfx_pathfinding][ariadne_regions]") {
-    link_a_and_b();
-    Triangles[kTriA].tree_alt = (NavColour)(1 << (NAVMAP_OWNERSELECT_BIT + 2)); // blocks owner 2 only
-    CHECK(navigation_regions_connected(kTriA, kTriB, 3)); // still true, via the real BFS this time, not the block
-}
-
-TEST_CASE_METHOD(ResetRegions, "navigation_regions_connected accepts an out-of-range owner as 'no player restriction'", "[kfx_pathfinding][ariadne_regions]") {
-    // The exact reason this file includes kfx_sim's player_data.h: only
-    // for the PLAYERS_COUNT bound checked here (9, hardcoded rather than
-    // pulling in the header from this test, since PLAYERS_COUNT is the
-    // only symbol from it this file's logic actually needs).
-    link_a_and_b();
-    CHECK(navigation_regions_connected(kTriA, kTriB, -1));
-    CHECK(navigation_regions_connected(kTriA, kTriB, 9)); // == PLAYERS_COUNT
 }
 
 // region_set_f/region_unset_f/region_unlock all mutate the module-private

@@ -1949,6 +1949,16 @@ TbBool parse_credits_block(struct CreditsItem *credits,char *buf,char *buffer_en
 TbBool setup_campaign_credits_data(struct GameCampaign *campgn)
 {
   SYNCDBG(18,"Starting");
+  if (campgn->credits_fname[0] == '\0') {
+    // CREDITS is optional in the campaign file. Without this check,
+    // prepare_file_path() resolves the empty filename to the bare
+    // FGrp_LandView directory, which LbFileOpen()/fopen() happily opens
+    // (Linux allows opening a directory for reading); ftell() after
+    // seeking to its end then returns LONG_MAX instead of failing, so the
+    // bogus "file length" sails past the filelen<=0 check below and blows
+    // up the KfxCalloc() a few lines down.
+    return false;
+  }
   char* fname = prepare_file_path(FGrp_LandView, campgn->credits_fname);
   long filelen = LbFileLengthRnc(fname);
   if (filelen <= 0)

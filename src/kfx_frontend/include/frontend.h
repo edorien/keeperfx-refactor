@@ -34,7 +34,7 @@ extern "C" {
 // Limits for GUI arrays
 #define ACTIVE_BUTTONS_COUNT        100
 #define MENU_LIST_ITEMS_COUNT       52
-#define FRONTEND_BUTTON_INFO_COUNT 115
+#define FRONTEND_BUTTON_INFO_COUNT 117
 // Symbolic names for frontend_button_info[]'s populated slots (frontend.cpp),
 // each an exact rename of a numeric position -- FEBtn_Foo = N means slot N
 // held that meaning already, nothing renumbered. Only genuine, verified
@@ -115,6 +115,8 @@ enum FrontEndBtnStrIdx {
     FEBtn_MnuMapPacks = 112,
     FEBtn_MnuMpMapPacks = 113,
     FEBtn_MnuReturnToLobby = 114,
+    FEBtn_MnuEnterLand = 115,
+    FEBtn_MnuPlayLevel = 116,
 };
 #define NET_MESSAGES_COUNT           8
 #define NET_MESSAGE_LEN             64

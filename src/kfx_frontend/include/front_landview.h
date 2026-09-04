@@ -100,11 +100,27 @@ const struct TbSprite *get_ensign_sprite_for_level(struct LevelInformation *lvin
 void set_level_name_text(LevelNumber lvnum, const char *lv_name);
 void draw_map_level_descriptions(void);
 
+// Reused as-is (no PhysicalScreenWidth/Height coupling) by
+// frontmenu_landpreview.c's panel-scoped embedding.
+// is_over_ensign is NOT reused, despite being close: it reads the global
+// map_info.screen_shift_x/y and units_per_pixel_landview directly rather
+// than taking them as parameters, both of which are this cutscene's own
+// full-screen state, not the panel's independent pan/scale -- the panel
+// has its own equivalent hit-test instead (land_preview_point_over_ensign
+// in frontmenu_landpreview.c).
+const struct TbSprite *get_map_ensign(long idx);
+TbBool load_map_and_window(LevelNumber lvnum);
+void unload_map_and_window(void);
+TbBool load_map_ensign_sprites(void);
+extern LevelNumber mouse_over_lvnum;
+
 TbBool initialize_description_speech(void);
+TbBool stop_description_speech(void);
 TbBool play_current_description_speech(short play_good);
 TbBool play_description_speech(LevelNumber lvnum, short play_good);
 void check_mouse_scroll(void);
 void update_velocity(void);
+void update_ensigns_visibility(void);
 
 extern char level_name[88];
 // frontend_backup_palette moved to kfx_render's vidmode.h (stage 13.3) --

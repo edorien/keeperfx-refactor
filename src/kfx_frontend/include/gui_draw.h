@@ -92,6 +92,15 @@ int simple_gui_panel_sprite_width_units_per_px(const struct GuiButton *gbtn, lon
 TbBool copy_raw8_image_buffer(TbPixel *dst_buf,const int scanline,const int nlines,const int dst_width,const int dst_height,
     const int spw,const int sph,const unsigned char *src_buf,const int src_width,const int src_height);
 
+// Rect-clipped sibling of copy_raw8_image_buffer -- see its doc comment in
+// gui_draw.c. Needed to embed a panned raw image (e.g. the landview
+// backdrop) inside a panel alongside other UI without blanking pixels
+// outside its own rect.
+TbBool copy_raw8_image_buffer_rect(TbPixel *dst_buf,const int scanline,const int nlines,
+    const int rect_x,const int rect_y,const int rect_w,const int rect_h,
+    const int dst_width,const int dst_height,const int spw,const int sph,
+    const unsigned char *src_buf,const int src_width,const int src_height);
+
 void draw_bar64k(long pos_x, long pos_y, int units_per_px, long width);
 void draw_lit_bar64k(long pos_x, long pos_y, int units_per_px, long width);
 void draw_slab64k_background(long pos_x, long pos_y, long width, long height);

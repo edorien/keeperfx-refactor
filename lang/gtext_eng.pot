@@ -5936,3 +5936,13 @@ msgstr ""
 msgctxt "Network game message"
 msgid "Lost connection to server"
 msgstr ""
+
+#: guitext:1123
+msgctxt "Menu interface, Land selection item"
+msgid "Enter this land"
+msgstr ""
+
+#: guitext:1124
+msgctxt "Menu interface, Free play item"
+msgid "Play this level"
+msgstr ""

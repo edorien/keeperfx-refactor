@@ -75,6 +75,7 @@ const struct NamedCommand cmpgn_common_commands[] = {
   {"NAME_TEXT_ID",       20},
   {"ASSIGN_CPU_KEEPERS", 21},
   {"SOUNDTRACK",         22},
+  {"DESCRIPTION",        23},
   {NULL,                  0},
   };
 
@@ -192,6 +193,7 @@ TbBool clear_campaign(struct GameCampaign *campgn)
   int i;
   SYNCDBG(10,"Starting");
   memset(campgn->name,0,LINEMSG_SIZE);
+  memset(campgn->description,0,CAMPAIGN_DESCRIPTION_LEN);
   memset(campgn->fname,0,DISKPATH_SIZE);
   memset(campgn->levels_location,0,DISKPATH_SIZE);
   memset(campgn->speech_location,0,DISKPATH_SIZE);
@@ -690,6 +692,14 @@ short parse_campaign_common_blocks(struct GameCampaign *campgn,char *buf,long le
                 COMMAND_TEXT(cmd_num), campgn->name, config_textname);
           }
           break;
+      case 23: // DESCRIPTION
+          i = get_conf_parameter_whole(buf,&pos,len,campgn->description,CAMPAIGN_DESCRIPTION_LEN);
+          if (i <= 0)
+          {
+              CONFWRNLOG("Couldn't read \"%s\" command parameter in %s %s file.",
+                COMMAND_TEXT(cmd_num), campgn->name, config_textname);
+          }
+          break;
       case ccr_comment:
           break;
       case ccr_endOfFile:
@@ -996,9 +1006,15 @@ short parse_campaign_map_block(long lvnum, unsigned long lvoptions, char *buf, l
             }
             break;
         case 10: // AUTHOR
-        case 11: // DESCRIPTION
         case 12: // DATE
             // As for now, ignore these
+            break;
+        case 11: // DESCRIPTION
+            if (get_conf_parameter_whole(buf,&pos,len,lvinfo->description,LEVEL_DESCRIPTION_LEN) <= 0)
+            {
+                CONFWRNLOG("Couldn't read \"%s\" parameter in [%s] block of '%s' file.",
+                    COMMAND_TEXT(cmd_num),block_buf,config_textname);
+            }
             break;
         case 13: // MAPSIZE
             if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)

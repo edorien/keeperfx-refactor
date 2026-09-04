@@ -36,6 +36,7 @@
 #include "packets.h"
 #include "frontend.h"
 #include "frontmenu_selectlist.h"
+#include "frontmenu_landpreview.h"
 #include "front_landview.h"
 #include "sprites.h"
 #include "front_network.h"
@@ -68,11 +69,24 @@ static struct FrontendSelectList mappack_select_list =
 static struct FrontendSelectList mp_mappack_select_list =
     { .items_visible_max = frontend_select_mp_mappack_items_max_visible, .item_count = frontend_mp_mappack_select_count, .row_base = FE_SELECTLIST_ROW_BASE };
 
-// Merged Free play screen (mappack list + level list, both shown together
-// on one screen instead of navigating between two): which mappack the list
-// is currently highlighting, so a repeat click on the same row is a no-op
-// and so the screen can auto-highlight the first mappack on entry.
+// Land selection screen (merged campaign list + interactive land preview):
+// which campaign the list is currently highlighting -- NULL until
+// frontend_campaign_list_load/frontend_campaign_select first sets it.
+// land_preview.highlighted_lvnum (frontmenu_landpreview.h) tracks the
+// finer-grained "which level's ensign was clicked" on top of this.
+static struct GameCampaign *land_selection_highlighted_campaign = NULL;
+
+// Merged Free play screen (mappack list + level list + land preview):
+// which mappack the list is currently highlighting, and which level
+// within it -- both NULL/0 until frontend_mappack_list_load/
+// frontend_mappack_select/frontend_level_select first set them. Unlike
+// Land selection, land_preview.highlighted_lvnum isn't reused for this:
+// that field tracks an ensign clicked *inside* the preview panel, and
+// this screen's preview never shows ensigns (see
+// LandPreviewPanel.show_ensigns) -- level highlight comes from the level
+// list instead.
 static struct GameCampaign *freeplay_highlighted_mappack = NULL;
+static LevelNumber freeplay_highlighted_level = 0;
 
 static long frontend_level_select_count(void)
 {
@@ -159,11 +173,22 @@ void frontend_draw_level_select_button(struct GuiButton *gbtn)
 
 void frontend_draw_levels_scroll_tab(struct GuiButton *gbtn)
 {
+    // frontend_draw_scroll_tab (frontend.cpp) only ever draws the movable
+    // thumb sprite -- never a groove/track of its own. The ornate
+    // GFS_scrollbar_vert_ct_long/short groove sprite (what the classic
+    // frontend_draw_scroll_box's own draw_scrollbar=true mode uses) reads
+    // as a free-floating fragment sitting on its own in this screen's
+    // narrower column, without the rest of that box's border around it --
+    // a plain thin line reads better here, with no up/down arrows drawn at
+    // all (see this screen's up/down buttons, which no longer have a
+    // draw_call).
+    frontend_draw_simple_scroll_track(gbtn);
     frontend_selectlist_draw_scroll_tab(&level_select_list, gbtn);
 }
 
-// Commits the level directly on click, same as the original single-list
-// Free play screen -- no preview/highlight step for freeplay levels.
+// Highlights a level under a clicked row: loads its own land preview
+// (no ensigns -- see LandPreviewPanel.show_ensigns). Committing is
+// frontend_freeplay_enter's job -- see the header.
 void frontend_level_select(struct GuiButton *gbtn)
 {
     long i = frontend_selectlist_row_to_item_index(&level_select_list, gbtn);
@@ -172,8 +197,10 @@ void frontend_level_select(struct GuiButton *gbtn)
       lvnum = campaign.freeplay_levels[i];
     if (lvnum <= 0)
         return;
-    kfx_sim_state.selected_level_number = lvnum;
-    frontend_set_state(FeSt_START_KPRLEVEL);
+    if (lvnum == freeplay_highlighted_level)
+        return;
+    freeplay_highlighted_level = lvnum;
+    land_preview_load(&land_preview, lvnum, false);
 }
 
 void frontend_level_list_unload(void)
@@ -265,6 +292,10 @@ void frontend_draw_campaign_select_button(struct GuiButton *gbtn)
     LbTextDrawResized(0, 0, tx_units_per_px, campgn->display_name);
 }
 
+/** Highlights a campaign under a clicked list row: loads its land preview
+ * and resets the detail panel to the campaign's own description.
+ * Committing is frontend_land_selection_enter's job -- see the header.
+ */
 void frontend_campaign_select(struct GuiButton *gbtn)
 {
     if (gbtn == NULL)
@@ -275,12 +306,227 @@ void frontend_campaign_select(struct GuiButton *gbtn)
         campgn = &campaigns_list.items[i];
     if (campgn == NULL)
         return;
-    if (!frontend_start_new_campaign(campgn->fname))
+    if (campgn == land_selection_highlighted_campaign)
+        return; // already highlighted, nothing to reload
+    if (!change_campaign(CampgnT_Campaign, campgn->fname))
+    {
+        ERRORLOG("Unable to load campaign for land preview");
+        return;
+    }
+    land_selection_highlighted_campaign = campgn;
+    // land_preview_load() releases the previous ensign sheet itself and
+    // doesn't need land_preview_unload() first -- that also tears down
+    // gameplay state meant for actually leaving this screen (see its
+    // comment), which running on every campaign click would be wasteful
+    // and risk the crash-after-several-switches class of bug.
+    land_preview_load(&land_preview, SINGLEPLAYER_NOTSTARTED, true);
+}
+
+/** "Enter this land": commits whichever the detail panel is currently
+ * showing -- the highlighted level within the highlighted campaign if an
+ * ensign was clicked in the preview panel, otherwise the campaign's own
+ * first level, same as the old immediate-commit-on-row-click behavior.
+ */
+// Neither of these unloads the land preview themselves --
+// frontend_set_state always calls frontend_shutdown_state(<state being
+// left>) first, which does it centrally for every way of leaving
+// FeSt_CAMPAIGN_SELECT (these two buttons, but also e.g. an ESC handler
+// added later), the same way FeSt_LAND_VIEW's frontmap_unload() already
+// works.
+void frontend_land_selection_enter(struct GuiButton *gbtn)
+{
+    if (land_selection_highlighted_campaign == NULL)
+        return;
+    if (!frontend_start_new_campaign(land_selection_highlighted_campaign->fname))
     {
         ERRORLOG("Unable to start new campaign");
         return;
     }
-    frontend_set_state(FeSt_CAMPAIGN_INTRO);
+    // FeSt_CAMPAIGN_INTRO immediately redirects to FeSt_LAND_VIEW
+    // (frontend_setup_state's redirect table) -- the old full-screen
+    // cutscene this screen replaces. What actually launches a level
+    // without it is FeSt_START_KPRLEVEL, driven by
+    // set_selected_level_number (not set_continue_level_number, which
+    // only sets the *resume point* for "Continue Game") -- same call
+    // clicked_map_level_ensign() used to make before triggering it via
+    // the old zoom-in animation.
+    LevelNumber lvnum = (land_preview.highlighted_lvnum != SINGLEPLAYER_NOTSTARTED)
+        ? land_preview.highlighted_lvnum : first_singleplayer_level();
+    set_selected_level_number(lvnum);
+    frontend_set_state(FeSt_START_KPRLEVEL);
+}
+
+void frontend_land_selection_return_to_main(struct GuiButton *gbtn)
+{
+    frontend_set_state(FeSt_MAIN_MENU);
+}
+
+/** A resizable panel background, genuinely independent of width/height
+ * (unlike frontend_draw_scroll_box/_tab, which couples row height to
+ * width -- see gui_draw_scroll_box's own comment). Reuses the same ornate
+ * hugearea border art as the classic scroll box, at native scale, cropped
+ * to this panel's own (narrower) rect -- see gui_draw_scroll_box_cropped's
+ * comment -- instead of a flat opaque fill.
+ */
+void frontend_draw_land_selection_panel_bg(struct GuiButton *gbtn)
+{
+    gui_draw_scroll_box_cropped(gbtn, false);
+}
+
+/** Detail panel: the highlighted level's name+description if an ensign is
+ * highlighted, otherwise the highlighted campaign's own.
+ */
+void frontend_draw_land_selection_detail(struct GuiButton *gbtn)
+{
+    const char *name = NULL;
+    const char *description = NULL;
+    if (land_preview.highlighted_lvnum != SINGLEPLAYER_NOTSTARTED)
+    {
+        struct LevelInformation *lvinfo = get_level_info(land_preview.highlighted_lvnum);
+        if (lvinfo != NULL)
+        {
+            name = (lvinfo->name_stridx > 0) ? get_string(lvinfo->name_stridx) : lvinfo->name;
+            description = lvinfo->description;
+        }
+    }
+    if ((name == NULL) && (land_selection_highlighted_campaign != NULL))
+    {
+        name = land_selection_highlighted_campaign->display_name;
+        description = land_selection_highlighted_campaign->description;
+    }
+    if (name == NULL)
+        return;
+    frontend_draw_land_selection_panel_bg(gbtn);
+    RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
+    // Fixed ~20px-tall reference line for the name, independent of
+    // gbtn->height -- deriving scale from the *panel's* full height (as
+    // frontend_draw_product_version-style code does for a short, single-
+    // line button) stretches the text to fill this whole multi-line
+    // panel, rendering it far too large. Description follows at half
+    // that scale; LbTextDrawResized already word-wraps within
+    // LbTextSetWindow's width, no extra wrapping needed.
+    LbTextSetFont(frontend_font[1]);
+    int name_upp = (20 * 13 / 11) * 16 / LbTextLineHeight();
+    int name_line_h = LbTextLineHeight() * name_upp / 16;
+    long pad = 10 * name_upp / 16;
+    long inner_x = gbtn->scr_pos_x + pad;
+    long inner_w = gbtn->width - 2*pad;
+    LbTextSetWindow(inner_x, gbtn->scr_pos_y + pad, inner_w, name_line_h);
+    LbTextDrawResized(0, 0, name_upp, name);
+    if ((description != NULL) && (description[0] != '\0'))
+    {
+        int desc_upp = max(4, name_upp / 2);
+        long desc_y = gbtn->scr_pos_y + pad + name_line_h + (4 * name_upp / 16);
+        long desc_h = gbtn->scr_pos_y + gbtn->height - pad - desc_y;
+        if (desc_h > 0)
+        {
+            LbTextSetWindow(inner_x, desc_y, inner_w, desc_h);
+            LbTextDrawResized(0, 0, desc_upp, description);
+        }
+    }
+}
+
+// "Return to Main"/"Enter this land" are frontend_draw_button_icon
+// buttons, same as the main menu's -- auto-sized to their own caption via
+// frontend_menu_button_natural_width (frontend.h, the same helper
+// frontend.cpp's main-menu buttons use), chained left-to-right from
+// FE_LANDSEL_COL_X (not from FE_LANDSEL_PANEL_X, the preview column's own
+// start -- anchoring the two from opposite ends of only ~384px risks
+// overlap depending on their actual rendered width; starting both at the
+// screen's left margin gives the full ~590px budget the main menu's own
+// bottom row uses). Return sits on the left, Enter/Play on the right.
+#define FE_LANDSEL_BOTTOMROW_GAP 24
+
+void frontend_land_selection_enter_maintain(struct GuiButton *gbtn)
+{
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    long x = FE_LANDSEL_COL_X + frontend_menu_button_natural_width(FEBtn_MnuReturnToMain, units_per_px)
+        + FE_LANDSEL_BOTTOMROW_GAP * units_per_px / 16;
+    gbtn->width = frontend_menu_button_natural_width(FEBtn_MnuEnterLand, units_per_px);
+    gbtn->pos_x = x;
+    gbtn->scr_pos_x = x;
+}
+
+void frontend_land_selection_return_to_main_maintain(struct GuiButton *gbtn)
+{
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    gbtn->width = frontend_menu_button_natural_width(FEBtn_MnuReturnToMain, units_per_px);
+    gbtn->pos_x = FE_LANDSEL_COL_X;
+    gbtn->scr_pos_x = FE_LANDSEL_COL_X;
+}
+
+// "Play this level": commits the highlighted level directly, same as the
+// original (pre-merge) frontend_level_select did on click -- no
+// intermediate cutscene for free play, unlike campaign levels.
+// frontend_shutdown_state's FeSt_MAPPACK_SELECT case unloads the preview
+// centrally (mirrors FeSt_CAMPAIGN_SELECT's), not this function.
+void frontend_freeplay_enter(struct GuiButton *gbtn)
+{
+    if (freeplay_highlighted_level <= 0)
+        return;
+    kfx_sim_state.selected_level_number = freeplay_highlighted_level;
+    frontend_set_state(FeSt_START_KPRLEVEL);
+}
+
+void frontend_freeplay_return_to_main(struct GuiButton *gbtn)
+{
+    frontend_set_state(FeSt_MAIN_MENU);
+}
+
+// Auto-fit to caption + left-anchored pair, same pattern as Land
+// selection's Enter/Return buttons -- Return on the left, Play on the right.
+void frontend_freeplay_enter_maintain(struct GuiButton *gbtn)
+{
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    long x = FE_LANDSEL_COL_X + frontend_menu_button_natural_width(FEBtn_MnuReturnToMain, units_per_px)
+        + FE_LANDSEL_BOTTOMROW_GAP * units_per_px / 16;
+    gbtn->width = frontend_menu_button_natural_width(FEBtn_MnuPlayLevel, units_per_px);
+    gbtn->pos_x = x;
+    gbtn->scr_pos_x = x;
+}
+
+void frontend_freeplay_return_to_main_maintain(struct GuiButton *gbtn)
+{
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    gbtn->width = frontend_menu_button_natural_width(FEBtn_MnuReturnToMain, units_per_px);
+    gbtn->pos_x = FE_LANDSEL_COL_X;
+    gbtn->scr_pos_x = FE_LANDSEL_COL_X;
+}
+
+/** Detail panel: the highlighted level's name + description. Unlike Land
+ * selection's equivalent there's no campaign-level fallback -- Free play
+ * always has a specific level highlighted (or none at all, if the
+ * mappack has no levels).
+ */
+void frontend_draw_freeplay_detail(struct GuiButton *gbtn)
+{
+    if (freeplay_highlighted_level <= 0)
+        return;
+    struct LevelInformation *lvinfo = get_level_info(freeplay_highlighted_level);
+    if (lvinfo == NULL)
+        return;
+    const char *name = (lvinfo->name_stridx > 0) ? get_string(lvinfo->name_stridx) : lvinfo->name;
+    frontend_draw_land_selection_panel_bg(gbtn);
+    RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
+    LbTextSetFont(frontend_font[1]);
+    int name_upp = (20 * 13 / 11) * 16 / LbTextLineHeight();
+    int name_line_h = LbTextLineHeight() * name_upp / 16;
+    long pad = 10 * name_upp / 16;
+    long inner_x = gbtn->scr_pos_x + pad;
+    long inner_w = gbtn->width - 2*pad;
+    LbTextSetWindow(inner_x, gbtn->scr_pos_y + pad, inner_w, name_line_h);
+    LbTextDrawResized(0, 0, name_upp, name);
+    if (lvinfo->description[0] != '\0')
+    {
+        int desc_upp = max(4, name_upp / 2);
+        long desc_y = gbtn->scr_pos_y + pad + name_line_h + (4 * name_upp / 16);
+        long desc_h = gbtn->scr_pos_y + gbtn->height - pad - desc_y;
+        if (desc_h > 0)
+        {
+            LbTextSetWindow(inner_x, desc_y, inner_w, desc_h);
+            LbTextDrawResized(0, 0, desc_upp, lvinfo->description);
+        }
+    }
 }
 
 void frontend_campaign_select_update(void)
@@ -288,16 +534,30 @@ void frontend_campaign_select_update(void)
     frontend_selectlist_update(&campaign_select_list);
 }
 
+/** A plain thin vertical line behind the scroll thumb, for this screen's
+ * narrower scroll column -- see frontend_draw_levels_scroll_tab's comment
+ * for why the ornate groove sprite doesn't fit here.
+ */
+void frontend_draw_simple_scroll_track(struct GuiButton *gbtn)
+{
+    long track_w = max(4L, gbtn->width / 3);
+    long track_x = gbtn->scr_pos_x + (gbtn->width - track_w) / 2;
+    LbDrawBox(track_x, gbtn->scr_pos_y, track_w, gbtn->height, TbPixel_RGB(0, 0, 0));
+}
+
 void frontend_draw_campaign_scroll_tab(struct GuiButton *gbtn)
 {
+    // See frontend_draw_levels_scroll_tab's comment.
+    frontend_draw_simple_scroll_track(gbtn);
     frontend_selectlist_draw_scroll_tab(&campaign_select_list, gbtn);
 }
 
-/** Switches which mappack is highlighted: loads it (change_campaign) and
+/** Switches which mappack is highlighted: loads it (change_campaign),
  * refreshes the level list to its levels (restarting scroll at the top --
- * it's about to show a different set of levels than whatever the previous
- * mappack's list was scrolled to). Shared by the mappack row's click_event
- * and the screen's own entry point.
+ * it's about to show a different set of levels than whatever the
+ * previous mappack's list was scrolled to), and auto-highlights/previews
+ * that mappack's first level so the panel isn't empty. Shared by the
+ * mappack row's click_event and the screen's own entry point.
  */
 static void freeplay_highlight_mappack(struct GameCampaign *campgn)
 {
@@ -306,14 +566,27 @@ static void freeplay_highlight_mappack(struct GameCampaign *campgn)
     freeplay_highlighted_mappack = campgn;
     level_select_list.scroll_offset = 0;
     frontend_level_list_load();
+    freeplay_highlighted_level = 0;
+    if (campaign.freeplay_levels_count > 0)
+    {
+        LevelNumber lvnum = campaign.freeplay_levels[0];
+        freeplay_highlighted_level = lvnum;
+        land_preview_load(&land_preview, lvnum, false);
+    } else
+    {
+        land_preview_unload(&land_preview);
+    }
 }
 
 // Runs on every entry into FeSt_MAPPACK_SELECT (frontend_setup_state calls
-// it unconditionally), not just this menu's first-ever creation.
+// it unconditionally, same as frontend_campaign_list_load for Land
+// selection), not just this menu's first-ever creation.
 void frontend_mappack_list_load(void)
 {
     frontend_selectlist_set_visible(&mappack_select_list);
     freeplay_highlighted_mappack = NULL;
+    freeplay_highlighted_level = 0;
+    land_preview.loaded = false;
     if (mappacks_list.items_num > 0)
         freeplay_highlight_mappack(&mappacks_list.items[0]);
 }
@@ -515,6 +788,9 @@ void frontend_mp_mappack_select_update(void)
 
 void frontend_draw_mappack_scroll_tab(struct GuiButton *gbtn)
 {
+    // Same groove-behind-the-thumb story as frontend_draw_campaign_scroll_tab
+    // -- see its comment.
+    frontend_draw_simple_scroll_track(gbtn);
     frontend_selectlist_draw_scroll_tab(&mappack_select_list, gbtn);
 }
 
@@ -526,6 +802,22 @@ void frontend_draw_mp_mappack_scroll_tab(struct GuiButton *gbtn)
 void frontend_campaign_list_load(void)
 {
     frontend_selectlist_set_visible(&campaign_select_list);
+    // Highlight the first campaign so the land preview/detail panel isn't
+    // empty on entry, same as an implicit first row click. This runs on
+    // every entry into FeSt_CAMPAIGN_SELECT (frontend_setup_state calls it
+    // unconditionally), not just the menu's first-ever creation, so it's
+    // the right place for this rather than the GuiMenu's create_cb.
+    land_selection_highlighted_campaign = NULL;
+    land_preview.loaded = false;
+    if (campaigns_list.items_num > 0)
+    {
+        struct GameCampaign *campgn = &campaigns_list.items[0];
+        if (change_campaign(CampgnT_Campaign, campgn->fname))
+        {
+            land_selection_highlighted_campaign = campgn;
+            land_preview_load(&land_preview, SINGLEPLAYER_NOTSTARTED, true);
+        }
+    }
 }
 
 void frontend_draw_variable_mappack_exit_button(struct GuiButton *gbtn)

@@ -41,6 +41,8 @@ extern "C" {
 #define CAMPAIGN_CREDITS_COUNT      360
 /** Strings length */
 #define CAMPAIGN_FNAME_LEN           64
+#define CAMPAIGN_DESCRIPTION_LEN    256
+#define LEVEL_DESCRIPTION_LEN       256
 
 enum CreditsItemKind {
     CIK_None,
@@ -77,6 +79,7 @@ struct CreditsItem {
 struct GameCampaign {
   char name[LINEMSG_SIZE];
   char display_name[LINEMSG_SIZE];
+  char description[CAMPAIGN_DESCRIPTION_LEN];
   char fname[DISKPATH_SIZE];
   char levels_location[DISKPATH_SIZE];
   char speech_location[DISKPATH_SIZE];
@@ -143,6 +146,7 @@ struct LevelInformation {
   char land_view[DISKPATH_SIZE];
   char land_window[DISKPATH_SIZE];
   char name[LINEMSG_SIZE];
+  char description[LEVEL_DESCRIPTION_LEN];
   TextStringId name_stridx;
   long players;
   long ensign_x;

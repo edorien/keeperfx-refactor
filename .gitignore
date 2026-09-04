@@ -5,6 +5,13 @@
 /pkg
 /gfx
 /sfx
+# Local working copy of the dkfans/FXGraphics source-art repo (the raw PNGs
+# `make pkg-gfx`/`pkg-enginegfx` build the .dat/.tab sprite sheets from, and
+# the reuse source for frontend chrome -- see
+# docs/refactor/renderer/04-imgui-gui-foundation.md §5.1). Cloned/unpacked
+# here by hand; same treatment as the other game-data folders above.
+/FXGraphics-main/
+/FXGraphics/
 /tools/peresec
 /tools/png2bestpal
 /tools/png2ico

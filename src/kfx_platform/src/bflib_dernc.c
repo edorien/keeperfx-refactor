@@ -432,14 +432,25 @@ long LbFileLengthRnc(const char *fname)
 #if (BFDEBUG_LEVEL > 19)
     LbSyncLog("%s: file opened\n", fname);
 #endif
-    rnc_header header;
-    if (LbFileRead(handle, &header, sizeof(header)) == -1)
+    rnc_header header = {0};
+    int header_read = LbFileRead(handle, &header, sizeof(header));
+    if (header_read != sizeof(header))
     {
 #if (BFDEBUG_LEVEL > 19)
         LbSyncLog("%s: cannot read even %d bytes\n", fname, sizeof(header));
 #endif
+        if (header_read < 0)
+        {
+            LbFileClose(handle);
+            return -1;
+        }
+        // File is smaller than an RNC header -- it can't be RNC-compressed
+        // (header is zero-initialised above, so this doesn't fall through
+        // into reading `signature` as uninitialised stack garbage), so
+        // treat it as a plain file and report its real length.
+        flength = LbFileLengthHandle(handle);
         LbFileClose(handle);
-        return -1;
+        return flength;
     }
     if (header.signature == RNC_SIGNATURE)
     {

@@ -797,9 +797,15 @@ void init_player(struct PlayerInfo *player, short no_explore)
     player->isometric_tilt = settings.isometric_tilt;
     if (is_my_player(player))
     {
-        if (kfx_sim_state.default_tag_mode != 3)
+        // Read keeperfx_ui_config directly rather than via a kfx_sim_state
+        // copy -- clear_complete_game() memsets the whole of kfx_sim_state
+        // once at startup, right after setup_game() would have populated
+        // such a copy, permanently zeroing it for the rest of the process.
+        // keeperfx_ui_config is kfx_config's own struct and isn't touched
+        // by that reset.
+        if (keeperfx_ui_config.default_tag_mode != 3)
         {
-            settings.highlight_mode = kfx_sim_state.default_tag_mode - 1;
+            settings.highlight_mode = keeperfx_ui_config.default_tag_mode - 1;
         }
         player->roomspace_highlight_mode = settings.highlight_mode;
         player->roomspace_mode = settings.highlight_mode;

@@ -60,10 +60,10 @@ static long net_message_count(void) { return net_number_of_messages; }
 // items_visible=2 for session/player/message reproduces their original
 // `scroll_offset < count - 1` down-bound and `first_elem = 0` scroll-tab
 // sizing exactly -- see frontmenu_net.h's comment on these externs.
-struct FrontendSelectList net_service_list = { .items_visible = frontend_services_menu_items_visible, .items_visible_max = frontend_services_menu_items_visible, .item_count = net_service_count };
-struct FrontendSelectList net_session_list = { .items_visible = 2, .item_count = net_session_count };
-struct FrontendSelectList net_player_list = { .items_visible = 2, .item_count = net_player_count };
-struct FrontendSelectList net_message_list = { .items_visible = 2, .item_count = net_message_count };
+struct FrontendSelectList net_service_list = { .items_visible = frontend_services_menu_items_visible, .items_visible_max = frontend_services_menu_items_visible, .item_count = net_service_count, .row_base = FE_SELECTLIST_ROW_BASE };
+struct FrontendSelectList net_session_list = { .items_visible = 2, .item_count = net_session_count, .row_base = FE_SELECTLIST_ROW_BASE };
+struct FrontendSelectList net_player_list = { .items_visible = 2, .item_count = net_player_count, .row_base = FE_SELECTLIST_ROW_BASE };
+struct FrontendSelectList net_message_list = { .items_visible = 2, .item_count = net_message_count, .row_base = FE_SELECTLIST_ROW_BASE };
 
 void frontnet_session_up_maintain(struct GuiButton *gbtn)
 {

@@ -64,17 +64,20 @@ static TbBool try_scroll_select_list_edge(long mouse_x, long mouse_y, float dx, 
         // Row content values are a list's own row_base (frontmenu_selectlist.h's
         // struct FrontendSelectList.row_base) + row index -- this
         // "am I hovering the first/last visible row" check needs both
-        // bounds per list. campaign_select_list and mp_mappack_select_list
-        // use the shared FE_SELECTLIST_ROW_BASE (45)/default 7-row
-        // fallback; mappack_select_list and level_select_list (the merged
-        // Free play screen's two simultaneously-visible lists) each need
-        // their own base/row count instead to avoid colliding content.lval
-        // ranges -- see frontend_select_mappack/level_items_max_visible,
-        // FE_LEVEL_SELECTLIST_ROW_BASE and
-        // docs/refactor/gui/04-phase2-landview-panel-investigation.md.
+        // bounds per list. mp_mappack_select_list is the only one still
+        // using the shared FE_SELECTLIST_ROW_BASE (45)/default 7-row
+        // fallback; campaign_select_list, mappack_select_list and
+        // level_select_list (Land selection and the merged Free play
+        // screen's two simultaneously-visible lists) each have their own
+        // base and/or row count instead -- see
+        // frontend_select_campaign/mappack/level_items_max_visible and
+        // FE_LEVEL_SELECTLIST_ROW_BASE.
         long first_row = 45;
         long last_row = 51;
-        if (gbtn->click_event == frontend_mappack_select) {
+        if (gbtn->click_event == frontend_campaign_select) {
+            first_row = 45;
+            last_row = 45 + frontend_select_campaign_items_max_visible - 1;
+        } else if (gbtn->click_event == frontend_mappack_select) {
             first_row = 45;
             last_row = 45 + frontend_select_mappack_items_max_visible - 1;
         } else if (gbtn->click_event == frontend_level_select) {

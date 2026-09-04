@@ -999,7 +999,13 @@ static void net_callbacks_set_lobby_button_labels(TbBool is_lan)
 
 static unsigned char net_callbacks_get_default_tag_mode(void)
 {
-    return kfx_sim_state.default_tag_mode;
+    // Read keeperfx_ui_config directly rather than a kfx_sim_state copy --
+    // clear_complete_game() memsets the whole of kfx_sim_state (including
+    // any such copy) once at startup, right after setup_game() would have
+    // populated it, permanently zeroing it for the rest of the process.
+    // keeperfx_ui_config is kfx_config's own struct and isn't touched by
+    // that reset.
+    return keeperfx_ui_config.default_tag_mode;
 }
 
 static TbBool net_callbacks_is_frontend_starting_mp_level(void)
@@ -1492,7 +1498,6 @@ short setup_game(void)
   creature_status_size = keeperfx_ui_config.creature_status_size;
   line_box_size = keeperfx_ui_config.line_box_size;
   right_click_tag_mode_toggle = keeperfx_ui_config.right_click_tag_mode_toggle;
-  kfx_sim_state.default_tag_mode = keeperfx_ui_config.default_tag_mode;
   zoom_to_mouse_option = (enum ZoomToMouseOptions)keeperfx_ui_config.zoom_to_mouse_option;
   rotate_around_mouse_option = (enum RotateAroundMouseOptions)keeperfx_ui_config.rotate_around_mouse_option;
 

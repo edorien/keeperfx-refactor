@@ -69,6 +69,7 @@
 #include "frontmenu_specials.h"
 #include "frontmenu_saves.h"
 #include "frontmenu_select.h"
+#include "frontmenu_landpreview.h"
 #include "frontmenu_ingame_tabs.h"
 #include "frontmenu_ingame_evnt.h"
 #include "frontmenu_ingame_opts.h"
@@ -362,6 +363,8 @@ struct FrontEndButtonData frontend_button_info[FRONTEND_BUTTON_INFO_COUNT] = {
     [FEBtn_MnuMapPacks] = { GUIStr_MnuMapPacks, 2 },
     [FEBtn_MnuMpMapPacks] = { GUIStr_MnuMpMapPacks, 2 },
     [FEBtn_MnuReturnToLobby] = { GUIStr_MnuReturnToLobby, 1 },
+    [FEBtn_MnuEnterLand] = { GUIStr_MnuEnterLand, 1 },
+    [FEBtn_MnuPlayLevel] = { GUIStr_MnuPlayLevel, 1 },
 };
 
 // bttn_sprite, tooltip_stridx, msg_stridx, lifespan_turns, turns_between_events, replace_event_kind_button;
@@ -2721,9 +2724,19 @@ void frontend_shutdown_state(FrontendMenuState pstate)
         break;
     case FeSt_MAPPACK_SELECT:
         turn_off_menu(GMnu_MAPPACK_SELECT);
+        // Merged Free play screen's preview panel, same reasoning as
+        // FeSt_CAMPAIGN_SELECT's below -- unload centrally here so every
+        // way of leaving releases it.
+        land_preview_unload(&land_preview);
         break;
     case FeSt_CAMPAIGN_SELECT:
         turn_off_menu(GMnu_FECAMPAIGN_SELECT);
+        // Land selection's preview panel owns loaded map art/ensign
+        // sprites independent of this menu's own button teardown --
+        // unload it centrally here, same as FeSt_LAND_VIEW's
+        // frontmap_unload() elsewhere, so every way of leaving this
+        // screen releases it.
+        land_preview_unload(&land_preview);
         break;
     case FeSt_MP_MAPPACK_SELECT:
         turn_off_menu(GMnu_MP_MAPPACK_SELECT);

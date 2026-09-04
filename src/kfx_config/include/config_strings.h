@@ -475,6 +475,8 @@ enum GUIStrings {
     GUIStr_FxdataZipNotLoaded,
     GUIStr_FxdataZipInstallAsMod,
     GUIStr_NetLobbyConnectionLost,
+    GUIStr_MnuEnterLand,
+    GUIStr_MnuPlayLevel,
     GuiStrEnd
 };
 

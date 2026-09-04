@@ -1058,6 +1058,32 @@ TbBool frontmap_update_zoom(void)
     return false;
 }
 
+/**
+ * Loads map_flag, the land-view ensign sprite sheet, per the active
+ * campaign's land_markers kind, plus any custom ensigns. Split out of
+ * frontmap_load so frontmenu_landpreview.c's panel-scoped preview can
+ * load the same ensign sheet without frontmap_load's continue-level/zoom/
+ * music/ambient-sound orchestration, which is specific to the full-screen
+ * cutscene entry sequence.
+ */
+TbBool load_map_ensign_sprites(void)
+{
+    switch (campaign.land_markers) {
+        case LndMk_PINPOINTS:
+            map_flag = load_spritesheet("ldata/lndflag_pin.dat", "ldata/lndflag_pin.tab");
+            break;
+        default:
+            ERRORLOG("Unsupported land markers type %d",(int)campaign.land_markers);
+            // Fall through
+        case LndMk_ENSIGNS:
+            map_flag = load_spritesheet("ldata/lndflag_ens.dat", "ldata/lndflag_ens.tab");
+            break;
+    }
+    // append any custom ensigns to the sheet
+    map_flag = load_custom_ensigns_into_sheet(map_flag, frontend_palette);
+    return map_flag != NULL;
+}
+
 TbBool frontmap_load(void)
 {
     SYNCDBG(4,"Starting");
@@ -1072,20 +1098,7 @@ TbBool frontmap_load(void)
         frontend_load_data_reset();
         return false;
     }
-    switch (campaign.land_markers) {
-        case LndMk_PINPOINTS:
-            map_flag = load_spritesheet("ldata/lndflag_pin.dat", "ldata/lndflag_pin.tab");
-            break;
-        default:
-            ERRORLOG("Unsupported land markers type %d",(int)campaign.land_markers);
-            // Fall through
-        case LndMk_ENSIGNS:
-            map_flag = load_spritesheet("ldata/lndflag_ens.dat", "ldata/lndflag_ens.tab");
-            break;
-    }
-    // append any custom ensigns to the sheet
-    map_flag = load_custom_ensigns_into_sheet(map_flag, frontend_palette);    
-    if (!map_flag)
+    if (!load_map_ensign_sprites())
     {
         ERRORLOG("Unable to load Land View Screen sprites");
         frontend_load_data_reset();

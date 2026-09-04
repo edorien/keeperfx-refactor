@@ -183,6 +183,100 @@ TbBool copy_raw8_image_buffer(TbPixel *dst_buf,const int scanline,const int nlin
   return true;
 }
 
+/** Rect-clipped sibling of copy_raw8_image_buffer.
+ *
+ * copy_raw8_image_buffer always clears every pixel of every scanline it
+ * touches out to the full buffer width/height (scanline/nlines) -- fine
+ * when its caller owns the whole screen (the land-view cutscene, the
+ * parchment map, the frontend backdrop), actively destructive if the
+ * image needs to sit inside a panel alongside other UI, since it would
+ * blank whatever's drawn beside it every frame.
+ *
+ * This variant confines both the drawing and the margin-clearing to
+ * [rect_x, rect_x+rect_w) x [rect_y, rect_y+rect_h) of dst_buf -- nothing
+ * outside that rect is ever touched. spw/sph are relative to the rect's
+ * own top-left corner (0,0 = rect_x,rect_y) rather than the buffer
+ * origin, and may be negative to pan a source image larger than the
+ * rect, same convention copy_raw8_image_buffer uses relative to the
+ * whole screen.
+ *
+ * @return Gives true on success, false if the rect is degenerate or
+ *     entirely outside the buffer.
+ */
+TbBool copy_raw8_image_buffer_rect(TbPixel *dst_buf,const int scanline,const int nlines,
+    const int rect_x,const int rect_y,const int rect_w,const int rect_h,
+    const int dst_width,const int dst_height,const int spw,const int sph,
+    const unsigned char *src_buf,const int src_width,const int src_height)
+{
+    TbPixel* dst;
+    const unsigned char *pal = RendererGetActivePalette();
+    const TbPixel black = TbPixel_RGB(0, 0, 0);
+    SYNCDBG(18, "Starting; rect %d,%d %d,%d dst size %d,%d pan %d,%d src %d,%d",
+        rect_x, rect_y, rect_w, rect_h, dst_width, dst_height, spw, sph, src_width, src_height);
+
+    int clip_x0 = max(0, rect_x);
+    int clip_y0 = max(0, rect_y);
+    int clip_x1 = min(scanline, rect_x + rect_w);
+    int clip_y1 = min(nlines, rect_y + rect_h);
+    if ((clip_x1 <= clip_x0) || (clip_y1 <= clip_y0))
+        return false;
+
+    // Absolute buffer position of the (possibly panned, possibly
+    // off-rect) drawn image's top-left corner.
+    int abs_spw = rect_x + spw;
+    int abs_sph = rect_y + sph;
+
+    // Clear the rect's own margin above/below the drawn image.
+    for (int sh = clip_y0; sh < min(abs_sph, clip_y1); sh++)
+    {
+        dst = dst_buf + sh*scanline;
+        fill_pixel_run(dst + clip_x0, black, clip_x1 - clip_x0);
+    }
+    for (int sh = max(abs_sph+dst_height, clip_y0); sh < clip_y1; sh++)
+    {
+        dst = dst_buf + sh*scanline;
+        fill_pixel_run(dst + clip_x0, black, clip_x1 - clip_x0);
+    }
+
+    // Now drawing, same source-to-destination scan as
+    // copy_raw8_image_buffer, clamped against the rect instead of the
+    // whole buffer.
+    int dhstart = abs_sph;
+    for (int sh = 0; sh < src_height; sh++)
+    {
+        int dhend = abs_sph + (dst_height * (sh + 1) / src_height);
+        const unsigned char* src = src_buf + sh * src_width;
+        int mhmin = max(clip_y0, dhstart) - dhstart;
+        int mhmax = min(dhend, clip_y1) - dhstart;
+        for (int k = mhmin; k < mhmax; k++)
+        {
+            dst = dst_buf + (dhstart+k)*scanline;
+            int dwstart = abs_spw;
+            if (dwstart > clip_x0) {
+                fill_pixel_run(dst + clip_x0, black, min(dwstart, clip_x1) - clip_x0);
+            }
+            for (int sw=0; sw<src_width; sw++)
+            {
+                int dwend = abs_spw + (dst_width * (sw + 1) / src_width);
+                int mwmin = max(clip_x0, dwstart) - dwstart;
+                int mwmax = min(dwend, clip_x1) - dwstart;
+                TbPixel colour = resolve_indexed_pixel(src[sw], pal);
+                for (int i = mwmin; i < mwmax; i++)
+                {
+                    dst[dwstart+i] = colour;
+                }
+                dwstart = dwend;
+            }
+            if (dwstart < clip_x1) {
+                int from = max(dwstart, clip_x0);
+                fill_pixel_run(dst + from, black, clip_x1 - from);
+            }
+        }
+        dhstart = dhend;
+    }
+    return true;
+}
+
 void draw_bar64k(long pos_x, long pos_y, int units_per_px, long width)
 {
     if (width < 72*units_per_px/16)

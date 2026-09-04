@@ -130,6 +130,20 @@ enum CustomLoadFlags {
 };
 
 static void compress_raw(struct TbHugeSprite *sprite, unsigned char *src_buf, int x, int y, int w, int h, const uint8_t *conversion_table);
+
+// compress_raw() RLE-encodes each row as a sequence of runs: every run emits
+// one control byte, and an opaque run additionally emits one data byte per
+// pixel it covers. Since runs partition the row, a row of width w can never
+// emit more than w control bytes + w data bytes + 1 terminator byte,
+// regardless of the alpha pattern. The old (w+2)*(h+3) sizing assumed long
+// runs (~1 byte/pixel) and could be exceeded by ~50% on fine dithered alpha
+// (a "transparent checkerboard"), overflowing the allocation and corrupting
+// the heap.
+static inline size_t compressed_sprite_buf_size(int w, int h)
+{
+    return (size_t)(2 * w + 1) * (size_t)h;
+}
+
 static uint8_t *create_rgb_to_pal_table(const uint8_t *palette);
 struct SheetLoadContext
 {
@@ -940,7 +954,7 @@ static size_t decode_png_to_sprite(unzFile zip, const char *path, const char *su
         return 0;
     }
 
-    size_t sz = (sprite->SWidth + 2) * (sprite->SHeight + 3);
+    size_t sz = compressed_sprite_buf_size(sprite->SWidth, sprite->SHeight);
 
     sprite->Data = malloc(sz);
     if (sprite->Data == NULL)
@@ -1040,7 +1054,6 @@ static int read_png_data(unzFile zip, const char *path, struct SpriteContext *co
         return 0;
     }
 
-    // This should be enough except rare cases like transparent checkerboard
     int dst_w = (int) context->sprite.SWidth;
     int dst_h = (int) context->sprite.SHeight;
 
@@ -1061,7 +1074,7 @@ static int read_png_data(unzFile zip, const char *path, struct SpriteContext *co
         *context->id_ptr = sprite_idx + KEEPERSPRITE_ADD_OFFSET;
     (*context->id_sz_ptr)++; // Add new sprite for current view (FP/TD)
 
-    size_t sz = (dst_w + 2) * (dst_h + 3);
+    size_t sz = compressed_sprite_buf_size(dst_w, dst_h);
     keepersprite_add[sprite_idx] = malloc(sz);
     context->sprite.Data = keepersprite_add[sprite_idx];
     compress_raw(&context->sprite, dst_buf, context->x, context->y, dst_w, dst_h, NULL);

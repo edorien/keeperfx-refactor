@@ -1242,6 +1242,117 @@ void gui_draw_scroll_box(struct GuiButton *gbtn, int height_lines, TbBool draw_s
     }
 }
 
+/** Draws one row of the hugearea border/fill art as corner + repeating-
+ * middle-tile + corner, at a fixed native scale. Every row "family" in
+ * this art (top/middle-short/middle-long/bottom) is exactly 6 consecutive
+ * sprite ids: [corner_L, tile1..tile4, corner_R] -- see sprites.h's
+ * GFS_hugearea_* block. The corners are always drawn flush to the row's
+ * own left/right edges at their native width; only the middle is tiled
+ * (and, if it doesn't divide evenly, the last tile's right edge overlaps
+ * under the corner rather than leaving a gap -- the corner is drawn last,
+ * on top). This is what lets gui_draw_scroll_box_cropped shrink a box's
+ * width without ever losing its left or right border, unlike clipping
+ * straight across the whole 6-sprite sequence. Returns the row's height.
+ */
+static long gui_draw_scroll_box_row(long pos_y, long width, int units_per_px, long base_spr_idx)
+{
+    const struct TbSprite *lspr = get_frontend_sprite(base_spr_idx);
+    const struct TbSprite *rspr = get_frontend_sprite(base_spr_idx + 5);
+    long row_h = lspr->SHeight * units_per_px / 16;
+    long left_w = lspr->SWidth * units_per_px / 16;
+    long right_w = rspr->SWidth * units_per_px / 16;
+
+    LbSpriteDrawResized(0, pos_y, units_per_px, lspr);
+
+    long x = left_w;
+    long fill_end = width - right_w;
+    int tile = 0;
+    while (x < fill_end)
+    {
+        const struct TbSprite *tspr = get_frontend_sprite(base_spr_idx + 1 + (tile % 4));
+        if (tspr->SWidth <= 0)
+            break;
+        LbSpriteDrawResized(x, pos_y, units_per_px, tspr);
+        x += tspr->SWidth * units_per_px / 16;
+        tile++;
+    }
+
+    LbSpriteDrawResized(width - right_w, pos_y, units_per_px, rspr);
+    return row_h;
+}
+
+/** A resizable variant of gui_draw_scroll_box for panels narrower than the
+ * border art's natural composed width at a legible scale -- gui_draw_scroll_box's
+ * own units_per_px is derived from gbtn->width (see its own comment), which
+ * squashes every row down to an illegible height once width drops much
+ * below the art's full size. This draws the same top-border/repeating-rows/
+ * bottom-border sequence at native 1:1 scale (so row height stays legible
+ * regardless of width) via gui_draw_scroll_box_row (corners fixed, middle
+ * tiled/clipped -- never the border itself), and extends the repeating
+ * rows until the accumulated height fills gbtn->height (measured at draw
+ * time via get_frontend_sprite, not a caller-supplied line count -- there's
+ * no static sprite-size data to precompute this from). A graphics-window
+ * clip to gbtn's own rect is still kept as a safety net against vertical
+ * overshoot and the degenerate case of gbtn->width being narrower than
+ * both corners combined.
+ */
+void gui_draw_scroll_box_cropped(struct GuiButton *gbtn, TbBool draw_scrollbar)
+{
+    const struct TbSprite *spr;
+    long pos_y;
+    long spr_idx;
+    const int units_per_px = 16;
+
+    // Once a graphics window is active, draw coordinates are relative to
+    // the window's own origin, not absolute screen position (confirmed
+    // against gui_vscroll.c's scrl_draw_track, the only other user of this
+    // idiom: it draws at literal (0,0) after LbScreenSetGraphicsWindow) --
+    // every position below is local to gbtn's own rect, starting at (0,0),
+    // not gbtn->scr_pos_x/y.
+    TbGraphicsWindow grwnd;
+    LbScreenStoreGraphicsWindow(&grwnd);
+    LbScreenSetGraphicsWindow(gbtn->scr_pos_x, gbtn->scr_pos_y, gbtn->width, gbtn->height);
+
+    // Draw top border
+    pos_y = 0;
+    long top_h = gui_draw_scroll_box_row(pos_y, gbtn->width, units_per_px, GFS_hugearea_thn_cor_tl);
+    if ( draw_scrollbar )
+        draw_frontend_sprite_left(gbtn->width, pos_y - units_per_px/16, units_per_px, GFS_scrollbar_toparrow_std);
+    pos_y += top_h;
+
+    spr = get_frontend_sprite(GFS_hugearea_thn_cor_bl);
+    long bottom_h = spr->SHeight * units_per_px / 16;
+    long target_y = gbtn->height - bottom_h;
+
+    // Draw inside -- prefer the taller "long" 3-line row group while it
+    // still fits the remaining room, same choice gui_draw_scroll_box makes
+    // from its height_lines countdown, just measured against accumulated
+    // pixel height here instead.
+    while (pos_y < target_y)
+    {
+        long remaining = target_y - pos_y;
+        spr = get_frontend_sprite(GFS_hugearea_thc_cor_ml);
+        long long_h = spr->SHeight * units_per_px / 16;
+        spr_idx = (long_h <= remaining) ? GFS_hugearea_thc_cor_ml : GFS_hugearea_thn_cor_ml;
+        long row_h = gui_draw_scroll_box_row(pos_y, gbtn->width, units_per_px, spr_idx);
+        if ( draw_scrollbar )
+        {
+            long secspr_idx = (spr_idx == GFS_hugearea_thc_cor_ml) ? GFS_scrollbar_vert_ct_long : GFS_scrollbar_vert_ct_short;
+            draw_frontend_sprite_left(gbtn->width, pos_y, units_per_px, secspr_idx);
+        }
+        pos_y += row_h;
+    }
+
+    // Draw bottom border, flush with gbtn's own bottom edge regardless of
+    // whether the last content row landed exactly at target_y.
+    pos_y = gbtn->height - bottom_h;
+    gui_draw_scroll_box_row(pos_y, gbtn->width, units_per_px, GFS_hugearea_thn_cor_bl);
+    if ( draw_scrollbar )
+        draw_frontend_sprite_left(gbtn->width, pos_y, units_per_px, GFS_scrollbar_btmarrow_std);
+
+    LbScreenLoadGraphicsWindow(&grwnd);
+}
+
 /******************************************************************************/
 #ifdef __cplusplus
 }

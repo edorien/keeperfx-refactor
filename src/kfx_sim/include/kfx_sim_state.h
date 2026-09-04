@@ -381,11 +381,16 @@ struct KfxSimState {
     /* Moved from kfx_frontend's frontend.h/frontend.cpp (stage 13.3,
        docs/refactor/stage-13-enforce-and-document.md) -- new_objective
        written by kfx_sim's map_events.c, read by kfx_frontend's
-       frontmenu_ingame_tabs.c; default_tag_mode read by kfx_sim's
-       player_utils.c only (kfx_frontend's own copy was dead storage).
-       kfx_sim is the lowest-ranked of each of their real consumers. */
+       frontmenu_ingame_tabs.c. kfx_sim is the lowest-ranked of its real
+       consumers. (A default_tag_mode copy used to live here too, made
+       once in setup_game() from kfx_config's own keeperfx_ui_config --
+       removed because clear_complete_game()'s wholesale kfx_sim_state
+       memset, which runs right after that one-time copy, permanently
+       zeroed it for the rest of the process. Read
+       keeperfx_ui_config.default_tag_mode directly instead -- kfx_config
+       outranks kfx_sim so this is a normal downward include, and that
+       struct isn't touched by clear_complete_game().) */
     unsigned char new_objective;
-    unsigned char default_tag_mode;
 
     /* Moved from kfx_game's kfx_game_state.h (stage 13.4, docs/refactor/
        stage-13-enforce-and-document.md) -- loaded_level_number/
