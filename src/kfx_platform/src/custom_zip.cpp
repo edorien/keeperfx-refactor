@@ -1,7 +1,7 @@
 /******************************************************************************/
 // Free implementation of Bullfrog's Dungeon Keeper strategy game.
 /******************************************************************************/
-/** @file custom_zip.c
+/** @file custom_zip.cpp
  *     Shared helpers for reading named entries out of a level's mapNNNNN.zip
  *     bundle (custom sprites/icons/lenses, and custom sounds/speech).
  * @par Purpose:
@@ -59,8 +59,8 @@ int fastUnzLocateFile(unzFile zip, const char *szFileName, int iCaseSensitivity)
     if (rec == NULL)
         return UNZ_END_OF_LIST_OF_FILE;
     unz64_file_pos file_pos = {
-            .pos_in_zip_directory = value_int64(value_array_get(rec, 0)),
-            .num_of_file = value_int64(value_array_get(rec, 1))
+            .pos_in_zip_directory = static_cast<ZPOS64_T>(value_int64(value_array_get(rec, 0))),
+            .num_of_file = static_cast<ZPOS64_T>(value_int64(value_array_get(rec, 1)))
     };
     return unzGoToFilePos64(zip, &file_pos);
 }
@@ -110,6 +110,52 @@ int fastUnzClearCache()
 
 /* end of zip stuff */
 
+namespace {
+
+// RAII wrapper around an open minizip archive handle.
+class UnzFileGuard {
+public:
+    explicit UnzFileGuard(const char *path) : zip_(unzOpen(path)) {}
+    ~UnzFileGuard() { if (zip_ != NULL) unzClose(zip_); }
+    UnzFileGuard(const UnzFileGuard &) = delete;
+    UnzFileGuard &operator=(const UnzFileGuard &) = delete;
+    bool is_open() const { return zip_ != NULL; }
+    unzFile get() const { return zip_; }
+private:
+    unzFile zip_;
+};
+
+// Pairs fastUnzConstructCache()/fastUnzClearCache(): the cache must be
+// cleared on every exit path once built, or the next caller to build one
+// trips the "Zip cache is not clear!" guard in fastUnzConstructCache().
+class ZipCacheGuard {
+public:
+    explicit ZipCacheGuard(unzFile zip) : built_(fastUnzConstructCache(zip) == UNZ_OK) {}
+    ~ZipCacheGuard() { if (built_) fastUnzClearCache(); }
+    ZipCacheGuard(const ZipCacheGuard &) = delete;
+    ZipCacheGuard &operator=(const ZipCacheGuard &) = delete;
+    bool built() const { return built_; }
+private:
+    bool built_;
+};
+
+// RAII wrapper around a malloc'd buffer, freed unless released. Stays
+// malloc/free (not new[]/unique_ptr) because read_map_zip_entry hands the
+// buffer to callers that free() it themselves.
+class MallocBuffer {
+public:
+    explicit MallocBuffer(size_t size) : ptr_(static_cast<unsigned char *>(malloc(size))) {}
+    ~MallocBuffer() { free(ptr_); }
+    MallocBuffer(const MallocBuffer &) = delete;
+    MallocBuffer &operator=(const MallocBuffer &) = delete;
+    unsigned char *get() const { return ptr_; }
+    unsigned char *release() { unsigned char *p = ptr_; ptr_ = NULL; return p; }
+private:
+    unsigned char *ptr_;
+};
+
+} // namespace
+
 TbBool read_map_zip_entry(LevelNumber lvnum, const char *entry_name, unsigned char **out_data, size_t *out_size)
 {
     if ((out_data == NULL) || (out_size == NULL) || (entry_name == NULL))
@@ -127,54 +173,52 @@ TbBool read_map_zip_entry(LevelNumber lvnum, const char *entry_name, unsigned ch
         return false;
     }
 
-    unzFile zip = unzOpen(fname);
-    if (zip == NULL)
+    UnzFileGuard zip(fname);
+    if (!zip.is_open())
     {
         return false;
     }
 
-    TbBool ok = false;
-    if (UNZ_OK == fastUnzConstructCache(zip))
+    ZipCacheGuard cache(zip.get());
+    if (!cache.built())
     {
-        if (UNZ_OK == fastUnzLocateFile(zip, entry_name, 0))
-        {
-            unz_file_info64 zip_info = {0};
-            if (UNZ_OK == unzGetCurrentFileInfo64(zip, &zip_info, NULL, 0, NULL, 0, NULL, 0))
-            {
-                if (zip_info.uncompressed_size > 32 * 1024 * 1024)
-                {
-                    WARNLOG("Zip entry too large: '%s' in '%s'", entry_name, fname);
-                }
-                else
-                {
-                    unsigned char *data = malloc((size_t)zip_info.uncompressed_size);
-                    if (data != NULL)
-                    {
-                        if (UNZ_OK == unzOpenCurrentFile(zip))
-                        {
-                            if (unzReadCurrentFile(zip, data, zip_info.uncompressed_size) == (int)zip_info.uncompressed_size)
-                            {
-                                *out_data = data;
-                                *out_size = (size_t)zip_info.uncompressed_size;
-                                ok = true;
-                            }
-                            else
-                            {
-                                WARNLOG("Failed to read '%s' from '%s'", entry_name, fname);
-                                free(data);
-                            }
-                            unzCloseCurrentFile(zip);
-                        }
-                        else
-                        {
-                            free(data);
-                        }
-                    }
-                }
-            }
-        }
-        fastUnzClearCache();
+        return false;
     }
-    unzClose(zip);
-    return ok;
+
+    if (UNZ_OK != fastUnzLocateFile(zip.get(), entry_name, 0))
+    {
+        return false;
+    }
+
+    unz_file_info64 zip_info{};
+    if (UNZ_OK != unzGetCurrentFileInfo64(zip.get(), &zip_info, NULL, 0, NULL, 0, NULL, 0))
+    {
+        return false;
+    }
+    if (zip_info.uncompressed_size > 32 * 1024 * 1024)
+    {
+        WARNLOG("Zip entry too large: '%s' in '%s'", entry_name, fname);
+        return false;
+    }
+
+    MallocBuffer data((size_t)zip_info.uncompressed_size);
+    if (data.get() == NULL)
+    {
+        return false;
+    }
+    if (UNZ_OK != unzOpenCurrentFile(zip.get()))
+    {
+        return false;
+    }
+    int bytes_read = unzReadCurrentFile(zip.get(), data.get(), zip_info.uncompressed_size);
+    unzCloseCurrentFile(zip.get());
+    if (bytes_read != (int)zip_info.uncompressed_size)
+    {
+        WARNLOG("Failed to read '%s' from '%s'", entry_name, fname);
+        return false;
+    }
+
+    *out_size = (size_t)zip_info.uncompressed_size;
+    *out_data = data.release();
+    return true;
 }

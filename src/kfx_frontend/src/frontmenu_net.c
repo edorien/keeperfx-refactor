@@ -52,29 +52,42 @@
 #include "post_inc.h"
 
 /******************************************************************************/
+static long net_service_count(void) { return net_number_of_services; }
+static long net_session_count(void) { return net_number_of_sessions; }
+static long net_player_count(void) { return net_number_of_enum_players; }
+static long net_message_count(void) { return net_number_of_messages; }
+
+// items_visible=2 for session/player/message reproduces their original
+// `scroll_offset < count - 1` down-bound and `first_elem = 0` scroll-tab
+// sizing exactly -- see frontmenu_net.h's comment on these externs.
+struct FrontendSelectList net_service_list = { .items_visible = frontend_services_menu_items_visible, .items_visible_max = frontend_services_menu_items_visible, .item_count = net_service_count };
+struct FrontendSelectList net_session_list = { .items_visible = 2, .item_count = net_session_count };
+struct FrontendSelectList net_player_list = { .items_visible = 2, .item_count = net_player_count };
+struct FrontendSelectList net_message_list = { .items_visible = 2, .item_count = net_message_count };
+
 void frontnet_session_up_maintain(struct GuiButton *gbtn)
 {
-    gbtn->flags ^= (gbtn->flags ^ LbBtnF_Enabled * (net_session_scroll_offset != 0)) & LbBtnF_Enabled;
+    frontend_selectlist_up_maintain(&net_session_list, gbtn);
 }
 
 void frontnet_session_down_maintain(struct GuiButton *gbtn)
 {
-    gbtn->flags ^= (gbtn->flags ^ LbBtnF_Enabled * (net_number_of_sessions - 1 > net_session_scroll_offset)) & LbBtnF_Enabled;
+    frontend_selectlist_down_maintain(&net_session_list, gbtn);
 }
 
 void frontnet_session_maintain(struct GuiButton *gbtn)
 {
-    gbtn->flags ^= (gbtn->flags ^ LbBtnF_Enabled * (net_session_scroll_offset + gbtn->content.lval - 45 < net_number_of_sessions)) & LbBtnF_Enabled;
+    frontend_selectlist_row_maintain(&net_session_list, gbtn);
 }
 
 void frontnet_players_up_maintain(struct GuiButton *gbtn)
 {
-    gbtn->flags ^= (gbtn->flags ^ LbBtnF_Enabled * (net_player_scroll_offset != 0)) & LbBtnF_Enabled;
+    frontend_selectlist_up_maintain(&net_player_list, gbtn);
 }
 
 void frontnet_players_down_maintain(struct GuiButton *gbtn)
 {
-    gbtn->flags ^= (gbtn->flags ^ LbBtnF_Enabled * (net_number_of_enum_players - 1 > net_player_scroll_offset)) & LbBtnF_Enabled;
+    frontend_selectlist_down_maintain(&net_player_list, gbtn);
 }
 
 static TbBool frontnet_can_join_session(void)
@@ -103,12 +116,12 @@ void frontnet_maintain_alliance(struct GuiButton *gbtn)
 
 void frontnet_messages_up_maintain(struct GuiButton *gbtn)
 {
-    gbtn->flags ^= (gbtn->flags ^ LbBtnF_Enabled * (net_message_scroll_offset != 0)) & LbBtnF_Enabled;
+    frontend_selectlist_up_maintain(&net_message_list, gbtn);
 }
 
 void frontnet_messages_down_maintain(struct GuiButton *gbtn)
 {
-    gbtn->flags ^= (gbtn->flags ^ LbBtnF_Enabled * (net_number_of_messages - 1 > net_message_scroll_offset)) & LbBtnF_Enabled;
+    frontend_selectlist_down_maintain(&net_message_list, gbtn);
 }
 
 void frontnet_start_game_maintain(struct GuiButton *gbtn)
@@ -144,7 +157,7 @@ TbBool frontnet_start_input(void)
 
 void frontnet_draw_services_scroll_tab(struct GuiButton *gbtn)
 {
-    frontend_draw_scroll_tab(gbtn, net_service_scroll_offset, frontend_services_menu_items_visible-2, net_number_of_services);
+    frontend_selectlist_draw_scroll_tab(&net_service_list, gbtn);
 }
 
 void frontnet_session_set_player_name(struct GuiButton *gbtn)
@@ -179,36 +192,32 @@ void frontnet_draw_text_bar(struct GuiButton *gbtn)
 
 void frontnet_session_up(struct GuiButton *gbtn)
 {
-    if (net_session_scroll_offset > 0)
-      net_session_scroll_offset--;
+    frontend_selectlist_scroll_up(&net_session_list);
 }
 
 void frontnet_session_down(struct GuiButton *gbtn)
 {
-    if (net_session_scroll_offset < net_number_of_sessions - 1)
-      net_session_scroll_offset++;
+    frontend_selectlist_scroll_down(&net_session_list);
 }
 
 void frontnet_draw_sessions_scroll_tab(struct GuiButton *gbtn)
 {
-    frontend_draw_scroll_tab(gbtn, net_session_scroll_offset, 0, net_number_of_sessions);
+    frontend_selectlist_draw_scroll_tab(&net_session_list, gbtn);
 }
 
 void frontnet_players_up(struct GuiButton *gbtn)
 {
-    if (net_player_scroll_offset > 0)
-      net_player_scroll_offset--;
+    frontend_selectlist_scroll_up(&net_player_list);
 }
 
 void frontnet_players_down(struct GuiButton *gbtn)
 {
-    if (net_player_scroll_offset < net_number_of_enum_players - 1)
-      net_player_scroll_offset++;
+    frontend_selectlist_scroll_down(&net_player_list);
 }
 
 void frontnet_draw_players_scroll_tab(struct GuiButton *gbtn)
 {
-    frontend_draw_scroll_tab(gbtn, net_player_scroll_offset, 0, net_number_of_enum_players);
+    frontend_selectlist_draw_scroll_tab(&net_player_list, gbtn);
 }
 
 void frontnet_draw_net_session_players(struct GuiButton *gbtn)
@@ -227,7 +236,7 @@ void frontnet_draw_net_session_players(struct GuiButton *gbtn)
     height = LbTextLineHeight() * tx_units_per_px / 16;
     long netplyr_idx;
     int shift_y;
-    netplyr_idx = net_player_scroll_offset;
+    netplyr_idx = net_player_list.scroll_offset;
     for (shift_y=0; shift_y < gbtn->height; shift_y += height, netplyr_idx++)
     {
         const char *text;
@@ -347,7 +356,7 @@ void frontnet_draw_net_start_players(struct GuiButton *gbtn)
     height = 0;
     long netplyr_idx;
     int shift_y;
-    netplyr_idx = net_player_scroll_offset;
+    netplyr_idx = net_player_list.scroll_offset;
     int tx_units_per_px;
     tx_units_per_px = gbtn->height * 16 / (4*LbTextLineHeight());
     const struct TbSprite *spr;
@@ -479,14 +488,12 @@ void frontnet_draw_alliance_button(struct GuiButton *gbtn)
 
 void frontnet_messages_up(struct GuiButton *gbtn)
 {
-    if (net_message_scroll_offset > 0)
-      net_message_scroll_offset--;
+    frontend_selectlist_scroll_up(&net_message_list);
 }
 
 void frontnet_messages_down(struct GuiButton *gbtn)
 {
-    if (net_message_scroll_offset < net_number_of_messages - 1)
-      net_message_scroll_offset++;
+    frontend_selectlist_scroll_down(&net_message_list);
 }
 
 void frontnet_draw_bottom_scroll_box_tab(struct GuiButton *gbtn)
@@ -517,7 +524,7 @@ void frontnet_draw_bottom_scroll_box_tab(struct GuiButton *gbtn)
 
 void frontnet_draw_messages_scroll_tab(struct GuiButton *gbtn)
 {
-    frontend_draw_scroll_tab(gbtn, net_message_scroll_offset, 0, net_number_of_messages);
+    frontend_selectlist_draw_scroll_tab(&net_message_list, gbtn);
 }
 
 void frontnet_draw_scroll_selection_box(struct GuiButton *gbtn, long font_idx, const char *text)
@@ -604,7 +611,7 @@ void frontnet_draw_messages(struct GuiButton *gbtn)
     int y;
     y = 0;
     int netmsg_id;
-    for (netmsg_id=net_message_scroll_offset; netmsg_id < net_number_of_messages; netmsg_id++)
+    for (netmsg_id=net_message_list.scroll_offset; netmsg_id < net_number_of_messages; netmsg_id++)
     {
         if (y + font_height/2 > gbtn->height)
             break;
@@ -659,47 +666,34 @@ void frontnet_return_to_session_menu(struct GuiButton *gbtn)
 
 void frontnet_service_up_maintain(struct GuiButton *gbtn)
 {
-    if (net_service_scroll_offset > 0)
-        gbtn->flags |= LbBtnF_Enabled;
-    else
-        gbtn->flags &= ~LbBtnF_Enabled;
+    frontend_selectlist_up_maintain(&net_service_list, gbtn);
 }
 
 void frontnet_service_down_maintain(struct GuiButton *gbtn)
 {
-    if (net_service_scroll_offset < net_number_of_services-frontend_services_menu_items_visible+1)
-        gbtn->flags |= LbBtnF_Enabled;
-    else
-        gbtn->flags &= ~LbBtnF_Enabled;
+    frontend_selectlist_down_maintain(&net_service_list, gbtn);
 }
 
 void frontnet_service_up(struct GuiButton *gbtn)
 {
-    if (net_service_scroll_offset > 0)
-      net_service_scroll_offset--;
+    frontend_selectlist_scroll_up(&net_service_list);
 }
 
 void frontnet_service_down(struct GuiButton *gbtn)
 {
-    if (net_service_scroll_offset < net_number_of_services-frontend_services_menu_items_visible+1)
-        net_service_scroll_offset++;
+    frontend_selectlist_scroll_down(&net_service_list);
 }
 
 void frontnet_service_maintain(struct GuiButton *gbtn)
 {
-    int srvidx;
-    srvidx = gbtn->content.lval + net_service_scroll_offset - 45;
-    if (srvidx < net_number_of_services)
-        gbtn->flags |= LbBtnF_Enabled;
-    else
-        gbtn->flags &= ~LbBtnF_Enabled;
+    frontend_selectlist_row_maintain(&net_service_list, gbtn);
 }
 
 void frontnet_draw_service_button(struct GuiButton *gbtn)
 {
   int srvidx;
   // Find and verify selected network service
-  srvidx = gbtn->content.lval + net_service_scroll_offset - 45;
+  srvidx = frontend_selectlist_row_to_item_index(&net_service_list, gbtn);
   if (srvidx >= net_number_of_services)
     return;
   // Select font to draw
@@ -719,7 +713,7 @@ void frontnet_draw_service_button(struct GuiButton *gbtn)
 void frontnet_service_select(struct GuiButton *gbtn)
 {
   int srvidx;
-  srvidx = gbtn->content.lval + net_service_scroll_offset - 45;
+  srvidx = frontend_selectlist_row_to_item_index(&net_service_list, gbtn);
   if ( ((kfx_sim_state.system_flags & GSF_AllowOnePlayer) != 0)
      && (srvidx+1 >= net_number_of_services) )
   {

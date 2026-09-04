@@ -35,8 +35,100 @@ extern "C" {
 #define ACTIVE_BUTTONS_COUNT        100
 #define MENU_LIST_ITEMS_COUNT       52
 #define FRONTEND_BUTTON_INFO_COUNT 115
+// Symbolic names for frontend_button_info[]'s populated slots (frontend.cpp),
+// each an exact rename of a numeric position -- FEBtn_Foo = N means slot N
+// held that meaning already, nothing renumbered. Only genuine, verified
+// caption-table lookups (a button whose draw_call reads
+// frontend_button_info[content.lval] via frontend_button_caption_text/font)
+// are named here; docs/refactor/gui/01-caption-table-rename.md's Phase A
+// found the same content.lval numbers are *also* reused, in other rows, as
+// select-list row markers (see FE_SELECTLIST_ROW_BASE), scroll-widget role
+// markers, a scroll-box size selector, and an alliance-grid offset -- none
+// of those belong in this enum, and slots consumed only that way (or never
+// consumed at all) are deliberately left un-named. A few GUIStr values
+// legitimately repeat at a second slot with a different font_index (e.g.
+// GUIStr_MnuOptions at both 96 and 97); those get an `_<N>` suffix rather
+// than a fabricated distinct name. Extend by appending one entry, never by
+// renumbering an existing one (bump FRONTEND_BUTTON_INFO_COUNT to match if
+// the table itself grows).
+enum FrontEndBtnStrIdx {
+    FEBtn_MnuMainMenu = 1,
+    FEBtn_MnuStartNewGame = 2,
+    FEBtn_MnuLoadGame = 3,
+    FEBtn_MnuMultiplayer = 4,
+    FEBtn_MnuQuit = 5,
+    FEBtn_MnuReturnToMain = 6,
+    FEBtn_MnuLoadGame_7 = 7,
+    FEBtn_MnuContinueGame = 8,
+    FEBtn_MnuPlayIntro = 9,
+    FEBtn_NetServiceMenu = 10,
+    FEBtn_NetSessionMenu = 11,
+    FEBtn_MnuOnlineLobbies = 12,
+    FEBtn_NetJoinGame = 13,
+    FEBtn_NetCreateGame = 14,
+    FEBtn_NetStartGame = 15,
+    FEBtn_MnuCancel = 16,
+    FEBtn_NetName = 19,
+    FEBtn_MnuLevel = 22,
+    FEBtn_NetSessions = 29,
+    FEBtn_MnuGames = 30,
+    FEBtn_MnuPlayers = 31,
+    FEBtn_MnuLevels = 32,
+    FEBtn_NetServices = 33,
+    FEBtn_NetMessages = 34,
+    FEBtn_NetModemMenu = 53,
+    FEBtn_NetSerialMenu = 54,
+    FEBtn_NetComPort = 55,
+    FEBtn_NetSpeed = 56,
+    FEBtn_NetIrq = 61,
+    FEBtn_NetInit = 66,
+    FEBtn_NetHangup = 67,
+    FEBtn_NetDial = 68,
+    FEBtn_NetAnswer = 69,
+    FEBtn_NetPhoneNumber = 71,
+    FEBtn_NetContinue = 72,
+    FEBtn_NetContinue_73 = 73,
+    FEBtn_Credits = 82,
+    FEBtn_MnuOk = 83,
+    FEBtn_MnuStatistics = 84,
+    FEBtn_MnuHighScoreTable = 85,
+    FEBtn_TeamChooseGame = 86,
+    FEBtn_TeamGameType = 87,
+    FEBtn_NetStart = 88,
+    FEBtn_DefineKeys = 92,
+    FEBtn_DefineKeys_95 = 95,
+    FEBtn_MnuOptions = 96,
+    FEBtn_MnuOptions_97 = 97,
+    FEBtn_MnuRetToOptions = 98,
+    FEBtn_MnuSoundOptions = 99,
+    FEBtn_MouseOptions = 100,
+    FEBtn_Sensitivity = 101,
+    FEBtn_MnuInvertMouse = 102,
+    FEBtn_MnuComputer = 103,
+    FEBtn_MnuHighScoreTable_104 = 104,
+    FEBtn_MnuFreePlayLevels = 106,
+    FEBtn_MnuFreePlayLevels_107 = 107,
+    FEBtn_MnuLandSelection = 108,
+    FEBtn_MnuCampaigns = 109,
+    FEBtn_MnuAddComputer = 110,
+    FEBtn_MnuReturnToFreePlay = 111,
+    FEBtn_MnuMapPacks = 112,
+    FEBtn_MnuMpMapPacks = 113,
+    FEBtn_MnuReturnToLobby = 114,
+};
 #define NET_MESSAGES_COUNT           8
 #define NET_MESSAGE_LEN             64
+// Row N's Y coordinate in a fixed-spacing vertical (or horizontal) stack of
+// GuiButtonInit rows, e.g. .scr_pos_y = FE_ROW_Y(167, 22, 3) for the 4th row
+// of a list whose rows start at y=167 and step by 22px. Inserting a row
+// becomes bumping every n below it, not recomputing pixel values by hand;
+// grids and hand-tuned dialogs don't use this. Axis-agnostic -- the same
+// macro lays out a column too (.scr_pos_x = FE_ROW_Y(12, 48, col)). A grid
+// is just both axes on the same row, e.g. a 2-column x 3-row grid whose
+// cells start at (20,60) and step 180px across / 50px down:
+//   .scr_pos_x = FE_ROW_Y(20, 180, col), .scr_pos_y = FE_ROW_Y(60, 50, row)
+// with col/row substituted per button (0,0 / 1,0 / 0,1 / 1,1 / 0,2 / 1,2).
+#define FE_ROW_Y(base, step, n) ((base) + (step) * (n))
 // Sprite limits
 #define PANEL_SPRITES_COUNT 514
 // FRONTEND_FONTS_COUNT moved to kfx_render's vidmode.h (stage 13.3,
@@ -259,17 +351,17 @@ extern char trap_tag;
 extern char creature_tag;
 extern char input_string[8][SAVE_TEXTNAME_LEN + 1];
 extern char gui_error_text[256];
-extern long net_service_scroll_offset;
 extern long net_number_of_services;
 extern long net_number_of_players;
 extern long net_number_of_enum_players;
 extern long net_level_hilighted;
 extern struct NetMessage net_message[NET_MESSAGES_COUNT];
 extern long net_number_of_messages;
-extern long net_message_scroll_offset;
 // net_session_index_active_id moved to net_main.h (kfx_net) -- see there.
-extern long net_session_scroll_offset;
-extern long net_player_scroll_offset;
+// net_service_scroll_offset/net_session_scroll_offset/net_player_scroll_offset/
+// net_message_scroll_offset moved into net_service_list/net_session_list/
+// net_player_list/net_message_list (frontmenu_net.h, docs/refactor/gui/
+// 00-overview.md Phase 1's FrontendSelectList engine).
 extern struct GuiButton active_buttons[ACTIVE_BUTTONS_COUNT];
 extern long frontend_mouse_over_button_start_time;
 extern short old_menu_mouse_x;
@@ -394,6 +486,15 @@ void frontend_main_menu_load_game_maintain(struct GuiButton *gbtn);
 void frontend_mappacks_maintain(struct GuiButton *gbtn);
 void frontend_main_menu_netservice_maintain(struct GuiButton *gbtn);
 void frontend_main_menu_highscores_maintain(struct GuiButton *gbtn);
+void frontend_main_menu_start_game_maintain(struct GuiButton *gbtn);
+void frontend_main_menu_options_maintain(struct GuiButton *gbtn);
+void frontend_main_menu_quit_maintain(struct GuiButton *gbtn);
+// The width frontend_draw_button_icon's flexible chrome will actually
+// render for febtn_idx's caption (fit to whole middle-tile steps -- see
+// the definition in frontend.cpp for why raw/unquantized widths cause
+// buttons to visually overlap or not resize). Reusable by any screen
+// auto-sizing a frontend_draw_button_icon button to its caption text.
+long frontend_menu_button_natural_width(unsigned int febtn_idx, int units_per_px);
 void frontend_load_data_from_cd(void);
 void frontend_load_data_reset(void);
 void init_load_menu(struct GuiMenu *gmnu);

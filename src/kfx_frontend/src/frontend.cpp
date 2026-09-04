@@ -110,44 +110,72 @@ TbBool right_click_tag_mode_toggle = false;
 // default_tag_mode moved to kfx_sim's kfx_sim_state.h (stage 13.3,
 // docs/refactor/stage-13-enforce-and-document.md).
 
+// GCC's -Wmissing-field-initializers fires on a partially-designated
+// GuiButtonInit aggregate in this C++ translation unit even though the
+// omitted fields are the struct's own zero defaults; not a real risk here
+// since every field is still named where it matters.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+// Left-anchored, narrower main column (Start new game.../Multiplayer) plus a
+// separate bottom-left row of 3 smaller buttons (Options/High score/Quit) --
+// menu-v2 mockup layout (docs/refactor/gui/02-menu-v2-mockup-gap-analysis.md
+// Phase 1), same renderer/chrome/backdrop as before. The narrow buttons use
+// frontend_draw_button_icon (docs/refactor/gui/03-button-primitives.md)
+// instead of frontend_draw_large_menu_button because the latter's chrome
+// width is a hardcoded 3-way preset, not driven by .width -- narrowing
+// .width alone would only clip the caption, not the button art.
+#define FE_MAINMENU_COL_X    24
+#define FE_MAINMENU_COL_W    260
+#define FE_MAINMENU_ROW_H    42
+#define FE_MAINMENU_ROW_STEP 48
+#define FE_MAINMENU_ROW_Y0   90
+#define FE_MAINMENU_SUBROW_Y   400
+#define FE_MAINMENU_SUBROW_H   32
+#define FE_MAINMENU_SUBROW_W   130
+#define FE_MAINMENU_SUBROW_STEP 140
 struct GuiButtonInit frontend_main_menu_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_MENU_TITLE, 0, 0, NULL,               NULL,        NULL,                 0, 999,  26, 999,  26, 371, 46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,       {1},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_start_new_game,NULL,frontend_over_button,     3, 999,  92, 999,  92, 371, 46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,       {2},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_load_continue_game,NULL,frontend_over_button, 0, 999, 138, 999, 138, 371, 46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,       {8},            0, frontend_continue_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_load_mappacks,NULL,frontend_over_button,     34, 999, 184, 999, 184, 371, 46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,     {106},            0, frontend_mappacks_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_change_state,NULL, frontend_over_button,    2, 999, 230,   999, 230, 371, 46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,       {3},            0, frontend_main_menu_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_netservice_change_state,NULL, frontend_over_button,4,999,276,999,276,371, 46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,       {4},            0, frontend_main_menu_netservice_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_change_state,NULL, frontend_over_button,   27, 999, 322,   999, 322, 371, 46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,      {97},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_ldcampaign_change_state,NULL, frontend_over_button,18,999,368,999,368,371,46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,     {104},            0, frontend_main_menu_highscores_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_change_state,NULL, frontend_over_button,      9, 999, 414, 999, 414, 371, 46, frontend_draw_large_menu_button,  0, GUIStr_Empty,  0,       {5},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0, 0,   455, 0,   455, 371, 46, frontend_draw_product_version,    0, GUIStr_Empty,  0,       {0},            0, NULL },
-  {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0,   0,   0,   0,   0,   0,  0, NULL,                             0, GUIStr_Empty,  0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .id_num = BID_MENU_TITLE, .scr_pos_x = 999, .scr_pos_y = 26, .pos_x = 999, .pos_y = 26, .width = 371, .height = 46, .draw_call = frontend_draw_large_menu_button, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuMainMenu } },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_start_new_game, .ptover_event = frontend_over_button, .btype_value = 3, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 0), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 0), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuStartNewGame }, .maintain_call = frontend_main_menu_start_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_continue_game, .ptover_event = frontend_over_button, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 1), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 1), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuContinueGame }, .maintain_call = frontend_continue_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_mappacks, .ptover_event = frontend_over_button, .btype_value = 34, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 2), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 2), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuFreePlayLevels }, .maintain_call = frontend_mappacks_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_change_state, .ptover_event = frontend_over_button, .btype_value = 2, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 3), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 3), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuLoadGame }, .maintain_call = frontend_main_menu_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_netservice_change_state, .ptover_event = frontend_over_button, .btype_value = 4, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 4), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 4), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuMultiplayer }, .maintain_call = frontend_main_menu_netservice_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_change_state, .ptover_event = frontend_over_button, .btype_value = 27, .scr_pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 0), .scr_pos_y = FE_MAINMENU_SUBROW_Y, .pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 0), .pos_y = FE_MAINMENU_SUBROW_Y, .width = FE_MAINMENU_SUBROW_W, .height = FE_MAINMENU_SUBROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuOptions_97 }, .maintain_call = frontend_main_menu_options_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_ldcampaign_change_state, .ptover_event = frontend_over_button, .btype_value = 18, .scr_pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 1), .scr_pos_y = FE_MAINMENU_SUBROW_Y, .pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 1), .pos_y = FE_MAINMENU_SUBROW_Y, .width = FE_MAINMENU_SUBROW_W, .height = FE_MAINMENU_SUBROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuHighScoreTable_104 }, .maintain_call = frontend_main_menu_highscores_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_change_state, .ptover_event = frontend_over_button, .btype_value = 9, .scr_pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 2), .scr_pos_y = FE_MAINMENU_SUBROW_Y, .pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 2), .pos_y = FE_MAINMENU_SUBROW_Y, .width = FE_MAINMENU_SUBROW_W, .height = FE_MAINMENU_SUBROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuQuit }, .maintain_call = frontend_main_menu_quit_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_y = 455, .pos_y = 455, .width = 371, .height = 46, .draw_call = frontend_draw_product_version, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = -1, .tooltip_stridx = GUIStr_Empty },
 };
 
 struct GuiButtonInit frontend_statistics_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_MENU_TITLE, 0, 0, NULL,               NULL,        NULL,                 0, 999,  30, 999,  30,371, 46, frontend_draw_large_menu_button,   0, GUIStr_Empty,  0,      {84},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0, 999,  90, 999,  90,450,162, frontstats_draw_main_stats,        0, GUIStr_Empty,  0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0, 999, 260, 999, 260,450,136, frontstats_draw_scrolling_stats,   0, GUIStr_Empty,  0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontstats_leave,NULL,frontend_over_button,           18, 999, 404, 999, 404,371, 46, frontend_draw_large_menu_button,   0, GUIStr_Empty,  0,      {83},            0, NULL },
-  {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0,   0,   0,   0,   0,  0,  0, NULL,                              0, GUIStr_Empty,  0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .id_num = BID_MENU_TITLE, .scr_pos_x = 999, .scr_pos_y = 30, .pos_x = 999, .pos_y = 30, .width = 371, .height = 46, .draw_call = frontend_draw_large_menu_button, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuStatistics } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 90, .pos_x = 999, .pos_y = 90, .width = 450, .height = 162, .draw_call = frontstats_draw_main_stats, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 260, .pos_x = 999, .pos_y = 260, .width = 450, .height = 136, .draw_call = frontstats_draw_scrolling_stats, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontstats_leave, .ptover_event = frontend_over_button, .btype_value = 18, .scr_pos_x = 999, .scr_pos_y = 404, .pos_x = 999, .pos_y = 404, .width = 371, .height = 46, .draw_call = frontend_draw_large_menu_button, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuOk } },
+  { .gbtype = -1, .tooltip_stridx = GUIStr_Empty },
 };
 
+// Title and back button left-anchored to match Phase 1's main-menu column
+// (docs/refactor/gui/02-menu-v2-mockup-gap-analysis.md Phase 4) -- table/
+// scrollbar layout below is untouched (cosmetic repositioning only, no
+// game data here to verify a full-cluster reflow doesn't misalign them).
 struct GuiButtonInit frontend_high_score_score_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_MENU_TITLE, 0, 0, NULL,               NULL,        NULL,                 0, 999,  30, 999,  30,495, 46, frontend_draw_vlarge_menu_button,  0, GUIStr_Empty,  0,      {85},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT,    0, 0, NULL,               NULL,        NULL,               0,  145, 72, 145, 72,220, 26, frontend_draw_highscores_scroll_box_tab,      0, GUIStr_Empty,  0,      {28},            0, NULL},
-  { LbBtnT_NormalBtn,  BID_DEFAULT,    0, 0, NULL,               NULL,        NULL,               0, 120, 73, 120, 73,400, 26, frontend_draw_high_scores_mappack,0, GUIStr_Empty,  0,      {32},            0, NULL},
-  { LbBtnT_NormalBtn,  BID_DEFAULT,    0, 0, NULL,               NULL,        NULL,                 0, 80,  97, 80,  97,450,286, frontend_draw_high_score_table,    0, GUIStr_Empty,  0,       {0},            0, NULL },
-  { LbBtnT_HoldableBtn,BID_DEFAULT,    0, 0, highscore_scroll_up,NULL,frontend_over_button,  0, 530, 96, 530, 96, 26, 14, frontend_draw_slider_button,       0, GUIStr_Empty,  0,      {17},            0, frontend_highscore_scroll_up_maintain},
-  { LbBtnT_HoldableBtn,BID_DEFAULT,    0, 0, highscore_scroll_down,NULL,frontend_over_button,0, 530, 374, 530, 374, 26, 14, frontend_draw_slider_button,       0, GUIStr_Empty,  0,      {18},            0, frontend_highscore_scroll_down_maintain},
-  { LbBtnT_HoldableBtn,BID_DEFAULT,    0, 0, highscore_scroll,NULL,NULL,              0, 533, 112, 533, 112, 20,260, frontend_draw_highscores_scroll_tab,   0, GUIStr_Empty,  0,      {40},            0, frontend_highscore_scroll_tab_maintain},
-  { LbBtnT_NormalBtn,  BID_DEFAULT,    0, 0, frontend_quit_high_score_table,NULL,frontend_over_button,3,999,404, 999, 404,371, 46, frontend_draw_large_menu_button,   0, GUIStr_Empty,  0,      {83},            0, frontend_maintain_high_score_ok_button },
-  {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0,   0,   0,   0,   0,  0,  0, NULL,                              0, GUIStr_Empty,  0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .id_num = BID_MENU_TITLE, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = 30, .pos_x = FE_MAINMENU_COL_X, .pos_y = 30, .width = 300, .height = 46, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuHighScoreTable } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 145, .scr_pos_y = 72, .pos_x = 145, .pos_y = 72, .width = 220, .height = 26, .draw_call = frontend_draw_highscores_scroll_box_tab, .tooltip_stridx = GUIStr_Empty, .content = { 28 } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 120, .scr_pos_y = 73, .pos_x = 120, .pos_y = 73, .width = 400, .height = 26, .draw_call = frontend_draw_high_scores_mappack, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuLevels } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 80, .scr_pos_y = 97, .pos_x = 80, .pos_y = 97, .width = 450, .height = 286, .draw_call = frontend_draw_high_score_table, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = highscore_scroll_up, .ptover_event = frontend_over_button, .scr_pos_x = 530, .scr_pos_y = 96, .pos_x = 530, .pos_y = 96, .width = 26, .height = 14, .draw_call = frontend_draw_slider_button, .tooltip_stridx = GUIStr_Empty, .content = { 17 }, .maintain_call = frontend_highscore_scroll_up_maintain },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = highscore_scroll_down, .ptover_event = frontend_over_button, .scr_pos_x = 530, .scr_pos_y = 374, .pos_x = 530, .pos_y = 374, .width = 26, .height = 14, .draw_call = frontend_draw_slider_button, .tooltip_stridx = GUIStr_Empty, .content = { 18 }, .maintain_call = frontend_highscore_scroll_down_maintain },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = highscore_scroll, .scr_pos_x = 533, .scr_pos_y = 112, .pos_x = 533, .pos_y = 112, .width = 20, .height = 260, .draw_call = frontend_draw_highscores_scroll_tab, .tooltip_stridx = GUIStr_Empty, .content = { 40 }, .maintain_call = frontend_highscore_scroll_tab_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_quit_high_score_table, .ptover_event = frontend_over_button, .btype_value = 3, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = 404, .pos_x = FE_MAINMENU_COL_X, .pos_y = 404, .width = 180, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuOk }, .maintain_call = frontend_maintain_high_score_ok_button },
+  { .gbtype = -1, .tooltip_stridx = GUIStr_Empty },
 };
 
 struct GuiButtonInit frontend_error_box_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0, 999,   0, 999,   0,450, 92, frontend_draw_error_text_box,      0, GUIStr_Empty,  0,{.str = gui_message_text},0, frontend_maintain_error_text_box},
-  {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0,   0,   0,   0,   0,  0,  0, NULL,                              0, GUIStr_Empty,  0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .pos_x = 999, .width = 450, .height = 92, .draw_call = frontend_draw_error_text_box, .tooltip_stridx = GUIStr_Empty, .content = { .str = gui_message_text }, .maintain_call = frontend_maintain_error_text_box },
+  { .gbtype = -1, .tooltip_stridx = GUIStr_Empty },
 };
+#pragma GCC diagnostic pop
 
 
 struct GuiMenu frontend_main_menu =
@@ -219,121 +247,121 @@ struct GuiMenu *menu_list[] = {
  *  If adding entries here, you should also update FRONTEND_BUTTON_INFO_COUNT.
  */
 struct FrontEndButtonData frontend_button_info[FRONTEND_BUTTON_INFO_COUNT] = {
-    {0,   0}, // [0]
-    {GUIStr_MnuMainMenu, 0},
-    {GUIStr_MnuStartNewGame, 1},
-    {GUIStr_MnuLoadGame, 1},
-    {GUIStr_MnuMultiplayer, 1},
-    {GUIStr_MnuQuit, 1},
-    {GUIStr_MnuReturnToMain, 1},
-    {GUIStr_MnuLoadGame, 0},
-    {GUIStr_MnuContinueGame, 1},
-    {GUIStr_MnuPlayIntro, 1},
-    {GUIStr_NetServiceMenu, 0}, // [10]
-    {GUIStr_NetSessionMenu, 0},
-    {GUIStr_MnuOnlineLobbies, 0}, // [12]
-    {GUIStr_NetJoinGame, 1}, // [13]
-    {GUIStr_NetCreateGame, 1}, // [14]
-    {GUIStr_NetStartGame, 1}, // [15]
-    {GUIStr_MnuCancel, 1}, // [16]
-    {GUIStr_Empty, 1}, // [17]
-    {GUIStr_Empty, 1}, // [18]
-    {GUIStr_NetName, 1}, // [19]
-    {GUIStr_Empty, 1}, // [20]
-    {GUIStr_Empty, 1}, // [21]
-    {GUIStr_MnuLevel, 1}, // [22]
-    {GUIStr_Empty, 1}, // [23]
-    {GUIStr_Empty, 1}, // [24]
-    {GUIStr_Empty, 1}, // [25]
-    {GUIStr_Empty, 1}, // [26]
-    {GUIStr_Empty, 1}, // [27]
-    {GUIStr_Empty, 1}, // [28]
-    {GUIStr_NetSessions, 2}, // [29]
-    {GUIStr_MnuGames, 2}, // [30]
-    {GUIStr_MnuPlayers, 2},
-    {GUIStr_MnuLevels, 2},
-    {GUIStr_NetServices, 2},
-    {GUIStr_NetMessages, 2},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1}, // [40]
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1}, // [50]
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_NetModemMenu, 0},
-    {GUIStr_NetSerialMenu, 0},
-    {GUIStr_NetComPort, 2},
-    {GUIStr_NetSpeed, 2},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1}, // [60]
-    {GUIStr_NetIrq, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_NetInit, 1},
-    {GUIStr_NetHangup, 1},
-    {GUIStr_NetDial, 1},
-    {GUIStr_NetAnswer, 1},
-    {GUIStr_Empty, 1}, // [70]
-    {GUIStr_NetPhoneNumber, 1},
-    {GUIStr_NetContinue, 1},
-    {GUIStr_NetContinue, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1}, // [80]
-    {GUIStr_Empty, 1},
-    {GUIStr_Credits, 1},
-    {GUIStr_MnuOk, 1},
-    {GUIStr_MnuStatistics, 0},
-    {GUIStr_MnuHighScoreTable, 0},
-    {GUIStr_TeamChooseGame, 0},
-    {GUIStr_TeamGameType, 2},
-    {GUIStr_NetStart, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1}, // [90]
-    {GUIStr_Empty, 1},
-    {GUIStr_DefineKeys, 0},
-    {GUIStr_Empty, 1},
-    {GUIStr_Empty, 1},
-    {GUIStr_DefineKeys, 1},
-    {GUIStr_MnuOptions, 0},
-    {GUIStr_MnuOptions, 1},
-    {GUIStr_MnuRetToOptions, 1},
-    {GUIStr_MnuSoundOptions, 1},
-    {GUIStr_MouseOptions, 1}, // [100]
-    {GUIStr_Sensitivity, 1},
-    {GUIStr_MnuInvertMouse, 1},
-    {GUIStr_MnuComputer, 1},
-    {GUIStr_MnuHighScoreTable, 1},
-    {GUIStr_Empty, 0},
-    {GUIStr_MnuFreePlayLevels, 1},
-    {GUIStr_MnuFreePlayLevels, 0},
-    {GUIStr_MnuLandSelection, 0}, // [108]
-    {GUIStr_MnuCampaigns, 2}, // [109]
-    {GUIStr_MnuAddComputer, 1}, // [110]
-    {GUIStr_MnuReturnToFreePlay, 1},
-    {GUIStr_MnuMapPacks, 2},
-    {GUIStr_MnuMpMapPacks, 2},
-    {GUIStr_MnuReturnToLobby, 1},
+    [0] = { 0, 0 },
+    [FEBtn_MnuMainMenu] = { GUIStr_MnuMainMenu, 0 },
+    [FEBtn_MnuStartNewGame] = { GUIStr_MnuStartNewGame, 1 },
+    [FEBtn_MnuLoadGame] = { GUIStr_MnuLoadGame, 1 },
+    [FEBtn_MnuMultiplayer] = { GUIStr_MnuMultiplayer, 1 },
+    [FEBtn_MnuQuit] = { GUIStr_MnuQuit, 1 },
+    [FEBtn_MnuReturnToMain] = { GUIStr_MnuReturnToMain, 1 },
+    [FEBtn_MnuLoadGame_7] = { GUIStr_MnuLoadGame, 0 },
+    [FEBtn_MnuContinueGame] = { GUIStr_MnuContinueGame, 1 },
+    [FEBtn_MnuPlayIntro] = { GUIStr_MnuPlayIntro, 1 },
+    [FEBtn_NetServiceMenu] = { GUIStr_NetServiceMenu, 0 },
+    [FEBtn_NetSessionMenu] = { GUIStr_NetSessionMenu, 0 },
+    [FEBtn_MnuOnlineLobbies] = { GUIStr_MnuOnlineLobbies, 0 },
+    [FEBtn_NetJoinGame] = { GUIStr_NetJoinGame, 1 },
+    [FEBtn_NetCreateGame] = { GUIStr_NetCreateGame, 1 },
+    [FEBtn_NetStartGame] = { GUIStr_NetStartGame, 1 },
+    [FEBtn_MnuCancel] = { GUIStr_MnuCancel, 1 },
+    [17] = { GUIStr_Empty, 1 },
+    [18] = { GUIStr_Empty, 1 },
+    [FEBtn_NetName] = { GUIStr_NetName, 1 },
+    [20] = { GUIStr_Empty, 1 },
+    [21] = { GUIStr_Empty, 1 },
+    [FEBtn_MnuLevel] = { GUIStr_MnuLevel, 1 },
+    [23] = { GUIStr_Empty, 1 },
+    [24] = { GUIStr_Empty, 1 },
+    [25] = { GUIStr_Empty, 1 },
+    [26] = { GUIStr_Empty, 1 },
+    [27] = { GUIStr_Empty, 1 },
+    [28] = { GUIStr_Empty, 1 },
+    [FEBtn_NetSessions] = { GUIStr_NetSessions, 2 },
+    [FEBtn_MnuGames] = { GUIStr_MnuGames, 2 },
+    [FEBtn_MnuPlayers] = { GUIStr_MnuPlayers, 2 },
+    [FEBtn_MnuLevels] = { GUIStr_MnuLevels, 2 },
+    [FEBtn_NetServices] = { GUIStr_NetServices, 2 },
+    [FEBtn_NetMessages] = { GUIStr_NetMessages, 2 },
+    [35] = { GUIStr_Empty, 1 },
+    [36] = { GUIStr_Empty, 1 },
+    [37] = { GUIStr_Empty, 1 },
+    [38] = { GUIStr_Empty, 1 },
+    [39] = { GUIStr_Empty, 1 },
+    [40] = { GUIStr_Empty, 1 },
+    [41] = { GUIStr_Empty, 1 },
+    [42] = { GUIStr_Empty, 1 },
+    [43] = { GUIStr_Empty, 1 },
+    [44] = { GUIStr_Empty, 1 },
+    [45] = { GUIStr_Empty, 1 },
+    [46] = { GUIStr_Empty, 1 },
+    [47] = { GUIStr_Empty, 1 },
+    [48] = { GUIStr_Empty, 1 },
+    [49] = { GUIStr_Empty, 1 },
+    [50] = { GUIStr_Empty, 1 },
+    [51] = { GUIStr_Empty, 1 },
+    [52] = { GUIStr_Empty, 1 },
+    [FEBtn_NetModemMenu] = { GUIStr_NetModemMenu, 0 },
+    [FEBtn_NetSerialMenu] = { GUIStr_NetSerialMenu, 0 },
+    [FEBtn_NetComPort] = { GUIStr_NetComPort, 2 },
+    [FEBtn_NetSpeed] = { GUIStr_NetSpeed, 2 },
+    [57] = { GUIStr_Empty, 1 },
+    [58] = { GUIStr_Empty, 1 },
+    [59] = { GUIStr_Empty, 1 },
+    [60] = { GUIStr_Empty, 1 },
+    [FEBtn_NetIrq] = { GUIStr_NetIrq, 1 },
+    [62] = { GUIStr_Empty, 1 },
+    [63] = { GUIStr_Empty, 1 },
+    [64] = { GUIStr_Empty, 1 },
+    [65] = { GUIStr_Empty, 1 },
+    [FEBtn_NetInit] = { GUIStr_NetInit, 1 },
+    [FEBtn_NetHangup] = { GUIStr_NetHangup, 1 },
+    [FEBtn_NetDial] = { GUIStr_NetDial, 1 },
+    [FEBtn_NetAnswer] = { GUIStr_NetAnswer, 1 },
+    [70] = { GUIStr_Empty, 1 },
+    [FEBtn_NetPhoneNumber] = { GUIStr_NetPhoneNumber, 1 },
+    [FEBtn_NetContinue] = { GUIStr_NetContinue, 1 },
+    [FEBtn_NetContinue_73] = { GUIStr_NetContinue, 1 },
+    [74] = { GUIStr_Empty, 1 },
+    [75] = { GUIStr_Empty, 1 },
+    [76] = { GUIStr_Empty, 1 },
+    [77] = { GUIStr_Empty, 1 },
+    [78] = { GUIStr_Empty, 1 },
+    [79] = { GUIStr_Empty, 1 },
+    [80] = { GUIStr_Empty, 1 },
+    [81] = { GUIStr_Empty, 1 },
+    [FEBtn_Credits] = { GUIStr_Credits, 1 },
+    [FEBtn_MnuOk] = { GUIStr_MnuOk, 1 },
+    [FEBtn_MnuStatistics] = { GUIStr_MnuStatistics, 0 },
+    [FEBtn_MnuHighScoreTable] = { GUIStr_MnuHighScoreTable, 0 },
+    [FEBtn_TeamChooseGame] = { GUIStr_TeamChooseGame, 0 },
+    [FEBtn_TeamGameType] = { GUIStr_TeamGameType, 2 },
+    [FEBtn_NetStart] = { GUIStr_NetStart, 1 },
+    [89] = { GUIStr_Empty, 1 },
+    [90] = { GUIStr_Empty, 1 },
+    [91] = { GUIStr_Empty, 1 },
+    [FEBtn_DefineKeys] = { GUIStr_DefineKeys, 0 },
+    [93] = { GUIStr_Empty, 1 },
+    [94] = { GUIStr_Empty, 1 },
+    [FEBtn_DefineKeys_95] = { GUIStr_DefineKeys, 1 },
+    [FEBtn_MnuOptions] = { GUIStr_MnuOptions, 0 },
+    [FEBtn_MnuOptions_97] = { GUIStr_MnuOptions, 1 },
+    [FEBtn_MnuRetToOptions] = { GUIStr_MnuRetToOptions, 1 },
+    [FEBtn_MnuSoundOptions] = { GUIStr_MnuSoundOptions, 1 },
+    [FEBtn_MouseOptions] = { GUIStr_MouseOptions, 1 },
+    [FEBtn_Sensitivity] = { GUIStr_Sensitivity, 1 },
+    [FEBtn_MnuInvertMouse] = { GUIStr_MnuInvertMouse, 1 },
+    [FEBtn_MnuComputer] = { GUIStr_MnuComputer, 1 },
+    [FEBtn_MnuHighScoreTable_104] = { GUIStr_MnuHighScoreTable, 1 },
+    [105] = { GUIStr_Empty, 0 },
+    [FEBtn_MnuFreePlayLevels] = { GUIStr_MnuFreePlayLevels, 1 },
+    [FEBtn_MnuFreePlayLevels_107] = { GUIStr_MnuFreePlayLevels, 0 },
+    [FEBtn_MnuLandSelection] = { GUIStr_MnuLandSelection, 0 },
+    [FEBtn_MnuCampaigns] = { GUIStr_MnuCampaigns, 2 },
+    [FEBtn_MnuAddComputer] = { GUIStr_MnuAddComputer, 1 },
+    [FEBtn_MnuReturnToFreePlay] = { GUIStr_MnuReturnToFreePlay, 1 },
+    [FEBtn_MnuMapPacks] = { GUIStr_MnuMapPacks, 2 },
+    [FEBtn_MnuMpMapPacks] = { GUIStr_MnuMpMapPacks, 2 },
+    [FEBtn_MnuReturnToLobby] = { GUIStr_MnuReturnToLobby, 1 },
 };
 
 // bttn_sprite, tooltip_stridx, msg_stridx, lifespan_turns, turns_between_events, replace_event_kind_button;
@@ -400,7 +428,6 @@ char trap_tag;
 char creature_tag;
 char input_string[8][SAVE_TEXTNAME_LEN + 1];
 char gui_error_text[256];
-long net_service_scroll_offset;
 long net_number_of_services;
 long net_comport_index_active;
 long net_speed_index_active;
@@ -409,9 +436,6 @@ long net_number_of_enum_players;
 long net_level_hilighted;
 struct NetMessage net_message[NET_MESSAGES_COUNT];
 long net_number_of_messages;
-long net_message_scroll_offset;
-long net_session_scroll_offset;
-long net_player_scroll_offset;
 struct GuiButton active_buttons[ACTIVE_BUTTONS_COUNT];
 long frontend_mouse_over_button_start_time;
 short old_menu_mouse_x;
@@ -510,8 +534,8 @@ void add_message(long plyr_idx, char *msg)
     snprintf(nmsg->text, NET_MESSAGE_LEN, "%s", msg);
     i++;
     net_number_of_messages = i;
-    if (net_message_scroll_offset+4 < i)
-      net_message_scroll_offset = i-4;
+    if (net_message_list.scroll_offset+4 < i)
+      net_message_list.scroll_offset = i-4;
 }
 
 /**
@@ -694,8 +718,67 @@ void maintain_scroll_down(struct GuiButton *gbtn)
     }
 }
 
+// Sizes main-menu buttons to their caption text instead of a fixed guess --
+// added after visually confirming the earlier fixed 260/130px widths were
+// both too wide for the narrow column and too narrow (overlapping) for the
+// Options/High score/Quit row. Measured against the button's *enabled*
+// (non-hover) font index so width doesn't jitter as the mouse moves over
+// it; frontend_button_caption_font swaps to a different frontend_font[]
+// entry on hover, but those are style/colour variants of the same glyph
+// set, not a different-width font.
+static long frontend_menu_button_caption_width(unsigned int febtn_idx, int units_per_px)
+{
+    int fntidx = (febtn_idx < FRONTEND_BUTTON_INFO_COUNT) ? frontend_button_info[febtn_idx].font_index : 3;
+    LbTextSetFont(frontend_font[fntidx]);
+    int text_idx = (febtn_idx < FRONTEND_BUTTON_INFO_COUNT) ? frontend_button_info[febtn_idx].capstr_idx : (int)GUIStr_Empty;
+    const char *text = get_string(text_idx);
+    return LbTextStringWidthM(text, units_per_px);
+}
+
+// Minimum button width that fits febtn_idx's caption without clipping,
+// using the same left/right inset frontend_draw_button_icon positions its
+// text with -- then rounded up to what frontend_draw_button_chrome_
+// flexible will actually render (frontend_button_chrome_fit_width), since
+// the chrome only grows in whole-middle-tile steps. Skipping that
+// quantization was the bug behind the first pass at this: gbtn->width was
+// set to the raw (unrounded) target, which frequently rounded to the same
+// rendered chrome as before, so the button never visibly resized, and
+// sibling buttons positioned off that same unrounded number sat too close
+// to (or on top of) the wider, rounded-up chrome that actually got drawn.
+long frontend_menu_button_natural_width(unsigned int febtn_idx, int units_per_px)
+{
+    long inset = 20 * units_per_px / 16;
+    long target = frontend_menu_button_caption_width(febtn_idx, units_per_px) + 2 * inset;
+    return frontend_button_chrome_fit_width(GFS_hugebutton_a05l, units_per_px, target);
+}
+
+// Uniform width for the main column (Start New Game/Continue/Free Play/
+// Load/Multiplayer): sized to the longest of the five captions so they
+// stay a consistent column width instead of each hugging its own text.
+static long frontend_main_menu_column_width(struct GuiButton *gbtn)
+{
+    static const unsigned int captions[] = {
+        FEBtn_MnuStartNewGame, FEBtn_MnuContinueGame, FEBtn_MnuFreePlayLevels,
+        FEBtn_MnuLoadGame, FEBtn_MnuMultiplayer,
+    };
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    long max_w = 0;
+    for (unsigned int i = 0; i < sizeof(captions)/sizeof(captions[0]); i++) {
+        long w = frontend_menu_button_natural_width(captions[i], units_per_px);
+        if (w > max_w)
+            max_w = w;
+    }
+    return max_w;
+}
+
+void frontend_main_menu_start_game_maintain(struct GuiButton *gbtn)
+{
+    gbtn->width = frontend_main_menu_column_width(gbtn);
+}
+
 void frontend_continue_game_maintain(struct GuiButton *gbtn)
 {
+    gbtn->width = frontend_main_menu_column_width(gbtn);
     if (kfx_frontend_state.continue_game_option_available != 0)
         gbtn->flags |= LbBtnF_Enabled;
     else
@@ -704,6 +787,7 @@ void frontend_continue_game_maintain(struct GuiButton *gbtn)
 
 void frontend_main_menu_load_game_maintain(struct GuiButton *gbtn)
 {
+    gbtn->width = frontend_main_menu_column_width(gbtn);
     if (number_of_saved_games > 0)
         gbtn->flags |= LbBtnF_Enabled;
     else
@@ -712,6 +796,7 @@ void frontend_main_menu_load_game_maintain(struct GuiButton *gbtn)
 
 void frontend_mappacks_maintain(struct GuiButton *gbtn)
 {
+    gbtn->width = frontend_main_menu_column_width(gbtn);
     if (mappacks_list.items_num > 0)
         gbtn->flags |= LbBtnF_Enabled;
     else
@@ -720,12 +805,45 @@ void frontend_mappacks_maintain(struct GuiButton *gbtn)
 
 void frontend_main_menu_netservice_maintain(struct GuiButton *gbtn)
 {
+    gbtn->width = frontend_main_menu_column_width(gbtn);
+    gbtn->flags |= LbBtnF_Enabled;
+}
+
+// Options/High score table/Quit row: each sized to its own caption (they
+// don't share a column), Options+High score left-anchored with a gap
+// between them, Quit right-anchored on the opposite side of the menu.
+#define FE_MAINMENU_SUBROW_GAP 24
+#define FE_MAINMENU_MENU_W 640 // matches frontend_main_menu's declared GuiMenu width
+
+void frontend_main_menu_options_maintain(struct GuiButton *gbtn)
+{
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    long x = FE_MAINMENU_COL_X;
+    gbtn->width = frontend_menu_button_natural_width(FEBtn_MnuOptions_97, units_per_px);
+    gbtn->pos_x = x;
+    gbtn->scr_pos_x = x;
     gbtn->flags |= LbBtnF_Enabled;
 }
 
 void frontend_main_menu_highscores_maintain(struct GuiButton *gbtn)
 {
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    long x = FE_MAINMENU_COL_X + frontend_menu_button_natural_width(FEBtn_MnuOptions_97, units_per_px)
+        + FE_MAINMENU_SUBROW_GAP * units_per_px / 16;
+    gbtn->width = frontend_menu_button_natural_width(FEBtn_MnuHighScoreTable_104, units_per_px);
+    gbtn->pos_x = x;
+    gbtn->scr_pos_x = x;
     gbtn->flags |= LbBtnF_Enabled;
+}
+
+void frontend_main_menu_quit_maintain(struct GuiButton *gbtn)
+{
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    long w = frontend_menu_button_natural_width(FEBtn_MnuQuit, units_per_px);
+    long x = (FE_MAINMENU_MENU_W - FE_MAINMENU_COL_X) - w;
+    gbtn->width = w;
+    gbtn->pos_x = x;
+    gbtn->scr_pos_x = x;
 }
 
 TbBool frontend_is_player_allied(long idx1, long idx2)
@@ -1210,10 +1328,7 @@ void gui_area_text(struct GuiButton *gbtn)
 
 void frontend_init_options_menu(struct GuiMenu *gmnu)
 {
-    get_gui_button_init(gmnu, BID_MUSIC_VOL)->content.lval = make_audio_slider_linear(settings.music_volume);
-    get_gui_button_init(gmnu, BID_SOUND_VOL)->content.lval = make_audio_slider_linear(settings.sound_volume);
-    get_gui_button_init(gmnu, BID_MENTOR_VOL)->content.lval = make_audio_slider_linear(settings.mentor_volume);
-    get_gui_button_init(gmnu, BID_MOUSE_MUL)->content.lval = settings.first_person_move_sensitivity;
+    frontend_options_menu_init_sliders(gmnu);
     if (!is_campaign_loaded())
     {
         if (!change_campaign(CampgnT_Default,""))
@@ -1598,28 +1713,14 @@ void frontend_start_new_game(struct GuiButton *gbtn)
 
 void frontend_load_mappacks(struct GuiButton *gbtn)
 {
-    const char *cmpgn_fname;
     SYNCDBG(6,"Clicked");
-    // Check if we can show some levels without showing the map pack selection screen
-    if (mappacks_list.items_num < 1)
-      cmpgn_fname = "";
-    else
-    if (mappacks_list.items_num == 1)
-      cmpgn_fname = mappacks_list.items[0].fname;
-    else
-      cmpgn_fname = NULL;
-    if (cmpgn_fname != NULL)
-    { // If there's only one map pack, then just show the levels
-      if (!change_campaign(CampgnT_Mappack, cmpgn_fname))
-      {
-        ERRORLOG("Unable to load map pack list");
-        return;
-      }
-      frontend_set_state(FeSt_LEVEL_SELECT);
-    } else
-    { // If there's more map packs, go to selection screen
-      frontend_set_state(FeSt_MAPPACK_SELECT);
-    }
+    // Both single- and multi-mappack cases land on the same merged Free
+    // play screen now (mappack list + level list together,
+    // docs/refactor/gui/04-phase2-landview-panel-investigation.md) -- no
+    // need to pre-select a mappack and skip to a levels-only screen here,
+    // frontend_mappack_list_load already auto-highlights the first (or
+    // only) mappack and its first level on entry.
+    frontend_set_state(FeSt_MAPPACK_SELECT);
 }
 
 void frontend_load_mp_mappacks(struct GuiButton *gbtn)
@@ -3624,7 +3725,12 @@ FrontendMenuState get_menu_state_based_on_last_level(LevelNumber lvnum)
     } else
     if (is_freeplay_level(lvnum))
     {
-        return FeSt_LEVEL_SELECT;
+        // FeSt_LEVEL_SELECT/GMnu_FELEVEL_SELECT are the pre-Phase-3
+        // single-list screen, no longer reachable -- the merged Free play
+        // screen (mappack + level lists together) is FeSt_MAPPACK_SELECT
+        // now, same as every other entry point into free play. See
+        // docs/refactor/gui/04-phase2-landview-panel-investigation.md.
+        return FeSt_MAPPACK_SELECT;
     } else
     {
         return FeSt_MAIN_MENU;

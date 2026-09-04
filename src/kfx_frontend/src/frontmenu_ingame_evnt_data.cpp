@@ -51,28 +51,35 @@ void gui_area_friendly_battlers(struct GuiButton *gbtn);
 void gui_setup_enemy_over(struct GuiButton *gbtn);
 void gui_area_enemy_battlers(struct GuiButton *gbtn);
 /******************************************************************************/
+// GCC's -Wmissing-field-initializers fires on a partially-designated
+// GuiButtonInit aggregate in this C++ translation unit even though the
+// omitted fields are the struct's own zero defaults; not a real risk here
+// since every field is still named where it matters.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 struct GuiButtonInit text_info_buttons[] = {
-  { 0, 0,                   0, 0, NULL,               NULL,        NULL,               0, 999,   4, 999,   4,400, 78, gui_area_scroll_window,            0, GUIStr_Empty,        0,{.ptr = &kfx_sim_state.evntbox_scroll_window},0,NULL },
-  { 1, BID_EVENT_ZOOM,      0, 0, gui_go_to_event,    NULL,        NULL,               0,   4,   4,   4,   4, 30, 24, gui_area_new_normal_button, GPS_message_message_btn_show_act, GUIStr_ZoomToArea,   0,       {0},            0, maintain_zoom_to_event },
-  { 0, BID_OBJ_CLOSE,       0, 1, gui_close_objective,gui_close_objective,NULL,        0,   4,  56,   4,  56, 30, 24, gui_area_new_normal_button, GPS_message_message_btn_accept_act, GUIStr_CloseWindow,  0,       {0},            0, NULL },
-  { 1, BID_OBJ_SCRL_UP,     0, 0, gui_scroll_text_up, NULL,        NULL,               0, 446,   4, 446,   4, 30, 24, gui_area_new_normal_button, GPS_message_message_btn_up_act, GUIStr_CtrlUp,       0,{.ptr = &kfx_sim_state.evntbox_scroll_window},0,maintain_scroll_up },
-  { 1, BID_OBJ_SCRL_DWN,    0, 0, gui_scroll_text_down,NULL,       NULL,               0, 446,  56, 446,  56, 30, 24, gui_area_new_normal_button, GPS_message_message_btn_down_act, GUIStr_CtrlDown,     0,{.ptr = &kfx_sim_state.evntbox_scroll_window},0,maintain_scroll_down },
-  {-1, 0,                   0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                 0,       {0},            0, NULL },
+  { .scr_pos_x = 999, .scr_pos_y = 4, .pos_x = 999, .pos_y = 4, .width = 400, .height = 78, .draw_call = gui_area_scroll_window, .tooltip_stridx = GUIStr_Empty, .content = { .ptr = &kfx_sim_state.evntbox_scroll_window } },
+  { .gbtype = 1, .id_num = BID_EVENT_ZOOM, .click_event = gui_go_to_event, .scr_pos_x = 4, .scr_pos_y = 4, .pos_x = 4, .pos_y = 4, .width = 30, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_message_message_btn_show_act, .tooltip_stridx = GUIStr_ZoomToArea, .maintain_call = maintain_zoom_to_event },
+  { .id_num = BID_OBJ_CLOSE, .button_flags = 1, .click_event = gui_close_objective, .rclick_event = gui_close_objective, .scr_pos_x = 4, .scr_pos_y = 56, .pos_x = 4, .pos_y = 56, .width = 30, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_message_message_btn_accept_act, .tooltip_stridx = GUIStr_CloseWindow },
+  { .gbtype = 1, .id_num = BID_OBJ_SCRL_UP, .click_event = gui_scroll_text_up, .scr_pos_x = 446, .scr_pos_y = 4, .pos_x = 446, .pos_y = 4, .width = 30, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_message_message_btn_up_act, .tooltip_stridx = GUIStr_CtrlUp, .content = { .ptr = &kfx_sim_state.evntbox_scroll_window }, .maintain_call = maintain_scroll_up },
+  { .gbtype = 1, .id_num = BID_OBJ_SCRL_DWN, .click_event = gui_scroll_text_down, .scr_pos_x = 446, .scr_pos_y = 56, .pos_x = 446, .pos_y = 56, .width = 30, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_message_message_btn_down_act, .tooltip_stridx = GUIStr_CtrlDown, .content = { .ptr = &kfx_sim_state.evntbox_scroll_window }, .maintain_call = maintain_scroll_down },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit battle_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_close_objective,NULL,        NULL,               0,   4,  72,   4,  72, 30, 24,                gui_area_new_normal_button, GPS_message_message_btn_accept_act, GUIStr_CloseWindow,  0,       {0},            0, NULL },
-  { LbBtnT_HoldableBtn,BID_DEFAULT, 0, 0, gui_previous_battle,NULL,        NULL,               0, 446,   4, 446,   4, 30, 24,                gui_area_new_normal_button, GPS_message_message_btn_up_act, GUIStr_KeyUp,        0,       {0},            0, NULL },
-  { LbBtnT_HoldableBtn,BID_DEFAULT, 0, 0, gui_next_battle    ,NULL,        NULL,               0, 446,  72, 446,  72, 30, 24,                gui_area_new_normal_button, GPS_message_message_btn_down_act, GUIStr_KeyDown,      0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_get_creature_in_battle,gui_go_to_person_in_battle,gui_setup_friend_over,0, 42,12, 42,12,160,24,gui_area_friendly_battlers,  0,GUIStr_Empty,        0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_get_creature_in_battle,gui_go_to_person_in_battle,gui_setup_enemy_over, 0,260,12,260,12,160,24,gui_area_enemy_battlers,     0,GUIStr_Empty,        0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_get_creature_in_battle,gui_go_to_person_in_battle,gui_setup_friend_over,1, 42,42, 42,42,160,24,gui_area_friendly_battlers,  0,GUIStr_Empty,        0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_get_creature_in_battle,gui_go_to_person_in_battle,gui_setup_enemy_over, 1,260,42,260,42,160,24,gui_area_enemy_battlers,     0,GUIStr_Empty,        0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_get_creature_in_battle,gui_go_to_person_in_battle,gui_setup_friend_over,2, 42,72, 42,72,160,24,gui_area_friendly_battlers,  0,GUIStr_Empty,        0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_get_creature_in_battle,gui_go_to_person_in_battle,gui_setup_enemy_over, 2,260,72,260,72,160,24,gui_area_enemy_battlers,     0,GUIStr_Empty,        0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 214,  34, 214,  34, 32, 32,                gui_area_null, GBS_guisymbols_sym_fight,GUIStr_Empty,        0,       {0},            0, NULL },
-  {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0,                NULL,                        0,   0,                0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_close_objective, .scr_pos_x = 4, .scr_pos_y = 72, .pos_x = 4, .pos_y = 72, .width = 30, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_message_message_btn_accept_act, .tooltip_stridx = GUIStr_CloseWindow },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = gui_previous_battle, .scr_pos_x = 446, .scr_pos_y = 4, .pos_x = 446, .pos_y = 4, .width = 30, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_message_message_btn_up_act, .tooltip_stridx = GUIStr_KeyUp },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = gui_next_battle, .scr_pos_x = 446, .scr_pos_y = 72, .pos_x = 446, .pos_y = 72, .width = 30, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_message_message_btn_down_act, .tooltip_stridx = GUIStr_KeyDown },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_get_creature_in_battle, .rclick_event = gui_go_to_person_in_battle, .ptover_event = gui_setup_friend_over, .scr_pos_x = 42, .scr_pos_y = 12, .pos_x = 42, .pos_y = 12, .width = 160, .height = 24, .draw_call = gui_area_friendly_battlers, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_get_creature_in_battle, .rclick_event = gui_go_to_person_in_battle, .ptover_event = gui_setup_enemy_over, .scr_pos_x = 260, .scr_pos_y = 12, .pos_x = 260, .pos_y = 12, .width = 160, .height = 24, .draw_call = gui_area_enemy_battlers, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_get_creature_in_battle, .rclick_event = gui_go_to_person_in_battle, .ptover_event = gui_setup_friend_over, .btype_value = 1, .scr_pos_x = 42, .scr_pos_y = 42, .pos_x = 42, .pos_y = 42, .width = 160, .height = 24, .draw_call = gui_area_friendly_battlers, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_get_creature_in_battle, .rclick_event = gui_go_to_person_in_battle, .ptover_event = gui_setup_enemy_over, .btype_value = 1, .scr_pos_x = 260, .scr_pos_y = 42, .pos_x = 260, .pos_y = 42, .width = 160, .height = 24, .draw_call = gui_area_enemy_battlers, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_get_creature_in_battle, .rclick_event = gui_go_to_person_in_battle, .ptover_event = gui_setup_friend_over, .btype_value = 2, .scr_pos_x = 42, .scr_pos_y = 72, .pos_x = 42, .pos_y = 72, .width = 160, .height = 24, .draw_call = gui_area_friendly_battlers, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_get_creature_in_battle, .rclick_event = gui_go_to_person_in_battle, .ptover_event = gui_setup_enemy_over, .btype_value = 2, .scr_pos_x = 260, .scr_pos_y = 72, .pos_x = 260, .pos_y = 72, .width = 160, .height = 24, .draw_call = gui_area_enemy_battlers, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 214, .scr_pos_y = 34, .pos_x = 214, .pos_y = 34, .width = 32, .height = 32, .draw_call = gui_area_null, .sprite_idx = GBS_guisymbols_sym_fight, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = -1 },
 };
+#pragma GCC diagnostic pop
 
 
 struct GuiMenu text_info_menu =

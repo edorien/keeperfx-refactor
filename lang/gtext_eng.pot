@@ -1736,7 +1736,7 @@ msgstr ""
 
 #: guitext:343
 msgctxt "Menu interface, Main Menu title"
-msgid "Main Menu"
+msgid "Dungeon Keeper"
 msgstr ""
 
 #: guitext:291

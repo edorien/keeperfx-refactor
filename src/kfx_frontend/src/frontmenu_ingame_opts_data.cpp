@@ -50,81 +50,88 @@ struct MsgBoxInfo MsgBox;
 // Non-NULL no-op callback so that the controller snapping logic does not ignore the button
 static void no_op(struct GuiButton* gbtn) {}
 
+// GCC's -Wmissing-field-initializers fires on a partially-designated
+// GuiButtonInit aggregate in this C++ translation unit even though the
+// omitted fields are the struct's own zero defaults; not a real risk here
+// since every field is still named where it matters.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 struct GuiButtonInit options_menu_buttons[] = {
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,155, 32, gui_area_text,                     1, GUIStr_MnuOptions,          0,       {0},          0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, no_op,               NULL,        NULL,              0,  12,  36,  12,  36, 46, 64, gui_area_no_anim_button, GBS_options_button_load, GUIStr_LoadGameDesc,     &load_menu, {0},          0, maintain_loadsave },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, no_op,               NULL,        NULL,              0,  60,  36,  60,  36, 46, 64, gui_area_no_anim_button, GBS_options_button_save, GUIStr_SaveGameDesc,     &save_menu, {0},          0, maintain_loadsave },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, no_op,               NULL,        NULL,              0, 108,  36, 108,  36, 46, 64, gui_area_no_anim_button, GBS_options_button_graphc, GUIStr_GraphicsMenuDesc, &video_menu,{0},          0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, no_op,               NULL,        NULL,              0, 156,  36, 156,  36, 46, 64, gui_area_no_anim_button, GBS_options_button_sound, GUIStr_SoundMenuDesc,    &sound_menu,{0},          0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, no_op,               NULL,        NULL,              0, 204,  36, 204,  36, 46, 64, gui_area_compsetting_button, GPS_options_cassist_btn_black_a, GUIStr_ComputerAssistDesc,&autopilot_menu,{0},     0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, no_op,               NULL,        NULL,              0, 252,  36, 252,  36, 46, 64, gui_area_no_anim_button, GBS_options_button_exit, GUIStr_QuitGameDesc,     &quit_menu, {0},          0, NULL },
-  {              -1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0, 0,                       0,          {0},          0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_MnuOptions },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = no_op, .scr_pos_x = 12, .scr_pos_y = 36, .pos_x = 12, .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_load, .tooltip_stridx = GUIStr_LoadGameDesc, .parent_menu = &load_menu, .maintain_call = maintain_loadsave },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = no_op, .scr_pos_x = 60, .scr_pos_y = 36, .pos_x = 60, .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_save, .tooltip_stridx = GUIStr_SaveGameDesc, .parent_menu = &save_menu, .maintain_call = maintain_loadsave },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = no_op, .scr_pos_x = 108, .scr_pos_y = 36, .pos_x = 108, .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_graphc, .tooltip_stridx = GUIStr_GraphicsMenuDesc, .parent_menu = &video_menu },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = no_op, .scr_pos_x = 156, .scr_pos_y = 36, .pos_x = 156, .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_sound, .tooltip_stridx = GUIStr_SoundMenuDesc, .parent_menu = &sound_menu },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = no_op, .scr_pos_x = 204, .scr_pos_y = 36, .pos_x = 204, .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_compsetting_button, .sprite_idx = GPS_options_cassist_btn_black_a, .tooltip_stridx = GUIStr_ComputerAssistDesc, .parent_menu = &autopilot_menu },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = no_op, .scr_pos_x = 252, .scr_pos_y = 36, .pos_x = 252, .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_exit, .tooltip_stridx = GUIStr_QuitGameDesc, .parent_menu = &quit_menu },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit quit_menu_buttons[] = {
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,210, 32, gui_area_text,                     1, GUIStr_ConfirmYouSure,   0,       {0},            0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, no_op,               NULL,        NULL,              0,  70,  24,  72,  58, 46, 32, gui_area_normal_button, GBS_options_button_smd_no, GUIStr_ConfirmNo,        0,       {0},            0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_quit_game,      NULL,        NULL,               0, 136,  24, 138,  58, 46, 32, gui_area_normal_button, GBS_options_button_smd_yes, GUIStr_ConfirmYes,       0,       {0},            0, NULL },
-  {              -1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                     0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 210, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_ConfirmYouSure },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = no_op, .scr_pos_x = 70, .scr_pos_y = 24, .pos_x = 72, .pos_y = 58, .width = 46, .height = 32, .draw_call = gui_area_normal_button, .sprite_idx = GBS_options_button_smd_no, .tooltip_stridx = GUIStr_ConfirmNo },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_quit_game, .scr_pos_x = 136, .scr_pos_y = 24, .pos_x = 138, .pos_y = 58, .width = 46, .height = 32, .draw_call = gui_area_normal_button, .sprite_idx = GBS_options_button_smd_yes, .tooltip_stridx = GUIStr_ConfirmYes },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit error_box_buttons[] = {
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,155, 32, gui_area_text,                     1, GUIStr_Error,            0,       {0},            0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  65, 999,  0, 250, 32, gui_area_text,                     0, GUIStr_Empty,            0,       {.str = gui_error_text}, 0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, NULL,               NULL,        NULL,               0, 999, 100, 999, 132, 46, 34, gui_area_normal_button, GBS_options_button_smd_yes, GUIStr_CloseWindow,      0,       {0},            0, NULL },
-  {              -1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                     0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Error },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 65, .pos_x = 999, .width = 250, .height = 32, .draw_call = gui_area_text, .tooltip_stridx = GUIStr_Empty, .content = { .str = gui_error_text } },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .scr_pos_x = 999, .scr_pos_y = 100, .pos_x = 999, .pos_y = 132, .width = 46, .height = 34, .draw_call = gui_area_normal_button, .sprite_idx = GBS_options_button_smd_yes, .tooltip_stridx = GUIStr_CloseWindow },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit instance_menu_buttons[] = {
-  {              -1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                     0,       {0},            0, NULL },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit pause_buttons[] = {
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999, 999, 999, 999,140, 32, gui_area_text,                     0, GUIStr_PausedMsg,        0,       {0},            0, NULL },
-  {              -1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                     0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 999, .pos_x = 999, .pos_y = 999, .width = 140, .height = 32, .draw_call = gui_area_text, .tooltip_stridx = GUIStr_PausedMsg },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit autopilot_menu_buttons[] = {
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,155, 32, gui_area_text,                     1, GUIStr_MnuComputer,      0,       {0},            0, NULL },
-  {LbBtnT_RadioBtn,   BID_DEFAULT, 0, 0, gui_set_autopilot,  NULL,        NULL,               0,  12,  36,  12,  36, 46, 64, gui_area_new_normal_button, GPS_options_cassist_btn_orange, GUIStr_AggressiveAssistDesc,  0,{.ptr = &kfx_net_state.comp_player_aggressive},  0, maintain_compsetting_button },
-  {LbBtnT_RadioBtn,   BID_DEFAULT, 0, 0, gui_set_autopilot,  NULL,        NULL,               1,  60,  36,  60,  36, 46, 64, gui_area_new_normal_button, GPS_options_cassist_btn_yellow, GUIStr_DefensiveAssistDesc,   0,{.ptr = &kfx_net_state.comp_player_defensive},   0, maintain_compsetting_button },
-  {LbBtnT_RadioBtn,   BID_DEFAULT, 0, 0, gui_set_autopilot,  NULL,        NULL,               2, 108,  36, 108,  36, 46, 64, gui_area_new_normal_button, GPS_options_cassist_btn_pink,   GUIStr_ConstructionAssistDesc,0,{.ptr = &kfx_net_state.comp_player_construct},   0, maintain_compsetting_button },
-  {LbBtnT_RadioBtn,   BID_DEFAULT, 0, 0, gui_set_autopilot,  NULL,        NULL,               3, 156,  36, 156,  36, 46, 64, gui_area_new_normal_button, GPS_options_cassist_btn_green,  GUIStr_MoveOnlyAssistDesc,    0,{.ptr = &kfx_net_state.comp_player_creatrsonly}, 0, maintain_compsetting_button },
-  {              -1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                     0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_MnuComputer },
+  { .gbtype = LbBtnT_RadioBtn, .click_event = gui_set_autopilot, .scr_pos_x = FE_ROW_Y(12, 48, 0), .scr_pos_y = 36, .pos_x = FE_ROW_Y(12, 48, 0), .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_options_cassist_btn_orange, .tooltip_stridx = GUIStr_AggressiveAssistDesc, .content = { .ptr = &kfx_net_state.comp_player_aggressive }, .maintain_call = maintain_compsetting_button },
+  { .gbtype = LbBtnT_RadioBtn, .click_event = gui_set_autopilot, .btype_value = 1, .scr_pos_x = FE_ROW_Y(12, 48, 1), .scr_pos_y = 36, .pos_x = FE_ROW_Y(12, 48, 1), .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_options_cassist_btn_yellow, .tooltip_stridx = GUIStr_DefensiveAssistDesc, .content = { .ptr = &kfx_net_state.comp_player_defensive }, .maintain_call = maintain_compsetting_button },
+  { .gbtype = LbBtnT_RadioBtn, .click_event = gui_set_autopilot, .btype_value = 2, .scr_pos_x = FE_ROW_Y(12, 48, 2), .scr_pos_y = 36, .pos_x = FE_ROW_Y(12, 48, 2), .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_options_cassist_btn_pink, .tooltip_stridx = GUIStr_ConstructionAssistDesc, .content = { .ptr = &kfx_net_state.comp_player_construct }, .maintain_call = maintain_compsetting_button },
+  { .gbtype = LbBtnT_RadioBtn, .click_event = gui_set_autopilot, .btype_value = 3, .scr_pos_x = FE_ROW_Y(12, 48, 3), .scr_pos_y = 36, .pos_x = FE_ROW_Y(12, 48, 3), .pos_y = 36, .width = 46, .height = 64, .draw_call = gui_area_new_normal_button, .sprite_idx = GPS_options_cassist_btn_green, .tooltip_stridx = GUIStr_MoveOnlyAssistDesc, .content = { .ptr = &kfx_net_state.comp_player_creatrsonly }, .maintain_call = maintain_compsetting_button },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit video_menu_buttons[] = {
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,                          NULL,                           NULL,  0, 999,  10, 999,  10, 155, 32, gui_area_text,                     1, GUIStr_MnuGraphicsOptions,          0, {0},            0, NULL },
-  {LbBtnT_ToggleBtn,  BID_DEFAULT, 0, 0, gui_video_shadows,             NULL,                           NULL,  0,  28,  38,  30,  38,  46, 64, gui_area_no_anim_button, GBS_options_button_grph_shadow0, GUIStr_OptionShadowsDesc,           0, {.ptr = &video_shadows}, 4, NULL },
-  {LbBtnT_ToggleBtn,  BID_DEFAULT, 0, 0, gui_video_view_distance_level, NULL,                           NULL,  0,  76,  38,  78,  38,  46, 64, gui_area_no_anim_button, GBS_options_button_grph_range0, GUIStr_OptionViewDistanceDesc,      0, {.ptr = &video_view_distance_level}, 3, NULL },
-  {LbBtnT_ToggleBtn,  BID_DEFAULT, 0, 0, gui_video_rotate_mode,         NULL,                           NULL,  0, 124,  38, 126,  38,  46, 64, gui_area_no_anim_button, GBS_options_button_grph_pers_rot, GUIStr_OptionViewTypeDesc,          0, {.ptr = &settings.video_rotate_mode}, 2, NULL },
-  {LbBtnT_ToggleBtn,  BID_DEFAULT, 0, 0, gui_video_cluedo_mode,         NULL,                           NULL,  0,  28, 100,  30, 100,  46, 64, gui_area_no_anim_button, GBS_options_button_grph_wall_hi, GUIStr_OptionWallHeightDesc,        0, {.ptr = &video_cluedo_mode},1, gui_video_cluedo_maintain },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_video_gamma_correction,    NULL,                           NULL,  0,  76, 100,  78, 100,  46, 64, gui_area_no_anim_button, GBS_options_button_grph_gamma, GUIStr_OptionGammaCorrectionDesc,   0, {.ptr = &video_gamma_correction}, 0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_switch_video_mode,         gui_display_current_resolution, NULL,  0, 124, 100, 126, 100,  46, 64, gui_area_no_anim_button, GBS_optionsbutton_resolution, GUIStr_DisplayResolution,           0, {0}, 0, NULL },
-  {              -1,  BID_DEFAULT, 0, 0, NULL,                          NULL,                           NULL,  0,   0,   0,   0,   0,   0,  0, NULL,                              0,                                     0, 0, {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_MnuGraphicsOptions },
+  { .gbtype = LbBtnT_ToggleBtn, .click_event = gui_video_shadows, .scr_pos_x = 28, .scr_pos_y = 38, .pos_x = 30, .pos_y = 38, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_grph_shadow0, .tooltip_stridx = GUIStr_OptionShadowsDesc, .content = { .ptr = &video_shadows }, .maxval = 4 },
+  { .gbtype = LbBtnT_ToggleBtn, .click_event = gui_video_view_distance_level, .scr_pos_x = 76, .scr_pos_y = 38, .pos_x = 78, .pos_y = 38, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_grph_range0, .tooltip_stridx = GUIStr_OptionViewDistanceDesc, .content = { .ptr = &video_view_distance_level }, .maxval = 3 },
+  { .gbtype = LbBtnT_ToggleBtn, .click_event = gui_video_rotate_mode, .scr_pos_x = 124, .scr_pos_y = 38, .pos_x = 126, .pos_y = 38, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_grph_pers_rot, .tooltip_stridx = GUIStr_OptionViewTypeDesc, .content = { .ptr = &settings.video_rotate_mode }, .maxval = 2 },
+  { .gbtype = LbBtnT_ToggleBtn, .click_event = gui_video_cluedo_mode, .scr_pos_x = 28, .scr_pos_y = 100, .pos_x = 30, .pos_y = 100, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_grph_wall_hi, .tooltip_stridx = GUIStr_OptionWallHeightDesc, .content = { .ptr = &video_cluedo_mode }, .maxval = 1, .maintain_call = gui_video_cluedo_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_video_gamma_correction, .scr_pos_x = 76, .scr_pos_y = 100, .pos_x = 78, .pos_y = 100, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_grph_gamma, .tooltip_stridx = GUIStr_OptionGammaCorrectionDesc, .content = { .ptr = &video_gamma_correction } },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_switch_video_mode, .rclick_event = gui_display_current_resolution, .scr_pos_x = 124, .scr_pos_y = 100, .pos_x = 126, .pos_y = 100, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_optionsbutton_resolution, .tooltip_stridx = GUIStr_DisplayResolution },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit sound_menu_buttons[] = {
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,155, 32, gui_area_text,                     1, GUIStr_MnuSoundOptions,  0,       {0},            0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   8,  28,  10,  28, 46, 64, gui_area_no_anim_button, GBS_options_button_snd_music, GUIStr_Empty,            0,       {0},            0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   8,  80,  10,  80, 46, 64, gui_area_no_anim_button, GBS_options_button_snd_sounds, GUIStr_Empty,            0,       {0},            0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   8, 132,  10, 132, 46, 64, gui_area_no_anim_button, GBS_optionsbutton_snd_voice, GUIStr_Empty,            0,       {0},            0, NULL },
-  {LbBtnT_HorizSlider,BID_SOUND_VOL, 0, 0, gui_set_sound_volume,NULL,       NULL,               0,  66,  58,  66,  58,190, 30, gui_area_slider,                   0, GUIStr_OptionSoundFx,    0, {0}, 255, NULL },
-  {LbBtnT_HorizSlider,BID_MUSIC_VOL, 0, 0, gui_set_music_volume,NULL,       NULL,               0,  66, 110,  66, 110,190, 30, gui_area_slider,                   0, GUIStr_OptionMusic,      0, {0}, 255, NULL },
-  {LbBtnT_HorizSlider,BID_MENTOR_VOL, 0, 0, gui_set_mentor_volume,NULL,      NULL,               0,  66, 162,  66, 162,190, 30, gui_area_slider,                   0, GUIStr_OptionVoice,      0, {0}, 255, NULL },
-  {              -1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                     0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_MnuSoundOptions },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 8, .scr_pos_y = 28, .pos_x = 10, .pos_y = 28, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_snd_music, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 8, .scr_pos_y = 80, .pos_x = 10, .pos_y = 80, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_snd_sounds, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 8, .scr_pos_y = 132, .pos_x = 10, .pos_y = 132, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_optionsbutton_snd_voice, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = LbBtnT_HorizSlider, .id_num = BID_SOUND_VOL, .click_event = gui_set_sound_volume, .scr_pos_x = 66, .scr_pos_y = 58, .pos_x = 66, .pos_y = 58, .width = 190, .height = 30, .draw_call = gui_area_slider, .tooltip_stridx = GUIStr_OptionSoundFx, .maxval = 255 },
+  { .gbtype = LbBtnT_HorizSlider, .id_num = BID_MUSIC_VOL, .click_event = gui_set_music_volume, .scr_pos_x = 66, .scr_pos_y = 110, .pos_x = 66, .pos_y = 110, .width = 190, .height = 30, .draw_call = gui_area_slider, .tooltip_stridx = GUIStr_OptionMusic, .maxval = 255 },
+  { .gbtype = LbBtnT_HorizSlider, .id_num = BID_MENTOR_VOL, .click_event = gui_set_mentor_volume, .scr_pos_x = 66, .scr_pos_y = 162, .pos_x = 66, .pos_y = 162, .width = 190, .height = 30, .draw_call = gui_area_slider, .tooltip_stridx = GUIStr_OptionVoice, .maxval = 255 },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit message_box_buttons[] = {
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,155, 32, gui_area_text,                     1, GUIStr_Empty,            0,       {.str = MsgBox.title},            0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  35, 999,  0, 250, 32, gui_area_text,                     0, GUIStr_Empty,            0,       {.str = MsgBox.line1}, 0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  55, 999,  0, 250, 32, gui_area_text,                     0, GUIStr_Empty,            0,       {.str = MsgBox.line2}, 0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  75, 999,  0, 250, 32, gui_area_text,                     0, GUIStr_Empty,            0,       {.str = MsgBox.line3}, 0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  95, 999,  0, 250, 32, gui_area_text,                     0, GUIStr_Empty,            0,       {.str = MsgBox.line4}, 0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999, 115, 999,  0, 250, 32, gui_area_text,                     0, GUIStr_Empty,            0,       {.str = MsgBox.line5}, 0, NULL },
-  {LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, NULL,               NULL,        NULL,               0, 999, 115, 999, 132, 46, 34, gui_area_normal_button, GBS_options_button_smd_yes, GUIStr_CloseWindow,      0,       {0},            0, NULL },
-  {              -1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                     0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = MsgBox.title } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 35, .pos_x = 999, .width = 250, .height = 32, .draw_call = gui_area_text, .tooltip_stridx = GUIStr_Empty, .content = { .str = MsgBox.line1 } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 55, .pos_x = 999, .width = 250, .height = 32, .draw_call = gui_area_text, .tooltip_stridx = GUIStr_Empty, .content = { .str = MsgBox.line2 } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 75, .pos_x = 999, .width = 250, .height = 32, .draw_call = gui_area_text, .tooltip_stridx = GUIStr_Empty, .content = { .str = MsgBox.line3 } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 95, .pos_x = 999, .width = 250, .height = 32, .draw_call = gui_area_text, .tooltip_stridx = GUIStr_Empty, .content = { .str = MsgBox.line4 } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 115, .pos_x = 999, .width = 250, .height = 32, .draw_call = gui_area_text, .tooltip_stridx = GUIStr_Empty, .content = { .str = MsgBox.line5 } },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .scr_pos_x = 999, .scr_pos_y = 115, .pos_x = 999, .pos_y = 132, .width = 46, .height = 34, .draw_call = gui_area_normal_button, .sprite_idx = GBS_options_button_smd_yes, .tooltip_stridx = GUIStr_CloseWindow },
+  { .gbtype = -1 },
 };
+#pragma GCC diagnostic pop
 
 struct GuiMenu options_menu =
  { GMnu_OPTIONS,      0, 1, options_menu_buttons,       POS_GAMECTR,POS_GAMECTR,308, 120, gui_pretty_background,       0, NULL,    NULL,                    0, 1, 0,};

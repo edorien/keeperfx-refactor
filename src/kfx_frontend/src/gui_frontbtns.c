@@ -807,6 +807,135 @@ void frontend_draw_button(struct GuiButton *gbtn, unsigned short btntype, const 
     }
 }
 
+/**
+ * How many times to repeat a menu button's middle chrome piece so the
+ * drawn width matches `width`, generalizing frontend_draw_button's
+ * hardcoded 0/1/2-repeat presets (small/large/vlarge) to an arbitrary
+ * target width. Pure arithmetic, no rendering -- unit-tested directly.
+ */
+int frontend_button_chrome_repeat_count(int width, int left_w, int right_w, int mid_w)
+{
+    if (mid_w <= 0)
+        return 0;
+    int avail = width - left_w - right_w;
+    int repeats = (avail + mid_w / 2) / mid_w;
+    if (repeats < 0)
+        repeats = 0;
+    return repeats;
+}
+
+/**
+ * The width frontend_draw_button_chrome_flexible will *actually* render
+ * for a requested min_width, after frontend_button_chrome_repeat_count's
+ * rounding to a whole middle-tile count. Callers that need a button's
+ * width to track its caption (auto-sizing menu buttons) must size to
+ * this, not to their own raw text-width-plus-padding estimate: the
+ * middle tile can be wide enough that several different requested widths
+ * all round to the same repeat count, so an un-quantized width silently
+ * doesn't move the rendered edge, and desyncs gbtn->width (used for both
+ * the hitbox and, by callers positioning a sibling button, layout) from
+ * what's actually drawn.
+ */
+long frontend_button_chrome_fit_width(unsigned int spridx, int units_per_px, long min_width)
+{
+    int left_w = get_frontend_sprite(spridx)->SWidth * units_per_px / 16;
+    int right_w = get_frontend_sprite(spridx+2)->SWidth * units_per_px / 16;
+    int mid_w = get_frontend_sprite(spridx+1)->SWidth * units_per_px / 16;
+    int repeats = frontend_button_chrome_repeat_count((int)min_width, left_w, right_w, mid_w);
+    return (long)left_w + (long)repeats * (long)mid_w + (long)right_w;
+}
+
+/**
+ * Draws the ornate "menu button" chrome (the same GFS_hugebutton_a0*l
+ * pieces frontend_draw_button uses) at gbtn->width, tiling the middle
+ * piece a width-derived number of times instead of a hardcoded preset.
+ * Returns the x position immediately after the drawn chrome, so a caller
+ * can lay out an icon/caption relative to it.
+ */
+long frontend_draw_button_chrome_flexible(struct GuiButton *gbtn, unsigned int spridx, int units_per_px)
+{
+    const struct TbSprite *spr;
+    long x = gbtn->scr_pos_x;
+    long y = gbtn->scr_pos_y;
+
+    spr = get_frontend_sprite(spridx);
+    int left_w = spr->SWidth * units_per_px / 16;
+    LbSpriteDrawResized(x, y, units_per_px, spr);
+    x += left_w;
+
+    int right_w = get_frontend_sprite(spridx+2)->SWidth * units_per_px / 16;
+    spr = get_frontend_sprite(spridx+1);
+    int mid_w = spr->SWidth * units_per_px / 16;
+    int repeats = frontend_button_chrome_repeat_count(gbtn->width, left_w, right_w, mid_w);
+    for (int i = 0; i < repeats; i++)
+    {
+        LbSpriteDrawResized(x, y, units_per_px, spr);
+        x += mid_w;
+    }
+
+    spr = get_frontend_sprite(spridx+2);
+    LbSpriteDrawResized(x, y, units_per_px, spr);
+    x += right_w;
+    return x;
+}
+
+/**
+ * A menu button that draws an icon (gbtn->sprite_idx) beside its caption
+ * text using the flexible-width chrome above, instead of
+ * frontend_draw_button's centered-text-only layout. New draw_call for
+ * buttons that want both an icon and a persistent label; existing
+ * frontend_draw_large_menu_button/_vlarge_menu_button/_small_menu_button
+ * callers are untouched and keep using frontend_draw_button as before.
+ */
+void frontend_draw_button_icon(struct GuiButton *gbtn)
+{
+    static const long large_button_sprite_anims[] = {
+        GFS_hugebutton_a01l, GFS_hugebutton_a02l, GFS_hugebutton_a03l, GFS_hugebutton_a04l,
+        GFS_hugebutton_a05l, GFS_hugebutton_a04l, GFS_hugebutton_a03l, GFS_hugebutton_a02l,
+    };
+    unsigned int febtn_idx = gbtn->content.lval;
+    unsigned int spridx;
+    int fntidx;
+    if ((gbtn->flags & LbBtnF_Enabled) == 0)
+    {
+        fntidx = 3;
+        spridx = GFS_hugebutton_a05l;
+    } else
+    {
+        fntidx = frontend_button_caption_font(gbtn, frontend_mouse_over_button);
+        if ((febtn_idx > 0) && (frontend_mouse_over_button == febtn_idx)) {
+            spridx = large_button_sprite_anims[((LbTimerClock()-frontend_mouse_over_button_start_time)/100) & 7];
+        } else {
+            spridx = GFS_hugebutton_a05l;
+        }
+    }
+
+    int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
+    frontend_draw_button_chrome_flexible(gbtn, spridx, units_per_px);
+
+    long inset = 20 * units_per_px / 16;
+    long content_x = gbtn->scr_pos_x + inset;
+    if (gbtn->sprite_idx > 0)
+    {
+        int icon_units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, gbtn->sprite_idx, 100);
+        const struct TbSprite *icon_spr = get_frontend_sprite(gbtn->sprite_idx);
+        long icon_y = gbtn->scr_pos_y + ((gbtn->height - icon_spr->SHeight * icon_units_per_px / 16) >> 1);
+        LbSpriteDrawResized(content_x, icon_y, icon_units_per_px, icon_spr);
+        content_x += icon_spr->SWidth * icon_units_per_px / 16 + inset;
+    }
+
+    const char *text = frontend_button_caption_text(gbtn);
+    if (text != NULL)
+    {
+        RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
+        LbTextSetFont(frontend_font[fntidx]);
+        int h = LbTextHeight(text) * units_per_px / 16;
+        long text_y = gbtn->scr_pos_y + ((gbtn->height - h) >> 1);
+        LbTextSetWindow(content_x, text_y, gbtn->width - (content_x - gbtn->scr_pos_x), h);
+        LbTextDrawResized(0, 0, units_per_px, text);
+    }
+}
+
 void frontend_draw_large_menu_button(struct GuiButton *gbtn)
 {
     const char *text;

@@ -63,6 +63,10 @@ void frontend_over_button(struct GuiButton *gbtn);
 void frontend_draw_button(struct GuiButton *gbtn, unsigned short btntype, const char *text, unsigned int drw_flags);
 void frontend_draw_large_menu_button(struct GuiButton *gbtn);
 void frontend_draw_vlarge_menu_button(struct GuiButton *gbtn);
+int frontend_button_chrome_repeat_count(int width, int left_w, int right_w, int mid_w);
+long frontend_draw_button_chrome_flexible(struct GuiButton *gbtn, unsigned int spridx, int units_per_px);
+void frontend_draw_button_icon(struct GuiButton *gbtn);
+long frontend_button_chrome_fit_width(unsigned int spridx, int units_per_px, long min_width);
 void frontend_draw_scroll_box_tab(struct GuiButton *gbtn);
 void frontend_draw_scroll_box(struct GuiButton *gbtn);
 

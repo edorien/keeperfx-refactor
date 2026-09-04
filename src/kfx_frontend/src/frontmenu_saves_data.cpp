@@ -40,51 +40,63 @@
 extern "C" {
 #endif
 /******************************************************************************/
+// GCC's -Wmissing-field-initializers fires on a partially-designated
+// GuiButtonInit aggregate in this C++ translation unit even though the
+// omitted fields are the struct's own zero defaults; not a real risk here
+// since every field is still named where it matters.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 struct GuiButtonInit load_menu_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,155, 32, gui_area_text,                     1, GUIStr_MnuLoad,0,       {0},               0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               0, 999,  58, 999,  58,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[0]}, 0, gui_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               1, 999,  90, 999,  90,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[1]}, 0, gui_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               2, 999, 122, 999, 122,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[2]}, 0, gui_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               3, 999, 154, 999, 154,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[3]}, 0, gui_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               4, 999, 186, 999, 186,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[4]}, 0, gui_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               5, 999, 218, 999, 218,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[5]}, 0, gui_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               6, 999, 250, 999, 250,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[6]}, 0, gui_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               7, 999, 282, 999, 282,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[7]}, 0, gui_load_game_maintain },
-  { LbBtnT_HoldableBtn,BID_DEFAULT, 0, 0, gui_vscroll_input,  NULL,        NULL,               0, 368,  58, 368,  58, 33,254, gui_vscroll_draw,                  0, GUIStr_Empty,  0,{0},                      0, gui_vscroll_maintain },
-  {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,           0,       {0},               0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_MnuLoad },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_load_game, .scr_pos_x = 999, .scr_pos_y = 58, .pos_x = 999, .pos_y = 58, .width = 300, .height = 32, .draw_call = draw_load_button, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[0] }, .maintain_call = gui_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_load_game, .btype_value = 1, .scr_pos_x = 999, .scr_pos_y = 90, .pos_x = 999, .pos_y = 90, .width = 300, .height = 32, .draw_call = draw_load_button, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[1] }, .maintain_call = gui_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_load_game, .btype_value = 2, .scr_pos_x = 999, .scr_pos_y = 122, .pos_x = 999, .pos_y = 122, .width = 300, .height = 32, .draw_call = draw_load_button, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[2] }, .maintain_call = gui_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_load_game, .btype_value = 3, .scr_pos_x = 999, .scr_pos_y = 154, .pos_x = 999, .pos_y = 154, .width = 300, .height = 32, .draw_call = draw_load_button, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[3] }, .maintain_call = gui_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_load_game, .btype_value = 4, .scr_pos_x = 999, .scr_pos_y = 186, .pos_x = 999, .pos_y = 186, .width = 300, .height = 32, .draw_call = draw_load_button, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[4] }, .maintain_call = gui_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_load_game, .btype_value = 5, .scr_pos_x = 999, .scr_pos_y = 218, .pos_x = 999, .pos_y = 218, .width = 300, .height = 32, .draw_call = draw_load_button, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[5] }, .maintain_call = gui_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_load_game, .btype_value = 6, .scr_pos_x = 999, .scr_pos_y = 250, .pos_x = 999, .pos_y = 250, .width = 300, .height = 32, .draw_call = draw_load_button, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[6] }, .maintain_call = gui_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .button_flags = 1, .click_event = gui_load_game, .btype_value = 7, .scr_pos_x = 999, .scr_pos_y = 282, .pos_x = 999, .pos_y = 282, .width = 300, .height = 32, .draw_call = draw_load_button, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[7] }, .maintain_call = gui_load_game_maintain },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = gui_vscroll_input, .scr_pos_x = 368, .scr_pos_y = 58, .pos_x = 368, .pos_y = 58, .width = 33, .height = 254, .draw_call = gui_vscroll_draw, .tooltip_stridx = GUIStr_Empty, .maintain_call = gui_vscroll_maintain },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit save_menu_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,              NULL, NULL,  0, 999,  10, 999,  10,155, 32, gui_area_text,    1, GUIStr_MnuSave,0,       {0},               0, NULL },
-  { 5,                 -2,         -1, 1, gui_save_game,     NULL, NULL,  0, 999,  58, 999,  58,300, 32, gui_area_text,    1, GUIStr_Empty,  0,{.str = input_string[0]},SAVE_TEXTNAME_LEN, NULL },
-  { 5,                 -2,         -1, 1, gui_save_game,     NULL, NULL,  1, 999,  90, 999,  90,300, 32, gui_area_text,    1, GUIStr_Empty,  0,{.str = input_string[1]},SAVE_TEXTNAME_LEN, NULL },
-  { 5,                 -2,         -1, 1, gui_save_game,     NULL, NULL,  2, 999, 122, 999, 122,300, 32, gui_area_text,    1, GUIStr_Empty,  0,{.str = input_string[2]},SAVE_TEXTNAME_LEN, NULL },
-  { 5,                 -2,         -1, 1, gui_save_game,     NULL, NULL,  3, 999, 154, 999, 154,300, 32, gui_area_text,    1, GUIStr_Empty,  0,{.str = input_string[3]},SAVE_TEXTNAME_LEN, NULL },
-  { 5,                 -2,         -1, 1, gui_save_game,     NULL, NULL,  4, 999, 186, 999, 186,300, 32, gui_area_text,    1, GUIStr_Empty,  0,{.str = input_string[4]},SAVE_TEXTNAME_LEN, NULL },
-  { 5,                 -2,         -1, 1, gui_save_game,     NULL, NULL,  5, 999, 218, 999, 218,300, 32, gui_area_text,    1, GUIStr_Empty,  0,{.str = input_string[5]},SAVE_TEXTNAME_LEN, NULL },
-  { 5,                 -2,         -1, 1, gui_save_game,     NULL, NULL,  6, 999, 250, 999, 250,300, 32, gui_area_text,    1, GUIStr_Empty,  0,{.str = input_string[6]},SAVE_TEXTNAME_LEN, NULL },
-  { 5,                 -2,         -1, 1, gui_save_game,     NULL, NULL,  7, 999, 282, 999, 282,300, 32, gui_area_text,    1, GUIStr_Empty,  0,{.str = input_string[7]},SAVE_TEXTNAME_LEN, NULL },
-  { LbBtnT_HoldableBtn,BID_DEFAULT, 0, 0, gui_vscroll_input, NULL, NULL,  0, 368,  58, 368,  58, 33,254, gui_vscroll_draw, 0, GUIStr_Empty,  0,{0},                     0,                 gui_vscroll_maintain },
-  {-1,                 0,           0, 0, NULL,              NULL, NULL,  0,   0,   0,   0,   0,  0,  0, NULL,             0, 0,             0,{0},                     0,                 NULL },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_MnuSave },
+  { .gbtype = 5, .id_num = -2, .button_flags = 1, .click_event = gui_save_game, .scr_pos_x = 999, .scr_pos_y = 58, .pos_x = 999, .pos_y = 58, .width = 300, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[0] }, .maxval = SAVE_TEXTNAME_LEN },
+  { .gbtype = 5, .id_num = -2, .button_flags = 1, .click_event = gui_save_game, .btype_value = 1, .scr_pos_x = 999, .scr_pos_y = 90, .pos_x = 999, .pos_y = 90, .width = 300, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[1] }, .maxval = SAVE_TEXTNAME_LEN },
+  { .gbtype = 5, .id_num = -2, .button_flags = 1, .click_event = gui_save_game, .btype_value = 2, .scr_pos_x = 999, .scr_pos_y = 122, .pos_x = 999, .pos_y = 122, .width = 300, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[2] }, .maxval = SAVE_TEXTNAME_LEN },
+  { .gbtype = 5, .id_num = -2, .button_flags = 1, .click_event = gui_save_game, .btype_value = 3, .scr_pos_x = 999, .scr_pos_y = 154, .pos_x = 999, .pos_y = 154, .width = 300, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[3] }, .maxval = SAVE_TEXTNAME_LEN },
+  { .gbtype = 5, .id_num = -2, .button_flags = 1, .click_event = gui_save_game, .btype_value = 4, .scr_pos_x = 999, .scr_pos_y = 186, .pos_x = 999, .pos_y = 186, .width = 300, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[4] }, .maxval = SAVE_TEXTNAME_LEN },
+  { .gbtype = 5, .id_num = -2, .button_flags = 1, .click_event = gui_save_game, .btype_value = 5, .scr_pos_x = 999, .scr_pos_y = 218, .pos_x = 999, .pos_y = 218, .width = 300, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[5] }, .maxval = SAVE_TEXTNAME_LEN },
+  { .gbtype = 5, .id_num = -2, .button_flags = 1, .click_event = gui_save_game, .btype_value = 6, .scr_pos_x = 999, .scr_pos_y = 250, .pos_x = 999, .pos_y = 250, .width = 300, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[6] }, .maxval = SAVE_TEXTNAME_LEN },
+  { .gbtype = 5, .id_num = -2, .button_flags = 1, .click_event = gui_save_game, .btype_value = 7, .scr_pos_x = 999, .scr_pos_y = 282, .pos_x = 999, .pos_y = 282, .width = 300, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .content = { .str = input_string[7] }, .maxval = SAVE_TEXTNAME_LEN },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = gui_vscroll_input, .scr_pos_x = 368, .scr_pos_y = 58, .pos_x = 368, .pos_y = 58, .width = 33, .height = 254, .draw_call = gui_vscroll_draw, .tooltip_stridx = GUIStr_Empty, .maintain_call = gui_vscroll_maintain },
+  { .gbtype = -1 },
 };
 
+// Title and back button left-anchored (x=24, matching the main menu's
+// column margin) to match Phase 1's layout
+// (docs/refactor/gui/02-menu-v2-mockup-gap-analysis.md Phase 4) -- the save
+// list/scrollbar layout below is untouched (cosmetic repositioning only, no
+// game data here to verify a full-cluster reflow doesn't misalign them).
 struct GuiButtonInit frontend_load_menu_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_MENU_TITLE, 0, 0, NULL,               NULL,        NULL,               0, 999,  30, 999,  30,371, 46, frontend_draw_large_menu_button,   0, GUIStr_Empty,  0,       {7},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,  82, 124,  82, 124,220, 26, frontend_draw_scroll_box_tab,      0, GUIStr_Empty,  0,      {28},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,  82, 150,  82, 150,450,182, frontend_draw_scroll_box,          0, GUIStr_Empty,  0,      {26},            0, NULL },
-  { LbBtnT_HoldableBtn,BID_DEFAULT, 0, 0, frontend_load_game_up,NULL,frontend_over_button,     0, 532, 149, 532, 149, 26, 14, frontend_draw_slider_button,       0, GUIStr_Empty,  0,      {17},            0, frontend_load_game_up_maintain },
-  { LbBtnT_HoldableBtn,BID_DEFAULT, 0, 0, frontend_load_game_down,NULL,frontend_over_button,   0, 532, 317, 532, 317, 26, 14, frontend_draw_slider_button,       0, GUIStr_Empty,  0,      {18},            0, frontend_load_game_down_maintain },
-  { LbBtnT_HoldableBtn,BID_DEFAULT, 0, 0, frontend_load_game_scroll,NULL,  NULL,               0, 536, 163, 534, 163, 20,154, frontend_draw_games_scroll_tab,    0, GUIStr_Empty,  0,      {40},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 102, 125, 102, 125,220, 26, frontend_draw_text,                0, GUIStr_Empty,  0,      {30},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_load_game,NULL,frontend_over_button,        0,  95, 157,  95, 157,424, 22, frontend_draw_load_game_button,    0, GUIStr_Empty,  0,      {45},            0, frontend_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_load_game,NULL,frontend_over_button,        0,  95, 185,  95, 185,424, 22, frontend_draw_load_game_button,    0, GUIStr_Empty,  0,      {46},            0, frontend_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_load_game,NULL,frontend_over_button,        0,  95, 213,  95, 213,424, 22, frontend_draw_load_game_button,    0, GUIStr_Empty,  0,      {47},            0, frontend_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_load_game,NULL,frontend_over_button,        0,  95, 241,  95, 241,424, 22, frontend_draw_load_game_button,    0, GUIStr_Empty,  0,      {48},            0, frontend_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_load_game,NULL,frontend_over_button,        0,  95, 269,  95, 269,424, 22, frontend_draw_load_game_button,    0, GUIStr_Empty,  0,      {49},            0, frontend_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_load_game,NULL,frontend_over_button,        0,  95, 297,  95, 297,424, 22, frontend_draw_load_game_button,    0, GUIStr_Empty,  0,      {50},            0, frontend_load_game_maintain },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontend_change_state,NULL,frontend_over_button,     1, 999, 404, 999, 404,371, 46, frontend_draw_large_menu_button,   0, GUIStr_Empty,  0,       {6},            0, NULL },
-  {-1,  0, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,           0,       {0},            0, NULL },
+  { .gbtype = LbBtnT_NormalBtn, .id_num = BID_MENU_TITLE, .scr_pos_x = 24, .scr_pos_y = 30, .pos_x = 24, .pos_y = 30, .width = 300, .height = 46, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuLoadGame_7 } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 82, .scr_pos_y = 124, .pos_x = 82, .pos_y = 124, .width = 220, .height = 26, .draw_call = frontend_draw_scroll_box_tab, .tooltip_stridx = GUIStr_Empty, .content = { 28 } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 82, .scr_pos_y = 150, .pos_x = 82, .pos_y = 150, .width = 450, .height = 182, .draw_call = frontend_draw_scroll_box, .tooltip_stridx = GUIStr_Empty, .content = { 26 } },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = frontend_load_game_up, .ptover_event = frontend_over_button, .scr_pos_x = 532, .scr_pos_y = 149, .pos_x = 532, .pos_y = 149, .width = 26, .height = 14, .draw_call = frontend_draw_slider_button, .tooltip_stridx = GUIStr_Empty, .content = { 17 }, .maintain_call = frontend_load_game_up_maintain },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = frontend_load_game_down, .ptover_event = frontend_over_button, .scr_pos_x = 532, .scr_pos_y = 317, .pos_x = 532, .pos_y = 317, .width = 26, .height = 14, .draw_call = frontend_draw_slider_button, .tooltip_stridx = GUIStr_Empty, .content = { 18 }, .maintain_call = frontend_load_game_down_maintain },
+  { .gbtype = LbBtnT_HoldableBtn, .click_event = frontend_load_game_scroll, .scr_pos_x = 536, .scr_pos_y = 163, .pos_x = 534, .pos_y = 163, .width = 20, .height = 154, .draw_call = frontend_draw_games_scroll_tab, .tooltip_stridx = GUIStr_Empty, .content = { 40 } },
+  { .gbtype = LbBtnT_NormalBtn, .scr_pos_x = 102, .scr_pos_y = 125, .pos_x = 102, .pos_y = 125, .width = 220, .height = 26, .draw_call = frontend_draw_text, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuGames } },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_game, .ptover_event = frontend_over_button, .scr_pos_x = 95, .scr_pos_y = 157, .pos_x = 95, .pos_y = 157, .width = 424, .height = 22, .draw_call = frontend_draw_load_game_button, .tooltip_stridx = GUIStr_Empty, .content = { 45 }, .maintain_call = frontend_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_game, .ptover_event = frontend_over_button, .scr_pos_x = 95, .scr_pos_y = 185, .pos_x = 95, .pos_y = 185, .width = 424, .height = 22, .draw_call = frontend_draw_load_game_button, .tooltip_stridx = GUIStr_Empty, .content = { 46 }, .maintain_call = frontend_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_game, .ptover_event = frontend_over_button, .scr_pos_x = 95, .scr_pos_y = 213, .pos_x = 95, .pos_y = 213, .width = 424, .height = 22, .draw_call = frontend_draw_load_game_button, .tooltip_stridx = GUIStr_Empty, .content = { 47 }, .maintain_call = frontend_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_game, .ptover_event = frontend_over_button, .scr_pos_x = 95, .scr_pos_y = 241, .pos_x = 95, .pos_y = 241, .width = 424, .height = 22, .draw_call = frontend_draw_load_game_button, .tooltip_stridx = GUIStr_Empty, .content = { 48 }, .maintain_call = frontend_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_game, .ptover_event = frontend_over_button, .scr_pos_x = 95, .scr_pos_y = 269, .pos_x = 95, .pos_y = 269, .width = 424, .height = 22, .draw_call = frontend_draw_load_game_button, .tooltip_stridx = GUIStr_Empty, .content = { 49 }, .maintain_call = frontend_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_game, .ptover_event = frontend_over_button, .scr_pos_x = 95, .scr_pos_y = 297, .pos_x = 95, .pos_y = 297, .width = 424, .height = 22, .draw_call = frontend_draw_load_game_button, .tooltip_stridx = GUIStr_Empty, .content = { 50 }, .maintain_call = frontend_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_change_state, .ptover_event = frontend_over_button, .btype_value = 1, .scr_pos_x = 24, .scr_pos_y = 404, .pos_x = 24, .pos_y = 404, .width = 180, .height = 42, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuReturnToMain } },
+  { .gbtype = -1 },
 };
+#pragma GCC diagnostic pop
 
 struct GuiMenu load_menu =
  {   GMnu_LOAD, 0, 4, load_menu_buttons,          POS_GAMECTR,POS_GAMECTR, 436, 350, gui_pretty_background, 0, NULL,    init_load_menu,          0, 1, 0,};

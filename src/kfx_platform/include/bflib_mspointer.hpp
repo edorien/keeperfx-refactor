@@ -40,6 +40,28 @@ void LbCursorSpriteSetScalingHeightClipped(long y, long sheight, long dheight, l
 void LbCursorSpriteSetScalingHeightSimple(long y, long sheight, long dheight);
 /******************************************************************************/
 
+// RAII wrapper around struct SSurface: Release() always runs on destruction
+// (LbScreenSurfaceRelease() is a no-op if nothing was ever Create()'d), so a
+// surface can't be leaked by a future early-return that forgets to release it.
+class ScopedScreenSurface {
+ public:
+    ScopedScreenSurface() { LbScreenSurfaceInit(&surf_); }
+    ~ScopedScreenSurface() { LbScreenSurfaceRelease(&surf_); }
+    ScopedScreenSurface(const ScopedScreenSurface &) = delete;
+    ScopedScreenSurface &operator=(const ScopedScreenSurface &) = delete;
+
+    TbResult Create(unsigned long w, unsigned long h)
+    {
+        LbScreenSurfaceRelease(&surf_);
+        return LbScreenSurfaceCreate(&surf_, w, h);
+    }
+    void Release() { LbScreenSurfaceRelease(&surf_); }
+    struct SSurface *get() { return &surf_; }
+    long pitch() const { return surf_.pitch; }
+ private:
+    struct SSurface surf_{};
+};
+
 // Exported class
 class LbI_PointerHandler {
  public:
@@ -58,8 +80,8 @@ class LbI_PointerHandler {
     void Undraw(bool);
     void Backup(bool);
     // Properties
-    struct SSurface surf1;
-    struct SSurface surf2;
+    ScopedScreenSurface surf1;
+    ScopedScreenSurface surf2;
     //unsigned char sprite_data[4096];
     struct TbPoint *position;
     struct TbPoint *spr_offset;

@@ -252,15 +252,15 @@ void frontnet_service_update(void)
 {
     if (net_number_of_services < 1)
     {
-        net_service_scroll_offset = 0;
+        net_service_list.scroll_offset = 0;
     } else
-    if (net_service_scroll_offset < 0)
+    if (net_service_list.scroll_offset < 0)
     {
-        net_service_scroll_offset = 0;
+        net_service_list.scroll_offset = 0;
     } else
-    if (net_service_scroll_offset > net_number_of_services - 1)
+    if (net_service_list.scroll_offset > net_number_of_services - 1)
     {
-        net_service_scroll_offset = net_number_of_services - 1;
+        net_service_list.scroll_offset = net_number_of_services - 1;
     }
 }
 
@@ -345,13 +345,13 @@ void frontnet_session_update(void)
       }
     }
 
-    if ((net_number_of_sessions == 0) || (net_session_scroll_offset < 0))
+    if ((net_number_of_sessions == 0) || (net_session_list.scroll_offset < 0))
     {
-      net_session_scroll_offset = 0;
+      net_session_list.scroll_offset = 0;
     } else
-    if (net_session_scroll_offset > net_number_of_sessions-1)
+    if (net_session_list.scroll_offset > net_number_of_sessions-1)
     {
-      net_session_scroll_offset = net_number_of_sessions-1;
+      net_session_list.scroll_offset = net_number_of_sessions-1;
     }
 
     if (net_session_index_active == -1)
@@ -373,15 +373,15 @@ void frontnet_session_update(void)
 
     if (net_number_of_enum_players == 0)
     {
-      net_player_scroll_offset = 0;
+      net_player_list.scroll_offset = 0;
     } else
-    if (net_player_scroll_offset < 0)
+    if (net_player_list.scroll_offset < 0)
     {
-      net_player_scroll_offset = 0;
+      net_player_list.scroll_offset = 0;
     } else
-    if (net_player_scroll_offset > net_number_of_enum_players-1)
+    if (net_player_list.scroll_offset > net_number_of_enum_players-1)
     {
-      net_player_scroll_offset = net_number_of_enum_players-1;
+      net_player_list.scroll_offset = net_number_of_enum_players-1;
     }
 }
 
@@ -586,13 +586,13 @@ void frontnet_start_update(void)
 
     handle_autostart_multiplayer_messaging();
 
-    if ((net_number_of_messages <= 0) || (net_message_scroll_offset < 0))
+    if ((net_number_of_messages <= 0) || (net_message_list.scroll_offset < 0))
     {
-      net_message_scroll_offset = 0;
+      net_message_list.scroll_offset = 0;
     }
-    else if (net_message_scroll_offset > net_number_of_messages-1)
+    else if (net_message_list.scroll_offset > net_number_of_messages-1)
     {
-      net_message_scroll_offset = net_number_of_messages-1;
+      net_message_list.scroll_offset = net_number_of_messages-1;
     }
     process_frontend_packets();
 
@@ -700,8 +700,8 @@ void frontnet_start_setup(void)
     memset(net_screen_packet, 0, sizeof(net_screen_packet));
     frontend_alliances = -1;
     net_number_of_messages = 0;
-    net_player_scroll_offset = 0;
-    net_message_scroll_offset = 0;
+    net_player_list.scroll_offset = 0;
+    net_message_list.scroll_offset = 0;
     //net_old_number_of_players = 0;
     for (int i = 0; i < PLAYERS_COUNT; i++)
     {

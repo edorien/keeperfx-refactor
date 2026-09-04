@@ -22,6 +22,7 @@
 #include "globals.h"
 
 #include "bflib_basics.h"
+#include "frontmenu_selectlist.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +41,19 @@ extern struct GuiMenu frontend_net_service_menu;
 extern struct GuiMenu frontend_net_session_menu;
 extern struct GuiMenu frontend_net_start_menu;
 extern struct GuiMenu frontend_add_session_box;
+/** Service/session/player/message lists page via FrontendSelectList
+ *  (docs/refactor/gui/00-overview.md Phase 1). Session/player/message have
+ *  no real paging window (no items_visible concept, no wheel/key scroll,
+ *  unlike the service list or the campaign/level/mappack selects) -- their
+ *  items_visible is fixed at 2, which reproduces their original
+ *  `scroll_offset < count - 1` bound and `first_elem = 0` scroll-tab sizing
+ *  exactly (see frontmenu_net.c). front_network.c and frontend.cpp write
+ *  these directly (`net_session_list.scroll_offset = 0`, etc.) to reset
+ *  scroll position when a list's contents change. */
+extern struct FrontendSelectList net_service_list;
+extern struct FrontendSelectList net_session_list;
+extern struct FrontendSelectList net_player_list;
+extern struct FrontendSelectList net_message_list;
 /******************************************************************************/
 void frontnet_session_up_maintain(struct GuiButton *gbtn);
 void frontnet_session_down_maintain(struct GuiButton *gbtn);

@@ -49,50 +49,50 @@ static void no_op(struct GuiButton* gbtn) {}
 
 #define resurrect_creature_items_visible  6
 struct GuiButtonInit resurrect_creature_buttons[] = {
-  { 0,  0, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,200, 32, gui_area_text,                     1, GUIStr_SpecResurrectCreature,0,{0},             0, NULL },
-  { 0,  0, 0, 0, select_resurrect_creature,NULL,  NULL,               0, 999,  62, 999,  62,250, 26, draw_resurrect_creature,           0, GUIStr_Empty,       0,       {0},               0, maintain_resurrect_creature_select },
-  { 0,  0, 0, 0, select_resurrect_creature,NULL,  NULL,               1, 999,  90, 999,  90,250, 26, draw_resurrect_creature,           0, GUIStr_Empty,       0,       {0},               0, maintain_resurrect_creature_select },
-  { 0,  0, 0, 0, select_resurrect_creature,NULL,  NULL,               2, 999, 118, 999, 118,250, 26, draw_resurrect_creature,           0, GUIStr_Empty,       0,       {0},               0, maintain_resurrect_creature_select },
-  { 0,  0, 0, 0, select_resurrect_creature,NULL,  NULL,               3, 999, 146, 999, 146,250, 26, draw_resurrect_creature,           0, GUIStr_Empty,       0,       {0},               0, maintain_resurrect_creature_select },
-  { 0,  0, 0, 0, select_resurrect_creature,NULL,  NULL,               4, 999, 174, 999, 174,250, 26, draw_resurrect_creature,           0, GUIStr_Empty,       0,       {0},               0, maintain_resurrect_creature_select },
-  { 0,  0, 0, 0, select_resurrect_creature,NULL,  NULL,               5, 999, 202, 999, 202,250, 26, draw_resurrect_creature,           0, GUIStr_Empty,       0,       {0},               0, maintain_resurrect_creature_select },
-  { 1,  0, 0, 0, select_resurrect_creature_up,NULL,NULL,              1, 305,  62, 305,  62, 22, 24, gui_area_new_normal_button,      278, GUIStr_Empty,       0,       {0},               0, maintain_resurrect_creature_scroll },
-  { 1,  0, 0, 0, select_resurrect_creature_down,NULL,NULL,            2, 305, 204, 305, 204, 22, 24, gui_area_new_normal_button,      280, GUIStr_Empty,       0,       {0},               0, maintain_resurrect_creature_scroll },
-  { 0,  0, 0, 1, no_op,              NULL,        NULL,               0, 999, 258, 999, 258,100, 32, gui_area_text,                     1, GUIStr_MnuCancel,   0,       {0},               0, NULL },
-  {-1,  0, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                0,       {0},               0, NULL },
+  { .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 200, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_SpecResurrectCreature },
+  { .click_event = select_resurrect_creature, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 0), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 0), .width = 250, .height = 26, .draw_call = draw_resurrect_creature, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_resurrect_creature_select },
+  { .click_event = select_resurrect_creature, .btype_value = 1, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 1), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 1), .width = 250, .height = 26, .draw_call = draw_resurrect_creature, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_resurrect_creature_select },
+  { .click_event = select_resurrect_creature, .btype_value = 2, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 2), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 2), .width = 250, .height = 26, .draw_call = draw_resurrect_creature, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_resurrect_creature_select },
+  { .click_event = select_resurrect_creature, .btype_value = 3, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 3), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 3), .width = 250, .height = 26, .draw_call = draw_resurrect_creature, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_resurrect_creature_select },
+  { .click_event = select_resurrect_creature, .btype_value = 4, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 4), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 4), .width = 250, .height = 26, .draw_call = draw_resurrect_creature, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_resurrect_creature_select },
+  { .click_event = select_resurrect_creature, .btype_value = 5, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 5), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 5), .width = 250, .height = 26, .draw_call = draw_resurrect_creature, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_resurrect_creature_select },
+  { .gbtype = 1, .click_event = select_resurrect_creature_up, .btype_value = 1, .scr_pos_x = 305, .scr_pos_y = 62, .pos_x = 305, .pos_y = 62, .width = 22, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = 278, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_resurrect_creature_scroll },
+  { .gbtype = 1, .click_event = select_resurrect_creature_down, .btype_value = 2, .scr_pos_x = 305, .scr_pos_y = 204, .pos_x = 305, .pos_y = 204, .width = 22, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = 280, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_resurrect_creature_scroll },
+  { .button_flags = 1, .click_event = no_op, .scr_pos_x = 999, .scr_pos_y = 258, .pos_x = 999, .pos_y = 258, .width = 100, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_MnuCancel },
+  { .gbtype = -1 },
 };
 
 #define transfer_creature_items_visible  6
 struct GuiButtonInit transfer_creature_buttons[] = {
-  { 0,  0, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,200, 32, gui_area_text,                     1, GUIStr_SpecTransferCreature,0,{0},              0, NULL },
-  { 0,  0, 0, 0, select_transfer_creature,NULL,   NULL,               0, 999,  62, 999,  62,250, 26, draw_transfer_creature,            0, GUIStr_Empty,       0,       {0},               0, maintain_transfer_creature_select },
-  { 0,  0, 0, 0, select_transfer_creature,NULL,   NULL,               1, 999,  90, 999,  90,250, 26, draw_transfer_creature,            1, GUIStr_Empty,       0,       {0},               0, maintain_transfer_creature_select },
-  { 0,  0, 0, 0, select_transfer_creature,NULL,   NULL,               2, 999, 118, 999, 118,250, 26, draw_transfer_creature,            2, GUIStr_Empty,       0,       {0},               0, maintain_transfer_creature_select },
-  { 0,  0, 0, 0, select_transfer_creature,NULL,   NULL,               3, 999, 146, 999, 146,250, 26, draw_transfer_creature,            3, GUIStr_Empty,       0,       {0},               0, maintain_transfer_creature_select },
-  { 0,  0, 0, 0, select_transfer_creature,NULL,   NULL,               4, 999, 174, 999, 174,250, 26, draw_transfer_creature,            4, GUIStr_Empty,       0,       {0},               0, maintain_transfer_creature_select },
-  { 0,  0, 0, 0, select_transfer_creature,NULL,   NULL,               5, 999, 202, 999, 202,250, 26, draw_transfer_creature,            5, GUIStr_Empty,       0,       {0},               0, maintain_transfer_creature_select },
-  { 1,  0, 0, 0, select_transfer_creature_up,NULL,NULL,               1, 305,  62, 305,  62, 22, 24, gui_area_new_normal_button,      278, GUIStr_Empty,       0,       {0},               0, maintain_transfer_creature_scroll },
-  { 1,  0, 0, 0, select_transfer_creature_down,NULL,NULL,             2, 305, 204, 305, 204, 22, 24, gui_area_new_normal_button,      280, GUIStr_Empty,       0,       {0},               0, maintain_transfer_creature_scroll },
-  { 0,  0, 0, 1, no_op,              NULL,        NULL,               0, 999, 258, 999, 258,100, 32, gui_area_text,                     1, GUIStr_MnuCancel,   0,       {0},               0, NULL },
-  {-1,  0, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                0,       {0},               0, NULL },
+  { .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 200, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_SpecTransferCreature },
+  { .click_event = select_transfer_creature, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 0), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 0), .width = 250, .height = 26, .draw_call = draw_transfer_creature, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_transfer_creature_select },
+  { .click_event = select_transfer_creature, .btype_value = 1, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 1), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 1), .width = 250, .height = 26, .draw_call = draw_transfer_creature, .sprite_idx = 1, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_transfer_creature_select },
+  { .click_event = select_transfer_creature, .btype_value = 2, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 2), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 2), .width = 250, .height = 26, .draw_call = draw_transfer_creature, .sprite_idx = 2, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_transfer_creature_select },
+  { .click_event = select_transfer_creature, .btype_value = 3, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 3), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 3), .width = 250, .height = 26, .draw_call = draw_transfer_creature, .sprite_idx = 3, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_transfer_creature_select },
+  { .click_event = select_transfer_creature, .btype_value = 4, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 4), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 4), .width = 250, .height = 26, .draw_call = draw_transfer_creature, .sprite_idx = 4, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_transfer_creature_select },
+  { .click_event = select_transfer_creature, .btype_value = 5, .scr_pos_x = 999, .scr_pos_y = FE_ROW_Y(62, 28, 5), .pos_x = 999, .pos_y = FE_ROW_Y(62, 28, 5), .width = 250, .height = 26, .draw_call = draw_transfer_creature, .sprite_idx = 5, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_transfer_creature_select },
+  { .gbtype = 1, .click_event = select_transfer_creature_up, .btype_value = 1, .scr_pos_x = 305, .scr_pos_y = 62, .pos_x = 305, .pos_y = 62, .width = 22, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = 278, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_transfer_creature_scroll },
+  { .gbtype = 1, .click_event = select_transfer_creature_down, .btype_value = 2, .scr_pos_x = 305, .scr_pos_y = 204, .pos_x = 305, .pos_y = 204, .width = 22, .height = 24, .draw_call = gui_area_new_normal_button, .sprite_idx = 280, .tooltip_stridx = GUIStr_Empty, .maintain_call = maintain_transfer_creature_scroll },
+  { .button_flags = 1, .click_event = no_op, .scr_pos_x = 999, .scr_pos_y = 258, .pos_x = 999, .pos_y = 258, .width = 100, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = GUIStr_MnuCancel },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit hold_audience_buttons[] = {
-  { 0,  0, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,155, 32, gui_area_text,                     1, CpgStr_PowerKind1+4,0,       {0},               0, NULL },
-  { 0,  0, 0, 1, no_op,              NULL,        NULL,               0,  38,  24,  40,  58, 46, 32, gui_area_normal_button,           46, GUIStr_Empty,       0,       {0},               0, NULL },
-  { 0,  0, 0, 1, choose_hold_audience,NULL,       NULL,               0, 116,  24, 118,  58, 46, 32, gui_area_normal_button,           48, GUIStr_Empty,       0,       {0},               0, NULL },
-  {-1,  0, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                0,       {0},               0, NULL },
+  { .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = CpgStr_PowerKind1+4 },
+  { .button_flags = 1, .click_event = no_op, .scr_pos_x = 38, .scr_pos_y = 24, .pos_x = 40, .pos_y = 58, .width = 46, .height = 32, .draw_call = gui_area_normal_button, .sprite_idx = 46, .tooltip_stridx = GUIStr_Empty },
+  { .button_flags = 1, .click_event = choose_hold_audience, .scr_pos_x = 116, .scr_pos_y = 24, .pos_x = 118, .pos_y = 58, .width = 46, .height = 32, .draw_call = gui_area_normal_button, .sprite_idx = 48, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit armageddon_buttons[] = {
-  { 0,  0, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,155, 32, gui_area_text,                     1, CpgStr_PowerKind1+16,0,      {0},               0, NULL },
-  { 0,  0, 0, 1, no_op,              NULL,        NULL,               0,  38,  24,  40,  58, 46, 32, gui_area_normal_button,           46, GUIStr_Empty,       0,       {0},               0, NULL },
-  { 0,  0, 0, 1, choose_armageddon,  NULL,        NULL,               0, 116,  24, 118,  58, 46, 32, gui_area_normal_button,           48, GUIStr_Empty,       0,       {0},               0, NULL },
-  {-1,  0, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                0,       {0},               0, NULL },
+  { .scr_pos_x = 999, .scr_pos_y = 10, .pos_x = 999, .pos_y = 10, .width = 155, .height = 32, .draw_call = gui_area_text, .sprite_idx = 1, .tooltip_stridx = CpgStr_PowerKind1+16 },
+  { .button_flags = 1, .click_event = no_op, .scr_pos_x = 38, .scr_pos_y = 24, .pos_x = 40, .pos_y = 58, .width = 46, .height = 32, .draw_call = gui_area_normal_button, .sprite_idx = 46, .tooltip_stridx = GUIStr_Empty },
+  { .button_flags = 1, .click_event = choose_armageddon, .scr_pos_x = 116, .scr_pos_y = 24, .pos_x = 118, .pos_y = 58, .width = 46, .height = 32, .draw_call = gui_area_normal_button, .sprite_idx = 48, .tooltip_stridx = GUIStr_Empty },
+  { .gbtype = -1 },
 };
 
 struct GuiButtonInit dungeon_special_buttons[] = {
-  {-1,  0, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,                0,       {0},               0, NULL },
+  { .gbtype = -1 },
 };
 
 struct GuiMenu hold_audience_menu =

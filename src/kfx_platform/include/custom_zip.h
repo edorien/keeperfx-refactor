@@ -2,7 +2,7 @@
 // Free implementation of Bullfrog's Dungeon Keeper strategy game.
 /******************************************************************************/
 /** @file custom_zip.h
- *     Header file for custom_zip.c.
+ *     Header file for custom_zip.cpp.
  * @par Purpose:
  *     Shared helpers for reading named entries out of a level's mapNNNNN.zip
  *     bundle (custom sprites/icons/lenses, and custom sounds/speech).

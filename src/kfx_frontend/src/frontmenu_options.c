@@ -42,6 +42,7 @@
 #include "lvl_script.h"
 #include "sounds.h"
 #include "kfx_frontend_state.h"
+#include "frontmenu_settingctrl.h"
 #include "post_inc.h"
 
 #include <SDL3_mixer/SDL_mixer.h>
@@ -272,31 +273,62 @@ int make_audio_slider_nonlinear(int a)
     return CEILING(LbLerp(0, 255, clamped));
 }
 
+static long sound_volume_get(void)
+{
+    return settings.sound_volume;
+}
+
+static void sound_volume_set(long value)
+{
+    if (value != settings.sound_volume)
+        do_sound_menu_click();
+    settings.sound_volume = value;
+    save_settings();
+    SetSoundMasterVolume(value);
+}
+
+static const struct FrontendSliderCtrl sound_volume_ctrl = { sound_volume_get, sound_volume_set, true };
+
 void gui_set_sound_volume(struct GuiButton *gbtn)
 {
-    const int new_val = make_audio_slider_nonlinear(gbtn->slide_val);
-    if (gbtn->id_num == BID_SOUND_VOL)
-    {
-        if (new_val != settings.sound_volume) {
-            do_sound_menu_click();
-        }
-    }
-    settings.sound_volume = new_val;
-    save_settings();
-    SetSoundMasterVolume(new_val);
+    frontend_sliderctrl_apply(gbtn, &sound_volume_ctrl);
 }
+
+static long music_volume_get(void)
+{
+    return settings.music_volume;
+}
+
+static void music_volume_set(long value)
+{
+    settings.music_volume = value;
+    save_settings();
+    set_music_volume(value);
+}
+
+static const struct FrontendSliderCtrl music_volume_ctrl = { music_volume_get, music_volume_set, true };
 
 void gui_set_music_volume(struct GuiButton *gbtn)
 {
-    settings.music_volume = make_audio_slider_nonlinear(gbtn->content.lval);
-    save_settings();
-    set_music_volume(settings.music_volume);
+    frontend_sliderctrl_apply(gbtn, &music_volume_ctrl);
 }
+
+static long mentor_volume_get(void)
+{
+    return settings.mentor_volume;
+}
+
+static void mentor_volume_set(long value)
+{
+    settings.mentor_volume = value;
+    save_settings();
+}
+
+static const struct FrontendSliderCtrl mentor_volume_ctrl = { mentor_volume_get, mentor_volume_set, true };
 
 void gui_set_mentor_volume(struct GuiButton *gbtn)
 {
-    settings.mentor_volume = make_audio_slider_nonlinear(gbtn->content.lval);
-    save_settings();
+    frontend_sliderctrl_apply(gbtn, &mentor_volume_ctrl);
 }
 
 void gui_video_cluedo_maintain(struct GuiButton *gbtn)
@@ -325,31 +357,45 @@ void gui_display_current_resolution(struct GuiButton *gbtn)
     show_onscreen_msg(40, "%s", mode);
 }
 
-void frontend_set_mouse_sensitivity(struct GuiButton *gbtn)
+static long mouse_sensitivity_get(void)
 {
-    settings.first_person_move_sensitivity = gbtn->content.lval;
+    return settings.first_person_move_sensitivity;
+}
+
+static void mouse_sensitivity_set(long value)
+{
+    settings.first_person_move_sensitivity = value;
     save_settings();
 }
 
-void frontend_invert_mouse(struct GuiButton *gbtn)
+static const struct FrontendSliderCtrl mouse_sensitivity_ctrl = { mouse_sensitivity_get, mouse_sensitivity_set, false };
+
+void frontend_set_mouse_sensitivity(struct GuiButton *gbtn)
+{
+    frontend_sliderctrl_apply(gbtn, &mouse_sensitivity_ctrl);
+}
+
+static TbBool mouse_invert_get(void)
+{
+    return settings.first_person_move_invert;
+}
+
+static void mouse_invert_toggle(void)
 {
     settings.first_person_move_invert = !settings.first_person_move_invert;
     save_settings();
 }
 
+static const struct FrontendCheckboxCtrl mouse_invert_ctrl = { mouse_invert_get, mouse_invert_toggle };
+
+void frontend_invert_mouse(struct GuiButton *gbtn)
+{
+    frontend_checkboxctrl_toggle(gbtn, &mouse_invert_ctrl);
+}
+
 void frontend_draw_invert_mouse(struct GuiButton *gbtn)
 {
-    int font_idx = frontend_button_caption_font(gbtn, frontend_mouse_over_button);
-    LbTextSetFont(frontend_font[font_idx]);
-    LbTextSetWindow(gbtn->scr_pos_x, gbtn->scr_pos_y, gbtn->width, gbtn->height);
-    int tx_units_per_px = gbtn->height * 16 / LbTextLineHeight();
-    const char *text;
-    if (settings.first_person_move_invert) {
-        text = get_string(GUIStr_On);
-    } else {
-        text = get_string(GUIStr_Off);
-    }
-    LbTextDrawResized(0, 0, tx_units_per_px, text);
+    frontend_checkboxctrl_draw(gbtn, &mouse_invert_ctrl);
 }
 
 /**
@@ -374,5 +420,18 @@ void init_audio_menu(struct GuiMenu *gmnu)
     get_gui_button_init(gmnu, BID_MUSIC_VOL)->content.lval = make_audio_slider_linear(settings.music_volume);
     get_gui_button_init(gmnu, BID_SOUND_VOL)->content.lval = make_audio_slider_linear(settings.sound_volume);
     get_gui_button_init(gmnu, BID_MENTOR_VOL)->content.lval = make_audio_slider_linear(settings.mentor_volume);
+}
+
+/**
+ * Sets the frontend Options menu's sliders to reflect the current
+ * settings; called from frontend_init_options_menu() (frontend.cpp) when
+ * that menu opens.
+ */
+void frontend_options_menu_init_sliders(struct GuiMenu *gmnu)
+{
+    frontend_sliderctrl_init(gmnu, BID_MUSIC_VOL, &music_volume_ctrl);
+    frontend_sliderctrl_init(gmnu, BID_SOUND_VOL, &sound_volume_ctrl);
+    frontend_sliderctrl_init(gmnu, BID_MENTOR_VOL, &mentor_volume_ctrl);
+    frontend_sliderctrl_init(gmnu, BID_MOUSE_MUL, &mouse_sensitivity_ctrl);
 }
 /******************************************************************************/
