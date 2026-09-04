@@ -275,7 +275,9 @@ extern TbPixel player_path_colours[];
 extern TbPixel player_room_colours[];
 extern TbPixel player_flash_colours[];
 extern TbPixel player_highlight_colours[];
-extern TbPixel possession_hit_colours[];
+/* Palette INDEX array, not a colour array -- see the definition's comment
+ * in player_data.c. */
+extern unsigned char possession_hit_colours[];
 extern unsigned short const player_cubes[];
 extern struct PlayerInfo bad_player;
 /******************************************************************************/

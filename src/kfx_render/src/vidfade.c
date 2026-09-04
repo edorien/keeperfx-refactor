@@ -140,7 +140,7 @@ void compute_alpha_table(unsigned char *alphtbl, unsigned char *spal, unsigned c
             else if (valB < 0)
               valB = 0;
 
-            TbPixel c = LbPaletteFindColour(dpal, valR, valG, valB);
+            unsigned char c = LbPaletteFindColour(dpal, valR, valG, valB);
             alphtbl[nrow*256 + n] = c;
         }
         blendR += dred;
@@ -186,38 +186,11 @@ void compute_rgb2idx_table(TbRGBColorTable ctab,unsigned char *spal)
         {
             for (int valB = 0; valB < COLOUR_TABLE_DIMENSION; valB++)
             {
-                TbPixel c = LbPaletteFindColour(spal, scaler * valR + (scaler-1),
+                unsigned char c = LbPaletteFindColour(spal, scaler * valR + (scaler-1),
                     scaler * valG + (scaler-1), scaler * valB + (scaler-1));
                 ctab[valR][valG][valB] = c;
             }
         }
-    }
-}
-
-/**
- * Gets colours from source palette, adds given shifts to every colour and encodes it to index in destination palette.
- * @param ocol Output colours buffer.
- * @param spal Source palette, from which initial colors are taken.
- * @param dpal Destination palette, in which the output colors are coded.
- * @param shiftR Color intensity shift value, red.
- * @param shiftG Color intensity shift value, green.
- * @param shiftB Color intensity shift value, blue.
- */
-void compute_shifted_palette_table(TbPixel *ocol, const unsigned char *spal, const unsigned char *dpal, int shiftR, int shiftG, int shiftB)
-{
-    SYNCMSG("Recomputing palette table");
-    for (int i = 0; i < 256; i++)
-    {
-        int valR = (int)spal[3 * i + 0] + shiftR;
-        if (valR >= 63) valR = 63;
-        if (valR <   0) valR = 0;
-        int valG = (int)spal[3 * i + 1] + shiftG;
-        if (valG >= 63) valG = 63;
-        if (valG <   0) valG = 0;
-        int valB = (int)spal[3 * i + 2] + shiftB;
-        if (valB >= 63) valB = 63;
-        if (valB <   0) valB = 0;
-        ocol[i] = LbPaletteFindColour(dpal, valR, valG, valB);
     }
 }
 

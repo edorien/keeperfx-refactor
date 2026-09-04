@@ -28,66 +28,53 @@ extern "C" {
 
 namespace {
 
-void copy_to_screen_pxquad(unsigned char *srcbuf, unsigned char *dstbuf, long width, long dst_shift)
+/* This used to read four 8-bit palette indices at a time as one uint32_t and
+ * write pixel-doubled output by byte-shuffling within a 32-bit word -- an
+ * aliasing trick that only worked while a pixel was exactly one byte. With
+ * TbPixel four bytes wide the packing is meaningless, so this is a
+ * straightforward per-pixel loop that expands each source index through the
+ * movie's own decoded palette. Same output geometry as before; the width no
+ * longer has to be a multiple of 4 for the loop to terminate correctly. */
+
+/* The movie's per-frame palette (built in output_video_frame() from the
+ * AVFrame's own PAL8 data) is already 8-bit-per-channel -- unlike the
+ * game's own palette, which is 6-bit VGA scale and goes through
+ * chan6_to_8() inside expand_indexed_pixel()/resolve_indexed_pixel(). Also,
+ * a video frame has no transparency concept, so unlike
+ * expand_indexed_pixel(), index 0 isn't special-cased here -- every byte,
+ * including 0, is just an opaque colour to look up. */
+inline TbPixel expand_pal8_pixel(uint8_t index, const unsigned char *pal8)
 {
-	const auto s = dst_shift >> 2;
-	auto w = ((uint32_t)width) >> 2;
-	auto * src = reinterpret_cast<uint32_t *>(srcbuf);
-	auto * dst = reinterpret_cast<uint32_t *>(dstbuf);
-	do {
-		const auto c = *src++;
-		const auto first_pixel_low_byte = c & 0xFF;
-		const auto first_pixel_high_byte = (c >> 8) & 0xFF;
-		const auto first_doubled_pixel = (first_pixel_high_byte << 24) + (first_pixel_high_byte << 16) + (first_pixel_low_byte << 8) + first_pixel_low_byte;
-		dst[0] = first_doubled_pixel;
-		dst[s] = first_doubled_pixel;
-		const auto second_pixel_low_byte = (c >> 16) & 0xFF;
-		const auto second_pixel_high_byte = (c >> 24) & 0xFF;
-		const auto second_doubled_pixel = (second_pixel_high_byte << 24) + (second_pixel_high_byte << 16) + (second_pixel_low_byte << 8) + second_pixel_low_byte;
-		dst[1] = second_doubled_pixel;
-		dst[s+1] = second_doubled_pixel;
-		dst += 2;
-		w--;
-	}
-	while (w > 0);
+	return TbPixel_RGB(pal8[3 * index + 0], pal8[3 * index + 1], pal8[3 * index + 2]);
 }
 
-void copy_to_screen_pxdblh(unsigned char *srcbuf, unsigned char *dstbuf, long width, long dst_shift)
+/** Copies one source row into dstbuf, optionally doubling each pixel
+ * horizontally (double_w) and/or duplicating the whole row dst_shift pixels
+ * further down (double_h) -- the four SMK_PixelDoubleWidth / SMK_PixelDoubleLine
+ * combinations copy_to_screen() dispatches on all reduce to this one loop.
+ * dst_shift is unused when double_h is false. */
+void copy_to_screen_row_ex(unsigned char *srcbuf, TbPixel *dstbuf, long width, long dst_shift,
+                            const unsigned char *palette, bool double_w, bool double_h)
 {
-	const auto s = dst_shift >> 2;
-	auto w = ((unsigned long)width) >> 2;
-	auto src = (uint32_t *)srcbuf;
-	auto dst = (uint32_t *)dstbuf;
-	do {
-		const auto n = *src++;
-		dst[0] = n;
-		dst[s] = n;
-		dst++;
-		w--;
+	for (long i = 0; i < width; i++) {
+		const TbPixel px = expand_pal8_pixel(srcbuf[i], palette);
+		if (double_w) {
+			dstbuf[2*i]     = px;
+			dstbuf[2*i + 1] = px;
+			if (double_h) {
+				dstbuf[dst_shift + 2*i]     = px;
+				dstbuf[dst_shift + 2*i + 1] = px;
+			}
+		} else {
+			dstbuf[i] = px;
+			if (double_h) {
+				dstbuf[dst_shift + i] = px;
+			}
+		}
 	}
-	while (w > 0);
 }
 
-void copy_to_screen_pxdblw(unsigned char *srcbuf, unsigned char *dstbuf, long width)
-{
-	auto w = ((unsigned long)width) >> 2;
-	auto src = (uint32_t *)srcbuf;
-	auto dst = (uint32_t *)dstbuf;
-	do {
-		const auto c = *src++;
-		const auto first_pixel_low_byte = c & 0xFF;
-		const auto first_pixel_high_byte = (c >> 8) & 0xFF;
-		dst[0] = (first_pixel_high_byte << 24) + (first_pixel_high_byte << 16) + (first_pixel_low_byte << 8) + first_pixel_low_byte;
-		const auto second_pixel_low_byte = (c >> 16) & 0xFF;
-		const auto second_pixel_high_byte = (c >> 24) & 0xFF;
-		dst[1] = (second_pixel_high_byte << 24) + (second_pixel_high_byte << 16) + (second_pixel_low_byte << 8) + second_pixel_low_byte;
-		dst += 2;
-		w--;
-	}
-	while (w > 0);
-}
-
-void copy_to_screen(const AVFrame & frame, const int flags)
+void copy_to_screen(const AVFrame & frame, const int flags, const unsigned char *palette)
 {
 	const auto src_pitch = frame.linesize[0];
 	auto srcbuf = frame.data[0];
@@ -101,57 +88,30 @@ void copy_to_screen(const AVFrame & frame, const int flags)
 	if (flags & SMK_PixelDoubleWidth) {
 		w = 2 * frame.width;
 	}
-	auto dstbuf = &lbDisplay.WScreen[screen_buffer_center_offset + ((LbScreenWidth() - w) >> 1)];
+	auto dstbuf = &RendererGetFramebuffer()[screen_buffer_center_offset + ((LbScreenWidth() - w) >> 1)];
 	if (flags & SMK_PixelDoubleLine) {
-		if (flags & SMK_PixelDoubleWidth) {
-			for (int h = frame.height; h > 0; h--) {
-				copy_to_screen_pxquad(srcbuf, dstbuf, frame.width, lbDisplay.GraphicsScreenWidth);
-				dstbuf += 2 * lbDisplay.GraphicsScreenWidth;
-				srcbuf += src_pitch;
-			}
-		} else {
-			for (int h = frame.height; h > 0; h--) {
-				copy_to_screen_pxdblh(srcbuf, dstbuf, frame.width, lbDisplay.GraphicsScreenWidth);
-				dstbuf += 2 * lbDisplay.GraphicsScreenWidth;
-				srcbuf += src_pitch;
-			}
+		const bool double_w = (flags & SMK_PixelDoubleWidth) != 0;
+		for (int h = frame.height; h > 0; h--) {
+			copy_to_screen_row_ex(srcbuf, dstbuf, frame.width, lbDisplay.GraphicsScreenWidth, palette, double_w, true);
+			dstbuf += 2 * lbDisplay.GraphicsScreenWidth;
+			srcbuf += src_pitch;
 		}
 	} else {
-		if (flags & SMK_PixelDoubleWidth) {
-				if (flags & SMK_InterlaceLine) {
-					for (int h = frame.height; h > 0; h--) {
-						copy_to_screen_pxdblw(srcbuf, dstbuf, frame.width);
-						dstbuf += 2 * lbDisplay.GraphicsScreenWidth;
-						srcbuf += src_pitch;
-					}
-				} else {
-					for (int h = frame.height; h > 0; h--) {
-						copy_to_screen_pxdblw(srcbuf, dstbuf, frame.width);
-						dstbuf += lbDisplay.GraphicsScreenWidth;
-						srcbuf += src_pitch;
-					}
-				}
-		} else if (flags & SMK_InterlaceLine) {
-			for (int h = frame.height; h > 0; h--) {
-				memcpy(dstbuf, srcbuf, frame.width);
-				dstbuf += 2 * lbDisplay.GraphicsScreenWidth;
-				srcbuf += src_pitch;
-			}
-		} else {
-			for (int h = frame.height; h > 0; h--) {
-				memcpy(dstbuf, srcbuf, frame.width);
-				dstbuf += lbDisplay.GraphicsScreenWidth;
-				srcbuf += src_pitch;
-			}
+		const bool double_w = (flags & SMK_PixelDoubleWidth) != 0;
+		const long dstbuf_step = (flags & SMK_InterlaceLine) ? 2 * lbDisplay.GraphicsScreenWidth : lbDisplay.GraphicsScreenWidth;
+		for (int h = frame.height; h > 0; h--) {
+			copy_to_screen_row_ex(srcbuf, dstbuf, frame.width, lbDisplay.GraphicsScreenWidth, palette, double_w, false);
+			dstbuf += dstbuf_step;
+			srcbuf += src_pitch;
 		}
 	}
 }
 
-void copy_to_screen_scaled(const AVFrame & frame, const int flags)
+void copy_to_screen_scaled(const AVFrame & frame, const int flags, const unsigned char *palette)
 {
 	const auto src_pitch = frame.linesize[0];
 	const auto src_buf = frame.data[0];
-	const auto dst_buf = &lbDisplay.WScreen[0];
+	const auto dst_buf = &RendererGetFramebuffer()[0];
 	// Compute scaling ratio -> Output co-ordinates and output size
 	const int scanline = lbDisplay.GraphicsScreenWidth;
 	const int nlines = lbDisplay.GraphicsScreenHeight;
@@ -216,14 +176,19 @@ void copy_to_screen_scaled(const AVFrame & frame, const int flags)
 		dst_height = (int)(in_height * units_per_px / 16.0);
 	}
 
+	/* Letterbox bars. Was memset(...,0,...) writing palette index 0 to a
+	 * one-byte-per-pixel framebuffer, which presented as index 0's colour
+	 * (black by convention here) -- NOT as sprite-style transparency, so
+	 * this uses an opaque black rather than expand_indexed_pixel(0, ...). */
+	const TbPixel clear_px = TbPixel_RGB(0, 0, 0);
 	// Clearing top of the canvas
 	for (int sh = 0; sh < sph; sh++) {
-		memset(&dst_buf[sh * scanline], 0, scanline);
+		for (int i = 0; i < scanline; i++) dst_buf[sh * scanline + i] = clear_px;
 	}
 	// Clearing bottom of the canvas
 	// (Note: it must be done before drawing, to make sure we won't overwrite last line)
 	for (int sh = sph + dst_height; sh < nlines; sh++) {
-		memset(&dst_buf[sh * scanline], 0, scanline);
+		for (int i = 0; i < scanline; i++) dst_buf[sh * scanline + i] = clear_px;
 	}
 	// Now drawing
 	auto dhstart = sph;
@@ -237,20 +202,21 @@ void copy_to_screen_scaled(const AVFrame & frame, const int flags)
 			const auto dst = &dst_buf[(dhstart + k) * scanline];
 			int dwstart = spw;
 			if (dwstart > 0) {
-				memset(dst, 0, dwstart);
+				for (int i = 0; i < dwstart; i++) dst[i] = clear_px;
 			}
 			for (int sw = 0; sw < frame.width; sw++) {
 				const auto dwend = spw + (dst_width * (sw + 1) / frame.width);
 				// make for(i=0;i<dwend-dwstart;i++) but restrict i to draw area
 				const auto mwmin = max(0, -dwstart);
 				const auto mwmax = min(dwend - dwstart, scanline - dwstart);
+				const TbPixel src_px = expand_pal8_pixel(src[sw], palette);
 				for (int i = mwmin; i < mwmax; i++) {
-					dst[dwstart+i] = src[sw];
+					dst[dwstart+i] = src_px;
 				}
 				dwstart = dwend;
 			}
 			if (dwstart < scanline) {
-				memset(dst+dwstart, 0, scanline-dwstart);
+				for (int i = 0; i < scanline-dwstart; i++) dst[dwstart+i] = clear_px;
 			}
 		}
 		dhstart = dhend;
@@ -536,9 +502,9 @@ struct movie_t {
 		if (RendererLockFramebuffer() != Lb_SUCCESS) {
 			return;
 		} else if (m_flags & (SMK_FullscreenFit | SMK_FullscreenStretch | SMK_FullscreenCrop)) { // new scaling mode
-			copy_to_screen_scaled(*m_frame, m_flags);
+			copy_to_screen_scaled(*m_frame, m_flags, rgb8);
 		} else {
-			copy_to_screen(*m_frame, m_flags);
+			copy_to_screen(*m_frame, m_flags, rgb8);
 		}
 		RendererUnlockFramebuffer();
 		RendererPresentFrame();
@@ -1419,14 +1385,23 @@ extern "C" short anim_stop()
 	return true;
 }
 
-extern "C" TbBool anim_record_frame(unsigned char *screenbuf, unsigned char *palette)
+/* The legacy FLI movie recorder behind anim_make_next_frame() encodes an
+ * 8-bit-per-pixel raw buffer -- untouched by this migration, since a true
+ * 32-bit FLI encoder is a new feature nobody has asked for, not a type fix.
+ * bflib_video.c's lbDrawSurface is SDL_PIXELFORMAT_RGBA32 now (the final
+ * step of docs/refactor/renderer/02-32bit-software-renderer.md's write-
+ * order landed), so LbGraphicsScreenBPP() reports 32 and anim_record()'s
+ * own "!= 8" guard makes this whole path permanently unreachable -- the
+ * reinterpret_cast below is dead code, kept only because deleting it is out
+ * of scope for a pixel-format migration. */
+extern "C" TbBool anim_record_frame(TbPixel *screenbuf, unsigned char *palette)
 {
 	if ((animation.state_flags & 0x01)==0) {
 		return false;
 	} else if (!anim_format_matches(MyScreenWidth/pixel_size,MyScreenHeight/pixel_size,LbGraphicsScreenBPP())) {
 		return false;
 	}
-	return anim_make_next_frame(screenbuf, palette);
+	return anim_make_next_frame((unsigned char *)screenbuf, palette);
 }
 
 extern "C" short anim_record()

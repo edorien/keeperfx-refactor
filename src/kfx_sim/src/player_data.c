@@ -35,11 +35,61 @@
 #include "post_inc.h"
 
 /******************************************************************************/
-TbPixel player_path_colours[]  =     {131, 90, 163, 181,  20,   4, 106,  52,  42};
-TbPixel player_room_colours[]  =     {132, 92, 164, 183,  21, 132, 108,  54,  44};
-TbPixel player_flash_colours[] =     {133, 94, 167, 142,  31,  15, 110,  54,  46};
-TbPixel player_highlight_colours[] = {31,  31,  31,  31,  31,  31,  31,  31,  31};
-TbPixel possession_hit_colours[] =   {133, 89, 167, 141,  31,  31, 110,  54,  46};
+/* Per-player colours, one entry per player colour index (red, purple, green,
+ * yellow, white, brown, pink, olive, orange).
+ *
+ * These were palette-index literals, resolved once here against the shipped
+ * data/palette.dat (VGA 6-bit, scaled to 8-bit the same way chan6_to_8()
+ * does) as part of the true-colour migration -- see
+ * docs/refactor/renderer/02a-pixel-format-design.md §4 Bucket B. The original
+ * index is kept in a trailing comment on each entry so the mapping stays
+ * checkable against the palette file. */
+TbPixel player_path_colours[]  = {
+    {133,  44,   0, 255},  /* was idx 131 */
+    {137, 113, 149, 255},  /* was idx  90 */
+    { 52,  93,   4, 255},  /* was idx 163 */
+    {190, 157,   0, 255},  /* was idx 181 */
+    {182, 161, 125, 255},  /* was idx  20 */
+    { 52,  36,   4, 255},  /* was idx   4 */
+    {174,  80, 121, 255},  /* was idx 106 */
+    { 76,  60,  20, 255},  /* was idx  52 */
+    {190, 109,  52, 255},  /* was idx  42 */
+};
+TbPixel player_room_colours[]  = {
+    {157,  48,   0, 255},  /* was idx 132 */
+    {161, 137, 182, 255},  /* was idx  92 */
+    { 56, 113,  12, 255},  /* was idx 164 */
+    {230, 214,   0, 255},  /* was idx 183 */
+    {190, 170, 133, 255},  /* was idx  21 */
+    {157,  48,   0, 255},  /* was idx 132 */
+    {202, 105, 165, 255},  /* was idx 108 */
+    { 93,  80,  32, 255},  /* was idx  54 */
+    {214, 133,  72, 255},  /* was idx  44 */
+};
+TbPixel player_flash_colours[] = {
+    {186,  48,   0, 255},  /* was idx 133 */
+    {190, 170, 222, 255},  /* was idx  94 */
+    { 64, 182,  16, 255},  /* was idx 167 */
+    {246, 238,  93, 255},  /* was idx 142 */
+    {246, 246, 234, 255},  /* was idx  31 */
+    {145, 121,  80, 255},  /* was idx  15 */
+    {230, 137, 218, 255},  /* was idx 110 */
+    { 93,  80,  32, 255},  /* was idx  54 */
+    {242, 161,  97, 255},  /* was idx  46 */
+};
+TbPixel player_highlight_colours[] = {
+    /* all nine were idx 31 -- the palette's near-white */
+    {246, 246, 234, 255}, {246, 246, 234, 255}, {246, 246, 234, 255},
+    {246, 246, 234, 255}, {246, 246, 234, 255}, {246, 246, 234, 255},
+    {246, 246, 234, 255}, {246, 246, 234, 255}, {246, 246, 234, 255},
+};
+/* NOT a colour array, despite the name and its siblings above -- a palette
+ * INDEX array. Its only consumer is tint_thing() (creature_graphics.c), which
+ * stores the value in Thing::tint_colour (unsigned char), which
+ * engine_render.c hands to SetupSpriteRemapGhost(uint8_t ref_index) as the
+ * ghost blend's reference index. Corrects 02a-pixel-format-design.md §4,
+ * which listed every player_data.c array as needing RGB conversion. */
+unsigned char possession_hit_colours[] = {133, 89, 167, 141,  31,  31, 110,  54,  46};
 
 unsigned short const player_cubes[] = {0x00C0, 0x00C1, 0x00C2, 0x00C3, 0x00C7, 0x00C6 };
 

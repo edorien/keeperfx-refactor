@@ -19,6 +19,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "bflib_render.h"
+#include "renderer/RendererManager.h"
 
 #include "globals.h"
 #include "bflib_basics.h"
@@ -137,7 +138,7 @@ struct TrigLocalPrep {
 };
 
 struct TrigLocalRend {
-    unsigned char *screen_buffer_ptr;
+    TbPixel *screen_buffer_ptr;
     long render_height;
     long u_step;
     long v_step;
@@ -2138,8 +2139,8 @@ static inline ulong __ROL4__(ulong value, int count)
 void trig_render_md00(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
-    unsigned char *o_ln;
-    unsigned char col;
+    TbPixel *o_ln;
+    TbPixel col;
 
     polygon_point = polyscans;
     if (polygon_point == NULL) {
@@ -2152,7 +2153,7 @@ void trig_render_md00(struct TrigLocalRend *tlr)
     for (; tlr->render_height; tlr->render_height--, polygon_point++)
     {
         long point_x, point_y;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x = polygon_point->X >> 16;
         point_y = polygon_point->Y >> 16;
@@ -2176,7 +2177,9 @@ void trig_render_md00(struct TrigLocalRend *tlr)
                 continue;
             o = &o_ln[point_x];
         }
-        memset(o, col, point_y);
+        for (; point_y > 0; point_y--, o++) {
+            *o = col;
+        }
     }
 }
 
@@ -2184,10 +2187,17 @@ void trig_render_md00(struct TrigLocalRend *tlr)
  * Gouraud shading - renders smooth color gradients across triangle vertices.
  * No texture mapping, just interpolated vertex colors.
  */
+/* Dead code: vec_mode never takes the value RendVec_mode01 (VM_Unusedparam1)
+ * anywhere in engine_render.c -- the only writer of vec_mode. Kept
+ * compiling/type-correct but not verified against real gameplay; the
+ * original's `vec_colour` low-byte seed (a sub-pixel dithering nicety with
+ * no effect on the interpolated colH byte that actually gets displayed) is
+ * dropped rather than guessed at, since vec_colour is no longer a raw byte. */
 void trig_render_md01(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     TbBool shade_value_carry;
+    const unsigned char *palette = RendererGetActivePalette();
     polygon_point = polyscans;
     if (polygon_point == NULL) {
         ERRORLOG("global array not set: 0x%p", polygon_point);
@@ -2199,7 +2209,7 @@ void trig_render_md01(struct TrigLocalRend *tlr)
         short point_x, point_y;
         short shade_value;
         ushort colS;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x = polygon_point->X >> 16;
         point_y = polygon_point->Y >> 16;
@@ -2221,7 +2231,7 @@ void trig_render_md01(struct TrigLocalRend *tlr)
             if (point_y > vec_window_width)
                 point_y = vec_window_width;
 
-            colS = ((colH & 0xFF) << 8) + vec_colour;
+            colS = ((colH & 0xFF) << 8);
         }
         else
         {
@@ -2238,13 +2248,13 @@ void trig_render_md01(struct TrigLocalRend *tlr)
             colH = polygon_point->S >> 16;
             shade_value = polygon_point->S;
 
-            colS = ((colH & 0xFF) << 8) + vec_colour;
+            colS = ((colH & 0xFF) << 8);
         }
 
         for (;point_y > 0; point_y--, o++)
         {
             short colH, colL;
-            *o = colS >> 8;
+            *o = expand_indexed_pixel((uint8_t)(colS >> 8), palette);
 
             colL = colS;
             shade_value_carry = __CFADDS__(tlr->shade_step, shade_value);
@@ -2265,6 +2275,7 @@ void trig_render_md02(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
     polygon_point = polyscans;
@@ -2279,7 +2290,7 @@ void trig_render_md02(struct TrigLocalRend *tlr)
         short point_x, point_y;
         long texture_u;
         ushort colS;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x = polygon_point->X >> 16;
         point_y = polygon_point->Y >> 16;
@@ -2331,7 +2342,7 @@ void trig_render_md02(struct TrigLocalRend *tlr)
             short colL, colH;
             TbBool texture_u_carry;
 
-            *o = m[colS];
+            *o = expand_indexed_pixel(m[colS], palette);
 
             texture_u_carry = __CFADDS__(tlr->u_step, texture_u);
             texture_u = (texture_u & 0xFFFF0000) | ((tlr->u_step + texture_u) & 0xFFFF);
@@ -2351,6 +2362,7 @@ void trig_render_md03(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
     polygon_point = polyscans;
@@ -2366,7 +2378,7 @@ void trig_render_md03(struct TrigLocalRend *tlr)
         long texture_u;
         ulong factorA;
         ushort colS;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x = polygon_point->X >> 16;
         point_y = polygon_point->Y >> 16;
@@ -2417,7 +2429,7 @@ void trig_render_md03(struct TrigLocalRend *tlr)
             TbBool texture_u_carry;
 
             if (m[colS] != 0)
-                *o = m[colS];
+                *o = expand_indexed_pixel(m[colS], palette);
 
             texture_u_carry = __CFADDS__(tlr->u_step, texture_u);
             texture_u = (texture_u & 0xFFFF0000) | ((tlr->u_step + texture_u) & 0xFFFF);
@@ -2437,15 +2449,18 @@ void trig_render_md03(struct TrigLocalRend *tlr)
  * - tank lower chassis
  * - Large red and white rocket building - red stipes
  */
+/* colS's low byte used to smuggle vec_colour through as render_fade_tables'
+ * column index; now that vec_colour is already a resolved TbPixel (not a
+ * raw byte), that low byte is vestigial -- render_shade(vec_colour, ...) is
+ * called directly at the write site instead, keeping the high-byte shade
+ * accumulation (colH) exactly as it was. */
 void trig_render_md04(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
-    unsigned char *f;
 
-    f = render_fade_tables;
     polygon_point = polyscans;
-    if ((f == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p", f, polygon_point);
+    if (polygon_point == NULL) {
+        ERRORLOG("global array not set: 0x%p", polygon_point);
         return;
     }
 
@@ -2454,7 +2469,7 @@ void trig_render_md04(struct TrigLocalRend *tlr)
         short point_x, point_y;
         short texture_u;
         ushort colS;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x = polygon_point->X >> 16;
         point_y = polygon_point->Y >> 16;
@@ -2474,7 +2489,7 @@ void trig_render_md04(struct TrigLocalRend *tlr)
             colH = (polygon_point->S >> 16) + texture_u_carry + (multiplier_x >> 16);
             if (point_y > vec_window_width)
                 point_y = vec_window_width;
-            colL = vec_colour;
+            colL = 0;
 
             colS = ((colH & 0xFF) << 8) + (colL & 0xFF);
         }
@@ -2490,7 +2505,7 @@ void trig_render_md04(struct TrigLocalRend *tlr)
             if (((point_y < 0) ^ pY_overflow) | (point_y == 0))
                 continue;
             o += point_x;
-            colL = vec_colour;
+            colL = 0;
             texture_u = polygon_point->S;
             colH = polygon_point->S >> 16;
 
@@ -2506,7 +2521,7 @@ void trig_render_md04(struct TrigLocalRend *tlr)
             texture_u = tlr->shade_step + texture_u;
             colL = colS;
             colH = (tlr->shade_step >> 16) + texture_u_carry + (colS >> 8);
-            *o = f[colS];
+            *o = render_shade(vec_colour, (uint8_t)(colS >> 8));
 
             colS = ((colH & 0xFF) << 8) + (colL & 0xFF);
         }
@@ -2521,16 +2536,15 @@ void trig_render_md05(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *f;
     long texture_v_step_fixed;
     long shade_step_fixed;
     long texture_v_lower_byte;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    f = render_fade_tables;
     polygon_point = polyscans;
-    if ((m == NULL) || (f == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p 0x%p", m, f, polygon_point);
+    if ((m == NULL) || (polygon_point == NULL)) {
+        ERRORLOG("global arrays not set: 0x%p 0x%p", m, polygon_point);
         return;
     }
 
@@ -2552,8 +2566,8 @@ void trig_render_md05(struct TrigLocalRend *tlr)
         long point_x, point_y;
         long rfactA, rfactB;
         ushort colM;
-        unsigned char *o;
-        unsigned char *o_ln;
+        TbPixel *o;
+        TbPixel *o_ln;
 
         point_x = polygon_point->X >> 16;
         point_y = polygon_point->Y >> 16;
@@ -2628,7 +2642,7 @@ void trig_render_md05(struct TrigLocalRend *tlr)
             colL = colM;
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
 
-            *o = f[colS];
+            *o = render_shade(expand_indexed_pixel((uint8_t)colS, palette), (uint8_t)(colS >> 8));
         }
     }
 }
@@ -2642,15 +2656,14 @@ void trig_render_md06(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *f;
     long texture_v_step_fixed;
     long shade_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    f = render_fade_tables;
     polygon_point = polyscans;
-    if ((m == NULL) || (f == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p 0x%p", m, f, polygon_point);
+    if ((m == NULL) || (polygon_point == NULL)) {
+        ERRORLOG("global arrays not set: 0x%p 0x%p", m, polygon_point);
         return;
     }
     texture_v_step_fixed = tlr->v_step << 16;
@@ -2658,7 +2671,7 @@ void trig_render_md06(struct TrigLocalRend *tlr)
 
     for (; tlr->render_height; tlr->render_height--, polygon_point++)
     {
-        unsigned char *o;
+        TbPixel *o;
         short point_x_a, point_y_a;
         long factorA;
         long point_y;
@@ -2730,7 +2743,7 @@ void trig_render_md06(struct TrigLocalRend *tlr)
 
             point_x_a = (point_x_a & 0xFF00) | (m[colM] & 0xFF);
             if (point_x_a & 0xFF)
-                *o = f[point_x_a];
+                *o = render_shade(expand_indexed_pixel((uint8_t)point_x_a, palette), (uint8_t)(point_x_a >> 8));
 
             fct_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) | ((tlr->u_step + factorA) & 0xFFFF);
@@ -2751,17 +2764,29 @@ void trig_render_md06(struct TrigLocalRend *tlr)
 }
 
 void trig_render_md07(struct TrigLocalRend *tlr)
+/**
+ * VM_SolidColor's real renderer -- despite the enum name, this is not a
+ * flat single colour: it samples vec_map at a coarse per-scanline rate and
+ * shades the sample by vec_shade (a per-primitive shade level set by
+ * engine_render.c's dome/sphere LOD-fallback path, same role as
+ * VM_SpriteTranslucent's -- see trig_render_md10() and
+ * docs/refactor/renderer/02a-pixel-format-design.md). The original code
+ * read this level out of `vec_colour` (`colS = vec_colour<<8 | texel`,
+ * i.e. render_fade_tables[row=vec_colour, col=texel]) -- confirmed a raw
+ * 0-63 shade index, not a colour, by the `vec_colour == 0x20` dispatch
+ * check in trig() and by trig_render_md10()'s identical bit-packing shape
+ * using the same variable for the same role.
+ */
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *f;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    f = render_fade_tables;
     polygon_point = polyscans;
-    if ((m == NULL) || (f == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p 0x%p", m, f, polygon_point);
+    if ((m == NULL) || (polygon_point == NULL)) {
+        ERRORLOG("global arrays not set: 0x%p 0x%p", m, polygon_point);
         return;
     }
     texture_v_step_fixed = tlr->v_step << 16;
@@ -2773,7 +2798,7 @@ void trig_render_md07(struct TrigLocalRend *tlr)
         long pXm;
         long factorA;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -2822,16 +2847,14 @@ void trig_render_md07(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
-            colS = (vec_colour << 8) + m[colM];
+            *o = render_shade(expand_indexed_pixel(m[colM], palette), (uint8_t)vec_shade);
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) | ((tlr->u_step + factorA) & 0xFFFF);
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
-            *o = f[colS];
             colH = (colM >> 8) + ((tlr->v_step >> 16) & 0xFF) + factorA_carry;
 
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
@@ -2839,18 +2862,22 @@ void trig_render_md07(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode08 (VM_Unusedparam8) --
+ * engine_render.c only ever sets VM_FlatColor/QuadFlatColor/SolidColor/
+ * TriangularGouraud/TriangularTexture/QuadTextured/TriangularTextured/
+ * SpriteTranslucent. Kept type-correct, treated the same as its live
+ * sibling trig_render_md07() (vec_colour's shade-row role -> vec_shade). */
 void trig_render_md08(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *f;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    f = render_fade_tables;
     polygon_point = polyscans;
-    if ((m == NULL) || (f == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p 0x%p", m, f, polygon_point);
+    if ((m == NULL) || (polygon_point == NULL)) {
+        ERRORLOG("global arrays not set: 0x%p 0x%p", m, polygon_point);
         return;
     }
     texture_v_step_fixed = tlr->v_step << 16;
@@ -2860,7 +2887,7 @@ void trig_render_md08(struct TrigLocalRend *tlr)
         short point_x_a;
         long point_y_a;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
         long factorA;
 
         point_x_a = (polygon_point->X >> 16);
@@ -2911,15 +2938,13 @@ void trig_render_md08(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
-            colS = (vec_colour << 8) + m[colM];
+            if (m[colM] != 0)
+                *o = render_shade(expand_indexed_pixel(m[colM], palette), (uint8_t)vec_shade);
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
-            if (colS & 0xFF)
-                *o = f[colS];
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
             colH = (colM >> 8) + ((tlr->v_step >> 16) & 0xFF) + factorA_carry;
@@ -2929,18 +2954,20 @@ void trig_render_md08(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode09 (VM_Unusedparam9). Shade
+ * level here comes from the texture sample itself (m[colM]), applied to
+ * whatever's already on screen (*o) -- unlike md07/md08, no vec_colour/
+ * vec_shade involvement at all. */
 void trig_render_md09(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *f;
     long texture_v_step_fixed;
 
     m = vec_map;
-    f = render_fade_tables;
     polygon_point = polyscans;
-    if ((m == NULL) || (f == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p 0x%p", m, f, polygon_point);
+    if ((m == NULL) || (polygon_point == NULL)) {
+        ERRORLOG("global arrays not set: 0x%p 0x%p", m, polygon_point);
         return;
     }
     texture_v_step_fixed = tlr->v_step << 16;
@@ -2951,7 +2978,7 @@ void trig_render_md09(struct TrigLocalRend *tlr)
         long pXm;
         long factorA;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3000,16 +3027,13 @@ void trig_render_md09(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
-            colS = m[colM] << 8;
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
-            if ((colS >> 8) & 0xFF) {
-                colS = (colS & 0xFF00) | (*o);
-                *o = f[colS];
+            if (m[colM] != 0) {
+                *o = render_shade(*o, m[colM]);
             }
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
@@ -3035,14 +3059,12 @@ void trig_render_md10(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;  // texture map (256x256 sprite in big_scratch)
-    unsigned char *f;  // fade/transparency table
     long texture_v_step_fixed;
 
     m = vec_map;
-    f = render_fade_tables;
     polygon_point = polyscans;
-    if ((m == NULL) || (f == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p 0x%p", m, f, polygon_point);
+    if ((m == NULL) || (polygon_point == NULL)) {
+        ERRORLOG("global arrays not set: 0x%p 0x%p", m, polygon_point);
         return;
     }
     if (tlr->screen_buffer_ptr == NULL) {
@@ -3060,7 +3082,7 @@ void trig_render_md10(struct TrigLocalRend *tlr)
         long factorA;
         ulong factorC;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3115,8 +3137,8 @@ void trig_render_md10(struct TrigLocalRend *tlr)
 
         // Scanline OOB check — skip if any pixel would land outside the framebuffer
         {
-            unsigned char *fb_start = poly_screen + vec_screen_width;
-            unsigned char *fb_end   = poly_screen + vec_screen_width * (vec_window_height + 1);
+            TbPixel *fb_start = poly_screen + vec_screen_width;
+            TbPixel *fb_end   = poly_screen + vec_screen_width * (vec_window_height + 1);
             if (o < fb_start || o + point_y_a > fb_end)
             {
                 ERRORLOG("[md10] scanline ptr %p..%p out of bounds (%p..%p)",
@@ -3129,15 +3151,15 @@ void trig_render_md10(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
-            // Sample texture; if non-zero (inside shadow), apply fade
+            // Sample texture; if non-zero (inside shadow), shade whatever's
+            // already on screen by vec_shade (creature-shadow intensity --
+            // see docs/refactor/renderer/02a-pixel-format-design.md and
+            // trig_render_md07()'s comment for the vec_colour->vec_shade
+            // correction this required).
             if (m[colM]) {
-                // Fade table lookup: high byte = shadow intensity, low byte = screen pixel
-                // Result is blended shadow color
-                colS = (vec_colour << 8) | (*o);
-                *o = f[colS];
+                *o = render_shade(*o, (uint8_t)vec_shade);
             }
 
             // Step U coordinate with carry propagation for fixed-point precision
@@ -3159,18 +3181,18 @@ void trig_render_md10(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode12 (VM_Unusedparam12). */
 void trig_render_md12(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
     polygon_point = polyscans;
-    if ((m == NULL) || (g == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p 0x%p", m, g, polygon_point);
+    if ((m == NULL) || (polygon_point == NULL)) {
+        ERRORLOG("global arrays not set: 0x%p 0x%p", m, polygon_point);
         return;
     }
     texture_v_step_fixed = tlr->v_step << 16;
@@ -3182,7 +3204,7 @@ void trig_render_md12(struct TrigLocalRend *tlr)
         long pXm;
         long factorA;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3231,16 +3253,14 @@ void trig_render_md12(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
-            colS = (m[colM] << 8) | vec_colour;
+            *o = render_ghost_blend(expand_indexed_pixel(m[colM], palette), vec_colour);
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
-            *o = g[colS];
             colH = (colM >> 8) + ((tlr->v_step >> 16) & 0xFF) + factorA_carry;
 
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
@@ -3248,18 +3268,18 @@ void trig_render_md12(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode13 (VM_Unusedparam13). */
 void trig_render_md13(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
     polygon_point = polyscans;
-    if ((m == NULL) || (g == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p 0x%p", m, g, polygon_point);
+    if ((m == NULL) || (polygon_point == NULL)) {
+        ERRORLOG("global arrays not set: 0x%p 0x%p", m, polygon_point);
         return;
     }
     texture_v_step_fixed = tlr->v_step << 16;
@@ -3270,7 +3290,7 @@ void trig_render_md13(struct TrigLocalRend *tlr)
         long pXm;
         long factorA;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3319,16 +3339,14 @@ void trig_render_md13(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
-            colS = m[colM] | (vec_colour << 8);
+            *o = render_ghost_blend(vec_colour, expand_indexed_pixel(m[colM], palette));
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
-            *o = g[colS];
             colH = (colM >> 8) + ((tlr->v_step >> 16) & 0xFF) + factorA_carry;
 
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
@@ -3336,26 +3354,23 @@ void trig_render_md13(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode14 (VM_Unusedparam14). */
 void trig_render_md14(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
-    unsigned char *g;
-    ushort colM;
-    unsigned char *o_ln;
+    TbPixel *o_ln;
 
-    g = render_ghost;
     polygon_point = polyscans;
-    if ((g == NULL) || (polygon_point == NULL)) {
-        ERRORLOG("global arrays not set: 0x%p 0x%p", g, polygon_point);
+    if (polygon_point == NULL) {
+        ERRORLOG("global array not set: 0x%p", polygon_point);
         return;
     }
     o_ln = tlr->screen_buffer_ptr;
-    colM = (vec_colour << 8);
 
     for (; tlr->render_height; tlr->render_height--, polygon_point++)
     {
         short point_x_a, point_y_a;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3384,28 +3399,28 @@ void trig_render_md14(struct TrigLocalRend *tlr)
 
         for (; point_y_a > 0; point_y_a--, o++)
         {
-              colM = (colM & 0xFF00) | *o;
-              *o = g[colM];
+              *o = render_ghost_blend(vec_colour, *o);
         }
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode15 (VM_Unusedparam15). */
 void trig_render_md15(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
-    unsigned char *g;
-    ushort colM;
-    unsigned char *o_ln;
+    TbPixel *o_ln;
 
-    g = render_ghost;
     polygon_point = polyscans;
+    if (polygon_point == NULL) {
+        ERRORLOG("global array not set: 0x%p", polygon_point);
+        return;
+    }
     o_ln = tlr->screen_buffer_ptr;
-    colM = vec_colour;
 
     for (; tlr->render_height; tlr->render_height--, polygon_point++)
     {
         short point_x_a, point_y_a;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3433,20 +3448,19 @@ void trig_render_md15(struct TrigLocalRend *tlr)
 
         for (; point_y_a > 0; point_y_a--, o++)
         {
-              colM = (*o << 8) | (colM & 0xFF);
-              *o = g[colM];
+              *o = render_ghost_blend(*o, vec_colour);
         }
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode16 (VM_Unusedparam16). Chains
+ * render_shade(vec_colour, shade) into render_ghost_blend(shaded, dest),
+ * matching the (colH=shade, colL=vec_colour) -> f[] -> (ref=f-result,
+ * dest=*o) -> g[] structure of the original bit-packing. */
 void trig_render_md16(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
-    unsigned char *g;
-    unsigned char *f;
 
-    g = render_ghost;
-    f = render_fade_tables;
     polygon_point = polyscans;
 
     for (; tlr->render_height; tlr->render_height--, polygon_point++)
@@ -3454,7 +3468,7 @@ void trig_render_md16(struct TrigLocalRend *tlr)
         short point_x_a, point_y_a;
         short factorA;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3478,7 +3492,7 @@ void trig_render_md16(struct TrigLocalRend *tlr)
             colH = (point_x_a >> 8) + (polygon_point->S >> 16) + factorA_carry;
             if (point_y_a > vec_window_width)
               point_y_a = vec_window_width;
-            colL = vec_colour;
+            colL = 0; /* vestigial low byte -- see trig_render_md04()'s comment */
 
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
         }
@@ -3494,7 +3508,7 @@ void trig_render_md16(struct TrigLocalRend *tlr)
             if ( ((point_y_a < 0) ^ pY_overflow) | (point_y_a == 0) )
                 continue;
             o += point_x_a;
-            colL = vec_colour;
+            colL = 0; /* vestigial low byte -- see trig_render_md04()'s comment */
             factorA = polygon_point->S;
             colH = (polygon_point->S >> 16);
 
@@ -3504,11 +3518,9 @@ void trig_render_md16(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
-            colS = (f[colM] << 8) | *o;
-            *o = g[colS];
+            *o = render_ghost_blend(render_shade(vec_colour, (uint8_t)(colM >> 8)), *o);
             factorA_carry = __CFADDS__(tlr->shade_step, factorA);
             factorA += (tlr->shade_step & 0xFFFF);
             colH = (colM >> 8) + (tlr->shade_step >> 16) + factorA_carry;
@@ -3519,14 +3531,13 @@ void trig_render_md16(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode17 (VM_Unusedparam17). Same
+ * chained shade-then-ghost structure as trig_render_md16(), with ref/dest
+ * swapped in the final ghost blend (ref=*o, dest=shaded). */
 void trig_render_md17(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
-    unsigned char *g;
-    unsigned char *f;
 
-    g = render_ghost;
-    f = render_fade_tables;
     polygon_point = polyscans;
 
     for (; tlr->render_height; tlr->render_height--, polygon_point++)
@@ -3535,7 +3546,7 @@ void trig_render_md17(struct TrigLocalRend *tlr)
         unsigned char factorA_carry;
         short factorA;
         ushort colS;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3558,7 +3569,7 @@ void trig_render_md17(struct TrigLocalRend *tlr)
             colH = (point_x_a >> 8) + (polygon_point->S >> 16) + factorA_carry;
             if (point_y_a > vec_window_width)
               point_y_a = vec_window_width;
-            colL = vec_colour;
+            colL = 0; /* vestigial low byte -- see trig_render_md04()'s comment */
 
             colS = ((colH & 0xFF) << 8) + (colL & 0xFF);
         }
@@ -3575,7 +3586,7 @@ void trig_render_md17(struct TrigLocalRend *tlr)
                 continue;
 
             o += point_x_a;
-            colL = vec_colour;
+            colL = 0; /* vestigial low byte -- see trig_render_md04()'s comment */
             factorA = polygon_point->S;
             colH = (polygon_point->S >> 16);
 
@@ -3585,10 +3596,8 @@ void trig_render_md17(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colM;
 
-            colM = ((*o) << 8) + f[colS];
-            *o = g[colM];
+            *o = render_ghost_blend(*o, render_shade(vec_colour, (uint8_t)(colS >> 8)));
 
             factorA_carry = __CFADDS__(tlr->shade_step, factorA);
             factorA += (tlr->shade_step & 0xFFFF);
@@ -3600,15 +3609,15 @@ void trig_render_md17(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode18 (VM_Unusedparam18). */
 void trig_render_md18(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
     polygon_point = polyscans;
     texture_v_step_fixed = tlr->v_step << 16;
 
@@ -3618,7 +3627,7 @@ void trig_render_md18(struct TrigLocalRend *tlr)
         long pXm;
         long factorA;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3667,18 +3676,14 @@ void trig_render_md18(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
-            colH = m[colM];
+            *o = render_ghost_blend(expand_indexed_pixel(m[colM], palette), *o);
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) | ((tlr->u_step + factorA) & 0xFFFF);
-            colL = *o;
-            colS = ((colH & 0xFF) << 8) + (colL & 0xFF);
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
-            *o = g[colS];
             colH = (colM >> 8) + ((tlr->v_step >> 16) & 0xFF) + factorA_carry;
 
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
@@ -3686,15 +3691,15 @@ void trig_render_md18(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode19 (VM_Unusedparam19). */
 void trig_render_md19(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
     polygon_point = polyscans;
     texture_v_step_fixed = tlr->v_step << 16;
 
@@ -3703,7 +3708,7 @@ void trig_render_md19(struct TrigLocalRend *tlr)
         short point_x_a, point_y_a;
         long factorA;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3752,16 +3757,14 @@ void trig_render_md19(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
-            colS = ((*o) << 8) + m[colM];
+            *o = render_ghost_blend(*o, expand_indexed_pixel(m[colM], palette));
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
-            *o = g[colS];
             colH = (colM >> 8) + (tlr->v_step >> 16) + factorA_carry;
 
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
@@ -3769,18 +3772,16 @@ void trig_render_md19(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode20 (VM_Unusedparam20). */
 void trig_render_md20(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
-    unsigned char *f;
     long texture_v_step_fixed;
     long shade_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
-    f = render_fade_tables;
     polygon_point = polyscans;
     texture_v_step_fixed = tlr->v_step << 16;
     shade_step_fixed = tlr->shade_step << 16;
@@ -3793,7 +3794,7 @@ void trig_render_md20(struct TrigLocalRend *tlr)
         long factorA;
         long factorC;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
 
         point_x_a = (polygon_point->X >> 16);
         point_y_a = (polygon_point->Y >> 16);
@@ -3844,20 +3845,17 @@ void trig_render_md20(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
-            colS = ((factorC & 0xFF) << 8) + m[colM];
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
-            colS = ((f[colS] & 0xFF) << 8) + *o;
+            *o = render_ghost_blend(render_shade(expand_indexed_pixel(m[colM], palette), (uint8_t)factorC), *o);
             colH = (colM >> 8) + ((tlr->v_step >> 16) & 0xFF) + factorA_carry;
             factorA_carry = __CFADDL__(shade_step_fixed, factorC);
             factorC += shade_step_fixed;
-            *o = g[colS];
             factorC = (factorC & 0xFFFFFF00) | (((tlr->shade_step >> 16) + factorA_carry + factorC) & 0xFF);
 
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
@@ -3865,18 +3863,18 @@ void trig_render_md20(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode21 (VM_Unusedparam21). Same
+ * texture+shade-then-ghost chain as trig_render_md20(), with ref/dest
+ * swapped in the final ghost blend. */
 void trig_render_md21(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
-    unsigned char *f;
     long texture_v_step_fixed;
     long shade_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
-    f = render_fade_tables;
     polygon_point = polyscans;
     texture_v_step_fixed = tlr->v_step << 16;
     shade_step_fixed = tlr->shade_step << 16;
@@ -3885,7 +3883,7 @@ void trig_render_md21(struct TrigLocalRend *tlr)
     {
         short point_x_a, point_y_a;
         ushort colM;
-        unsigned char *o;
+        TbPixel *o;
         long factorA, factorC;
 
         point_x_a = (polygon_point->X >> 16);
@@ -3940,20 +3938,17 @@ void trig_render_md21(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
             colL = ((tlr->u_step >> 16) & 0xFF) + factorA_carry + colM;
-            colS = ((factorC & 0xFF) << 8) + (m[colM] & 0xFF);
-            colS = (((*o) & 0xFF) << 8) + (f[colS] & 0xFF);
+            *o = render_ghost_blend(*o, render_shade(expand_indexed_pixel(m[colM], palette), (uint8_t)factorC));
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA += texture_v_step_fixed;
             colH = (colM >> 8) + ((tlr->v_step >> 16) & 0xFF) + factorA_carry;
             factorA_carry = __CFADDL__(shade_step_fixed, factorC);
             factorC += shade_step_fixed;
-            *o = g[colS];
             factorC = (factorC & 0xFFFFFF00) | (((tlr->shade_step >> 16) + factorA_carry + factorC) & 0xFF);
 
             colM = ((colH & 0x1F) << 8) + (colL & 0xFF);
@@ -3961,15 +3956,15 @@ void trig_render_md21(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode22 (VM_Unusedparam22). */
 void trig_render_md22(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
     polygon_point = polyscans;
     texture_v_step_fixed = tlr->v_step << 16;
 
@@ -3978,7 +3973,7 @@ void trig_render_md22(struct TrigLocalRend *tlr)
         short point_x_a;
         ushort colM;
         short point_y_a;
-        unsigned char *o;
+        TbPixel *o;
         long pXm;
         long factorA;
 
@@ -4029,12 +4024,10 @@ void trig_render_md22(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
             unsigned char factorA_carry;
 
             if (m[colM]) {
-                colS = ((m[colM] & 0xFF) << 8) + *o;
-                *o = g[colS];
+                *o = render_ghost_blend(expand_indexed_pixel(m[colM], palette), *o);
             }
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
@@ -4048,15 +4041,15 @@ void trig_render_md22(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode23 (VM_Unusedparam23). */
 void trig_render_md23(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
     long texture_v_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
     polygon_point = polyscans;
     texture_v_step_fixed = tlr->v_step << 16;
 
@@ -4065,7 +4058,7 @@ void trig_render_md23(struct TrigLocalRend *tlr)
         short point_x_a;
         ushort colM;
         short point_y_a;
-        unsigned char *o;
+        TbPixel *o;
         long pXm;
         long factorA;
         unsigned char factorA_carry;
@@ -4117,11 +4110,9 @@ void trig_render_md23(struct TrigLocalRend *tlr)
         for (; point_y_a > 0; point_y_a--, o++)
         {
             ushort colL, colH;
-            ushort colS;
 
             if (m[colM]) {
-                colS = (((*o) & 0xFF) << 8) + m[colM];
-                *o = g[colS];
+                *o = render_ghost_blend(*o, expand_indexed_pixel(m[colM], palette));
             }
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
@@ -4135,18 +4126,18 @@ void trig_render_md23(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode24 (VM_Unusedparam24). Same
+ * texture+shade-then-ghost chain as trig_render_md20()/md21(), applied only
+ * when the texture sample is nonzero. */
 void trig_render_md24(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
-    unsigned char *f;
     long texture_v_step_fixed;
     long shade_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
-    f = render_fade_tables;
     polygon_point = polyscans;
     texture_v_step_fixed = tlr->v_step << 16;
     shade_step_fixed = tlr->shade_step << 16;
@@ -4156,7 +4147,7 @@ void trig_render_md24(struct TrigLocalRend *tlr)
         short point_x_a;
         ushort colM;
         short point_y_a;
-        unsigned char *o;
+        TbPixel *o;
         long pXMa;
         long pXMb;
         long factorA;
@@ -4215,11 +4206,7 @@ void trig_render_md24(struct TrigLocalRend *tlr)
             unsigned char factorA_carry;
 
             if (m[colM]) {
-                ushort colS;
-
-                colS = ((factorC & 0xFF) << 8) + m[colM];
-                colS = (f[colS] << 8) + *o;
-                *o = g[colS];
+                *o = render_ghost_blend(render_shade(expand_indexed_pixel(m[colM], palette), (uint8_t)factorC), *o);
             }
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
@@ -4236,18 +4223,17 @@ void trig_render_md24(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode25 (VM_Unusedparam25). Same
+ * chain as trig_render_md24(), with ref/dest swapped in the ghost blend. */
 void trig_render_md25(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
-    unsigned char *f;
     long texture_v_step_fixed;
     long shade_step_fixed;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
-    f = render_fade_tables;
     polygon_point = polyscans;
     texture_v_step_fixed = tlr->v_step << 16;
     shade_step_fixed = tlr->shade_step << 16;
@@ -4257,7 +4243,7 @@ void trig_render_md25(struct TrigLocalRend *tlr)
         short point_x_a;
         ushort colM;
         short point_y_a;
-        unsigned char *o;
+        TbPixel *o;
         long pXMa;
         long pXMb;
         long factorA;
@@ -4316,11 +4302,7 @@ void trig_render_md25(struct TrigLocalRend *tlr)
             unsigned char factorA_carry;
 
             if (m[colM]) {
-                ushort colS;
-
-                colS = ((factorC & 0xFF) << 8) + m[colM];
-                colS = (((*o) & 0xFF) << 8) + f[colS];
-                *o = g[colS];
+                *o = render_ghost_blend(*o, render_shade(expand_indexed_pixel(m[colM], palette), (uint8_t)factorC));
             }
             factorA_carry = __CFADDS__(tlr->u_step, factorA);
             factorA = (factorA & 0xFFFF0000) + ((tlr->u_step + factorA) & 0xFFFF);
@@ -4337,19 +4319,20 @@ void trig_render_md25(struct TrigLocalRend *tlr)
     }
 }
 
+/* Dead code: vec_mode never takes RendVec_mode26 (VM_Unusedparam26). Texture
+ * sample shaded via factorA's high byte; if the (unshaded) texture sample
+ * is <= 0xC, additionally ghost-blends the shaded result against whatever's
+ * already on screen, otherwise writes the shaded result directly. */
 void trig_render_md26(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    unsigned char *g;
-    unsigned char *f;
     long texture_v_step_fixed;
     long shade_step_fixed;
     long texture_v_lower_byte;
+    const unsigned char *palette = RendererGetActivePalette();
 
     m = vec_map;
-    g = render_ghost;
-    f = render_fade_tables;
     polygon_point = polyscans;
 
     {
@@ -4371,7 +4354,7 @@ void trig_render_md26(struct TrigLocalRend *tlr)
     {
         long point_x_a;
         long point_y_a;
-        unsigned char *o;
+        TbPixel *o;
         ulong factorB, factorD;
         long factorA;
         ulong factorC;
@@ -4422,22 +4405,23 @@ void trig_render_md26(struct TrigLocalRend *tlr)
 
         for (; point_y_a > 0; point_y_a--, o++)
         {
-            ushort colS;
             unsigned char factorA_carry, factorB_carry;
+            uint8_t texel;
+            TbPixel shaded;
 
             colM = (colM & 0xFF00) | (factorB & 0xFF);
-            colS = (factorA & 0xFF00) | m[colM];
+            texel = m[colM];
+            shaded = render_shade(expand_indexed_pixel(texel, palette), (uint8_t)(factorA >> 8));
             factorA_carry = __CFADDL__(texture_v_step_fixed, factorA);
             factorA = texture_v_step_fixed + factorA;
             factorB_carry = __CFADDL__(shade_step_fixed, factorB + factorA_carry);
             factorB = shade_step_fixed + factorB + factorA_carry;
             colM = (colM & 0xFF) + ((((colM >> 8) + texture_v_lower_byte + factorB_carry) & 0xFF) << 8);
 
-            if ((colS & 0xFF) <= 0xCu) {
-                colS = ((*o) << 8) | f[colS];
-                *o = g[colS];
+            if (texel <= 0xCu) {
+                *o = render_ghost_blend(*o, shaded);
             } else {
-                *o = f[colS];
+                *o = shaded;
             }
         }
     }
@@ -4547,7 +4531,8 @@ void trig(struct PolyPoint *point_a, struct PolyPoint *point_b, struct PolyPoint
 
     case RendVec_mode07:
     case RendVec_mode11:
-        if (vec_colour == 0x20)
+        /* vec_shade, not vec_colour -- see trig_render_md07()'s comment. */
+        if (vec_shade == 0x20)
             trig_render_md02(&tlr);
         else
             trig_render_md07(&tlr);

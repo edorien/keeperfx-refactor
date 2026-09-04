@@ -167,7 +167,7 @@ void reset_eye_lenses(void)
  * @param viewport_x X offset of viewport in source buffer
  * @param effect Lens effect index (0 = no effect)
  */
-void draw_lens_effect(unsigned char *dstbuf, long dstpitch, unsigned char *srcbuf, long srcpitch, 
+void draw_lens_effect(TbPixel *dstbuf, long dstpitch, TbPixel *srcbuf, long srcpitch,
                      long width, long height, long viewport_x, long effect)
 {
     void* mgr = LensManager_GetInstance();
@@ -242,11 +242,11 @@ TbBool lens_is_ready(void)
  * 
  * @return Pointer to render target buffer, or NULL if lens system not ready
  */
-unsigned char* lens_get_render_target(void)
+TbPixel* lens_get_render_target(void)
 {
     if ((kfx_sim_state.mode_flags & MFlg_EyeLensReady) == 0)
         return NULL;
-    
+
     return eye_lens_spare_screen_memory;
 }
 

@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "renderer/RendererManager.h"
+#include "renderer/software/SwDrawTarget.h"
 #include "engine_redraw.h"
 
 #include "globals.h"
@@ -73,9 +74,8 @@ int32_t xtab[640][2];
 int32_t ytab[480][2];
 
 unsigned char smooth_on;
-static unsigned char * map_fade_ghost_table;
-static unsigned char * map_fade_dest;
-static unsigned char * map_fade_src;
+static TbPixel * map_fade_dest;
+static TbPixel * map_fade_src;
 static long draw_spell_cost;
 /******************************************************************************/
 static void draw_creature_view_icons(struct Thing* creatng)
@@ -251,7 +251,16 @@ void load_engine_window(TbGraphicsWindow *ewnd)
     player->engine_window_height = ewnd->height;
 }
 
-void map_fade(unsigned char *outbuf, unsigned char *srcbuf1, unsigned char *srcbuf2, unsigned char *fade_tbl, unsigned char *ghost_tbl, long a6, long const xmax, long const ymax, long a9)
+/* fade_tbl/ghost_tbl (the palette-index render_fade_tables/map_fade_ghost_table
+ * lookups the original used) are retired now that both buffers hold real
+ * TbPixel colours instead of palette indices: shading a captured snapshot no
+ * longer needs a palette-index table lookup (render_shade() computes it
+ * directly on the sample), and combining the two shaded snapshots was
+ * always a straight additive RGB sum (docs/refactor/renderer/
+ * 02a-pixel-format-design.md §2.5's generate_map_fade_ghost_table finding:
+ * `output = colour1 + colour2`, clamped) rather than a genuine 1/3-2/3 ghost
+ * blend -- so it needs clamp(), not render_ghost_blend(). */
+void map_fade(TbPixel *outbuf, TbPixel *srcbuf1, TbPixel *srcbuf2, long a6, long const xmax, long const ymax, long a9)
 {
     long ix;
     long iy;
@@ -316,47 +325,29 @@ void map_fade(unsigned char *outbuf, unsigned char *srcbuf1, unsigned char *srcb
         vy1 += ymax - 2 * y1base;
     }
 
-    x0base = a6 << 8;
-    y0base = (32 - a6) << 8;
-    unsigned char* out = outbuf;
+    const int shade1 = a6;
+    const int shade2 = 32 - a6;
+    TbPixel* out = outbuf;
     yt = ytab[0];
     for (iy = ymax; iy > 0; iy--)
     {
-        unsigned char* sbuf2 = &srcbuf2[yt[1]];
-        unsigned char* sbuf1 = &srcbuf1[yt[0]];
+        TbPixel* sbuf2 = &srcbuf2[yt[1]];
+        TbPixel* sbuf1 = &srcbuf1[yt[0]];
         xt = xtab[0];
         for (ix = xmax; ix > 0; ix--)
         {
-            int px1 = fade_tbl[x0base + sbuf1[xt[0]]];
-            int px2 = fade_tbl[y0base + sbuf2[xt[1]]];
-            *out = ghost_tbl[256 * px2 + px1];
+            TbPixel px1 = render_shade(sbuf1[xt[0]], shade1);
+            TbPixel px2 = render_shade(sbuf2[xt[1]], shade2);
+            *out = TbPixel_RGBA(
+                (uint8_t)clamp((int)px1.r + px2.r, 0, 255),
+                (uint8_t)clamp((int)px1.g + px2.g, 0, 255),
+                (uint8_t)clamp((int)px1.b + px2.b, 0, 255),
+                255);
             out++;
             xt += 2;
         }
         out += a9 - xmax;
         yt += 2;
-    }
-}
-
-void generate_map_fade_ghost_table(const char *fname, unsigned char *palette, unsigned char *ghost_table)
-{
-    if (LbFileLoadAt(fname, ghost_table) != PALETTE_COLORS*PALETTE_COLORS)
-    {
-        unsigned char* out = ghost_table;
-        for (int i = 0; i < PALETTE_COLORS; i++)
-        {
-            unsigned char* bpal = &palette[3 * i];
-            for (int n = 0; n < PALETTE_COLORS; n++)
-            {
-                unsigned char* spal = &palette[3 * n];
-                unsigned char r = bpal[0] + spal[0];
-                unsigned char g = bpal[1] + spal[1];
-                unsigned char b = bpal[2] + spal[2];
-                *out = LbPaletteFindColour(palette, r, g, b);
-                out++;
-            }
-        }
-        LbFileSaveAt(fname, ghost_table, PALETTE_COLORS*PALETTE_COLORS);
     }
 }
 
@@ -368,7 +359,7 @@ void generate_map_fade_ghost_table(const char *fname, unsigned char *palette, un
  * @param scanline Line width of the two given buffers.
  * @param height Height to be filled in given buffers.
  */
-void prepare_map_fade_buffers(unsigned char *fade_src, unsigned char *fade_dest, int scanline, int height)
+void prepare_map_fade_buffers(TbPixel *fade_src, TbPixel *fade_dest, int scanline, int height)
 {
     struct PlayerInfo* player = get_my_player();
     // render the 3D screen
@@ -381,10 +372,10 @@ void prepare_map_fade_buffers(unsigned char *fade_src, unsigned char *fade_dest,
     int fadebuf_pos = 0;
     for (i = 0; i < height; i++)
     {
-        unsigned char* src = lbDisplay.WScreen + lbDisplay.GraphicsScreenWidth * i;
-        unsigned char* dst = &fade_src[fadebuf_pos];
+        TbPixel* src = SwTargetWScreen() + lbDisplay.GraphicsScreenWidth * i;
+        TbPixel* dst = &fade_src[fadebuf_pos];
         fadebuf_pos += scanline;
-        memcpy(dst, src, MyScreenWidth/pixel_size);
+        memcpy(dst, src, (MyScreenWidth/pixel_size) * sizeof(TbPixel));
     }
     // create the parchment screen
     render_overlay->load_and_redraw_minimal_overhead_view();
@@ -392,10 +383,10 @@ void prepare_map_fade_buffers(unsigned char *fade_src, unsigned char *fade_dest,
     fadebuf_pos = 0;
     for (i = 0; i < height; i++)
     {
-        unsigned char* src = lbDisplay.WScreen + lbDisplay.GraphicsScreenWidth * i;
-        unsigned char* dst = &fade_dest[fadebuf_pos];
+        TbPixel* src = SwTargetWScreen() + lbDisplay.GraphicsScreenWidth * i;
+        TbPixel* dst = &fade_dest[fadebuf_pos];
         fadebuf_pos += scanline;
-        memcpy(dst, src, MyScreenWidth/pixel_size);
+        memcpy(dst, src, (MyScreenWidth/pixel_size) * sizeof(TbPixel));
     }
 }
 
@@ -404,13 +395,14 @@ long map_fade_in(long palette_fade_step)
     SYNCDBG(6,"Starting");
     if (palette_fade_step == 0)
     {
-        map_fade_ghost_table = poly_pool;
-        map_fade_src = poly_pool + PALETTE_COLORS*PALETTE_COLORS;
+        /* Carved out of the shared poly_pool scratch buffer, same as before
+         * the map_fade_ghost_table slot (now retired -- see map_fade()'s
+         * comment) was dropped; poly_pool is large enough (16MB) either way. */
+        map_fade_src = (TbPixel *)poly_pool;
         map_fade_dest = map_fade_src + 320*200;
         prepare_map_fade_buffers(map_fade_src, map_fade_dest, 320, MyScreenHeight/pixel_size);
-        generate_map_fade_ghost_table("data/mapfadeg.dat", engine_palette, map_fade_ghost_table);
     }
-    map_fade(lbDisplay.WScreen, map_fade_dest, map_fade_src, pixmap.fade_tables, map_fade_ghost_table,
+    map_fade(SwTargetWScreen(), map_fade_dest, map_fade_src,
         palette_fade_step, 320, 200, lbDisplay.GraphicsScreenWidth);
     return (8 - get_my_player()->instance_remain_turns) * 4;
 }
@@ -420,13 +412,11 @@ long map_fade_out(long palette_fade_step)
     SYNCDBG(6,"Starting");
     if (palette_fade_step == 32)
     {
-        map_fade_ghost_table = poly_pool;
-        map_fade_src = poly_pool + PALETTE_COLORS*PALETTE_COLORS;
+        map_fade_src = (TbPixel *)poly_pool;
         map_fade_dest = map_fade_src + 320*200;
         prepare_map_fade_buffers(map_fade_src, map_fade_dest, 320, MyScreenHeight/pixel_size);
-        generate_map_fade_ghost_table("data/mapfadeg.dat", engine_palette, map_fade_ghost_table);
     }
-    map_fade(lbDisplay.WScreen, map_fade_dest, map_fade_src, pixmap.fade_tables, map_fade_ghost_table,
+    map_fade(SwTargetWScreen(), map_fade_dest, map_fade_src,
       palette_fade_step, 320, 200, lbDisplay.GraphicsScreenWidth);
     return get_my_player()->instance_remain_turns * 4;
 }
@@ -555,7 +545,7 @@ void redraw_creature_view(void)
     {
         TbGraphicsWindow ewnd;
         store_engine_window(&ewnd, pixel_size);
-        smooth_screen_area(lbDisplay.WScreen, ewnd.x, ewnd.y,
+        smooth_screen_area(SwTargetWScreen(), ewnd.x, ewnd.y,
             ewnd.width, ewnd.height, lbDisplay.GraphicsScreenWidth);
     }
     remove_explored_flags_for_power_sight(player);
@@ -577,18 +567,21 @@ void redraw_creature_view(void)
     }
 }
 
-void smooth_screen_area(unsigned char *scrbuf, long x, long y, long w, long h, long scanln)
+/* Two-tap ghost-blend smoothing kernel: blend this pixel with its right
+ * neighbour, then blend that result with the pixel below -- both taps are
+ * the same render_ghost_blend() weighting (1/3 ref, 2/3 dest) the original
+ * render_ghost[ref<<8|dest] table encoded. */
+void smooth_screen_area(TbPixel *scrbuf, long x, long y, long w, long h, long scanln)
 {
     SYNCDBG(7,"Starting");
-    unsigned char* lnbuf = scrbuf + scanln * y + x;
+    TbPixel* lnbuf = scrbuf + scanln * y + x;
     for (long i = h - y - 1; i > 0; i--)
     {
-        unsigned char* buf = lnbuf;
+        TbPixel* buf = lnbuf;
         for (long k = w - x - 1; k > 0; k--)
         {
-            unsigned int ghpos = (buf[0] << 8) + buf[1];
-            ghpos = (buf[scanln] << 8) + pixmap.ghost[ghpos];
-            buf[0] = ghpos;
+            TbPixel step1 = render_ghost_blend(buf[0], buf[1]);
+            buf[0] = render_ghost_blend(buf[scanln], step1);
             buf++;
       }
       lnbuf += scanln;
@@ -610,7 +603,7 @@ void redraw_isometric_view(void)
     if (smooth_on)
     {
         store_engine_window(&ewnd,pixel_size);
-        smooth_screen_area(lbDisplay.WScreen, ewnd.x, ewnd.y,
+        smooth_screen_area(SwTargetWScreen(), ewnd.x, ewnd.y,
             ewnd.width, ewnd.height, lbDisplay.GraphicsScreenWidth);
     }
     remove_explored_flags_for_power_sight(player);

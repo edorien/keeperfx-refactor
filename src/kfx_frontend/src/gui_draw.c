@@ -116,10 +116,18 @@ short get_pixels_scaled_and_zoomed(long basic_zoom)
  *     Factor of 2 would mean every pixel is repeated in both dimensions and drawn 2*2 times.
  * @return Gives true on success.
  */
-TbBool copy_raw8_image_buffer(unsigned char *dst_buf,const int scanline,const int nlines,const int dst_width,const int dst_height,
+static void fill_pixel_run(TbPixel *dst, TbPixel colour, int count)
+{
+    for (int i = 0; i < count; i++)
+        dst[i] = colour;
+}
+
+TbBool copy_raw8_image_buffer(TbPixel *dst_buf,const int scanline,const int nlines,const int dst_width,const int dst_height,
     const int spw,const int sph,const unsigned char *src_buf,const int src_width,const int src_height)
 {
-    unsigned char* dst;
+    TbPixel* dst;
+    const unsigned char *pal = RendererGetActivePalette();
+    const TbPixel black = TbPixel_RGB(0, 0, 0);
     SYNCDBG(18, "Starting; screen buf %d,%d screen size %d,%d dst pos %d,%d src %d,%d", (int)scanline, (int)nlines, (int)dst_width, (int)dst_height, (int)spw, (int)sph, (int)src_width, (int)src_height);
     // Source pixel coords
     int sw = 0;
@@ -128,14 +136,14 @@ TbBool copy_raw8_image_buffer(unsigned char *dst_buf,const int scanline,const in
     for (sh = 0; sh < sph; sh++)
     {
         dst = dst_buf + (sh)*scanline;
-        memset(dst, 0, scanline);
+        fill_pixel_run(dst, black, scanline);
   }
   // Clearing bottom of the canvas
   // (Note: it must be done before drawing, to make sure we won't overwrite last line)
   for (sh=sph+dst_height; sh<nlines; sh++)
   {
       dst = dst_buf + (sh)*scanline;
-      memset(dst, 0, scanline);
+      fill_pixel_run(dst, black, scanline);
   }
   // Now drawing
   int dhstart = sph;
@@ -151,7 +159,7 @@ TbBool copy_raw8_image_buffer(unsigned char *dst_buf,const int scanline,const in
           dst = dst_buf + (dhstart+k)*scanline;
           int dwstart = spw;
           if (dwstart > 0) {
-              memset(dst, 0, dwstart);
+              fill_pixel_run(dst, black, dwstart);
           }
           for (sw=0; sw<src_width; sw++)
           {
@@ -159,14 +167,15 @@ TbBool copy_raw8_image_buffer(unsigned char *dst_buf,const int scanline,const in
               // make for(i=0;i<dwend-dwstart;i++) but restrict i to draw area
               int mwmin = max(0, -dwstart);
               int mwmax = min(dwend - dwstart, scanline - dwstart);
+              TbPixel colour = resolve_indexed_pixel(src[sw], pal);
               for (int i = mwmin; i < mwmax; i++)
               {
-                  dst[dwstart+i] = src[sw];
+                  dst[dwstart+i] = colour;
               }
               dwstart = dwend;
           }
           if (dwstart < scanline) {
-              memset(dst+dwstart, 0, scanline-dwstart);
+              fill_pixel_run(dst+dwstart, black, scanline-dwstart);
           }
       }
       dhstart = dhend;
@@ -262,24 +271,28 @@ void draw_slab64k_background_immediate(long pos_x, long pos_y, long width, long 
     i = MyScreenHeight;
     if (scr_y + scr_h > i)
         scr_h = i - scr_y;
-    TbPixel* out = &lbDisplay.WScreen[scr_x + lbDisplay.GraphicsScreenWidth * scr_y];
+    TbPixel* out = &RendererGetFramebuffer()[scr_x + lbDisplay.GraphicsScreenWidth * scr_y];
+    const unsigned char *pal = RendererGetActivePalette();
+    TbPixel tile[GUI_SLAB_DIMENSION];
     for (i=0; scr_h > i; i++)
     {
-        TbPixel* inp = &gui_slab[GUI_SLAB_DIMENSION * (i % GUI_SLAB_DIMENSION)];
+        const unsigned char* inp = &gui_slab[GUI_SLAB_DIMENSION * (i % GUI_SLAB_DIMENSION)];
+        for (int t = 0; t < GUI_SLAB_DIMENSION; t++)
+            tile[t] = resolve_indexed_pixel(inp[t], pal);
         if (scr_w >= GUI_SLAB_DIMENSION)
         {
-            memcpy(out, inp, GUI_SLAB_DIMENSION);
+            memcpy(out, tile, GUI_SLAB_DIMENSION * sizeof(TbPixel));
             int k;
             for (k = GUI_SLAB_DIMENSION; k < scr_w - GUI_SLAB_DIMENSION; k += GUI_SLAB_DIMENSION)
             {
-                memcpy(out + k, inp, GUI_SLAB_DIMENSION);
+                memcpy(out + k, tile, GUI_SLAB_DIMENSION * sizeof(TbPixel));
             }
             if (width - k > 0) {
-                memcpy(out + k, inp, scr_w - k);
+                memcpy(out + k, tile, (scr_w - k) * sizeof(TbPixel));
             }
         } else
         {
-            memcpy(out, inp, scr_w);
+            memcpy(out, tile, scr_w * sizeof(TbPixel));
         }
         out += lbDisplay.GraphicsScreenWidth;
     }
@@ -405,11 +418,11 @@ void draw_round_slab64k(long pos_x, long pos_y, int units_per_px, long width, lo
     RendererClearDrawFlags(Lb_SPRITE_OUTLINE);
     if (style_type == ROUNDSLAB64K_LIGHT) {
         RendererAddDrawFlags(Lb_SPRITE_TRANSPAR4);
-        LbDrawBox(pos_x + scale_ui_value_lofi(4), pos_y + scale_ui_value_lofi(4), width - scale_ui_value_lofi(8), height - scale_ui_value_lofi(8), 1);
+        LbDrawBox(pos_x + scale_ui_value_lofi(4), pos_y + scale_ui_value_lofi(4), width - scale_ui_value_lofi(8), height - scale_ui_value_lofi(8), resolve_indexed_pixel(1, RendererGetActivePalette()));
         RendererClearDrawFlags(Lb_SPRITE_TRANSPAR4);
     } else {
         RendererAddDrawFlags(Lb_SPRITE_TRANSPAR8);
-        LbDrawBox(pos_x + scale_ui_value_lofi(4), pos_y + scale_ui_value_lofi(4), width - scale_ui_value_lofi(8), height - scale_ui_value_lofi(8), 1);
+        LbDrawBox(pos_x + scale_ui_value_lofi(4), pos_y + scale_ui_value_lofi(4), width - scale_ui_value_lofi(8), height - scale_ui_value_lofi(8), resolve_indexed_pixel(1, RendererGetActivePalette()));
         RendererClearDrawFlags(Lb_SPRITE_TRANSPAR8);
     }
     int x;
@@ -893,7 +906,8 @@ void draw_gui_panel_sprite_rmleft_player(long x, long y, int units_per_px, long 
 {
     spridx = get_player_colored_icon_idx(spridx, plyr_idx);
     const struct TbSprite* spr = get_panel_sprite(spridx);
-    LbSpriteDrawResizedRemap(x, y, units_per_px, spr, &pixmap.fade_tables[remap*256]);
+    SetupSpriteRemapShade((int)remap);
+    LbSpriteDrawResizedRemap(x, y, units_per_px, spr, lbSpriteRemapTable);
 }
 
 void draw_gui_panel_sprite_centered(long x, long y, int units_per_px, long spridx)
@@ -923,7 +937,8 @@ void draw_button_sprite_left(long x, long y, int units_per_px, long spridx)
 void draw_button_sprite_rmleft(long x, long y, int units_per_px, long spridx, unsigned long remap)
 {
     const struct TbSprite* spr = get_button_sprite_for_player(spridx, my_player_number);
-    LbSpriteDrawResizedRemap(x, y, units_per_px, spr, &pixmap.fade_tables[remap*256]);
+    SetupSpriteRemapShade((int)remap);
+    LbSpriteDrawResizedRemap(x, y, units_per_px, spr, lbSpriteRemapTable);
 }
 
 void draw_frontend_sprite_left(long x, long y, int units_per_px, long spridx)
@@ -945,11 +960,8 @@ TbBool frontmenu_copy_background_at(const struct TbRect *bkgnd_area, int units_p
     int img_width = 640;
     int img_height = 480;
     const unsigned char *srcbuf = frontend_background;
-    // Only 8bpp supported for now
-    if (LbGraphicsScreenBPP() != 8)
-        return false;
     // Do the drawing
-    copy_raw8_image_buffer(lbDisplay.WScreen,LbGraphicsScreenWidth(),LbGraphicsScreenHeight(),
+    copy_raw8_image_buffer(RendererGetFramebuffer(),LbGraphicsScreenWidth(),LbGraphicsScreenHeight(),
         img_width*units_per_px/16,img_height*units_per_px/16,bkgnd_area->left,bkgnd_area->top,srcbuf,img_width,img_height);
     // Burning candle flames
     return true;

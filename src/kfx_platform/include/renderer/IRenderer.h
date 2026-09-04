@@ -1,6 +1,8 @@
 #ifndef RENDERER_IRENDERER_H
 #define RENDERER_IRENDERER_H
 
+#include "bflib_video.h" // TbBytePitch
+
 // Selectable renderer backends.
 enum RendererType {
     RENDERER_INVALID  = -1,
@@ -26,7 +28,8 @@ public:
     virtual void PresentFrame() {}
 
     // Lock the CPU framebuffer for drawing; return its pixels + pitch, or nullptr.
-    virtual unsigned char* LockFramebuffer(int* out_pitch) { (void)out_pitch; return nullptr; }
+    // Pitch is reported in bytes (SDL's own convention) -- see TbBytePitch.
+    virtual unsigned char* LockFramebuffer(TbBytePitch* out_pitch) { (void)out_pitch; return nullptr; }
     virtual void UnlockFramebuffer() {}
 
     // Save the current frame to a file (fmt: 1=PNG, 2=BMP). Default: unsupported.

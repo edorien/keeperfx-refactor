@@ -2494,7 +2494,12 @@ int floor_height_for_volume_box(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSl
     return 1; // Floor is at height 1
 }
 
-static void create_line_element(long a1, long a2, long a3, long a4, long bckt_idx, TbPixel color)
+/* color here is an SLC_* line-colour-category index (see engine_render.h),
+ * not a resolved TbPixel -- QK_SlabSelector items are only ever consumed by
+ * draw_clipped_line() -> draw_stripey_line(), which indexes
+ * colored_stripey_lines[] with it. Do not route this through
+ * expand_indexed_pixel()/TbPixel_Pack(). */
+static void create_line_element(long a1, long a2, long a3, long a4, long bckt_idx, unsigned char color)
 {
     struct BucketKindSlabSelector *poly;
     if (!is_free_space_in_poly_pool(1))
@@ -2521,7 +2526,9 @@ static void create_line_element(long a1, long a2, long a3, long a4, long bckt_id
     poly->p.S = color;
 }
 
-static void create_line_segment(struct EngineCoord *start, struct EngineCoord *end, TbPixel color)
+/* color here is an SLC_* line-colour-category index, same as
+ * create_line_element() above -- not a resolved TbPixel. */
+static void create_line_segment(struct EngineCoord *start, struct EngineCoord *end, unsigned char color)
 {
     struct BucketKindSlabSelector *poly;
     long bckt_idx;
@@ -5195,7 +5202,7 @@ static void draw_fastview_mapwho(struct Camera *cam, struct BucketKindJontySprit
     if ( thing->rendering_flags & TRF_Tint_Flags )
     {
         RendererAddDrawFlags(Lb_SPRITE_REMAP);
-        lbSpriteReMapPtr = &pixmap.ghost[256 * thing->tint_colour];
+        SetupSpriteRemapGhost(thing->tint_colour);
     }
     else if ( shade_intensity == 0x2000 )
     {
@@ -5204,7 +5211,7 @@ static void draw_fastview_mapwho(struct Camera *cam, struct BucketKindJontySprit
     else
     {
         RendererAddDrawFlags(Lb_SPRITE_REMAP);
-        lbSpriteReMapPtr = &pixmap.fade_tables[shade_intensity << 8];
+        SetupSpriteRemapShade(shade_intensity);
     }
 
     EngineSpriteDrawUsingAlpha = 0;
@@ -5230,12 +5237,12 @@ static void draw_fastview_mapwho(struct Camera *cam, struct BucketKindJontySprit
     {
         if ((local_thing_under_hand == thing->index) && ((get_gameturn() % (4 * kfx_config_state.gui_blink_rate)) >= 2 * kfx_config_state.gui_blink_rate)) {
             RendererAddDrawFlags(Lb_SPRITE_REMAP);
-            lbSpriteReMapPtr = white_pal;
+            SetupSpriteRemapWhiteFlash();
         } else {
             if (thing->last_turn_damaged == sim_feedback->get_play_gameturn())
             {
                 RendererAddDrawFlags(Lb_SPRITE_REMAP);
-                lbSpriteReMapPtr = red_pal;
+                SetupSpriteRemapRedFlash();
             }
         }
         thing_being_displayed_is_creature = 1;
@@ -5378,12 +5385,12 @@ static void draw_engine_room_flagpole(struct BucketKindRoomFlag *rflg)
                       rflg->y - deltay,
                       ((4*scale_by_zoom) * units_per_pixel_ui + 8) / 16,
                       height,
-                      kfx_sim_state.colours[3][1][0]);
+                      expand_indexed_pixel(kfx_sim_state.colours[3][1][0], RendererGetActivePalette()));
             LbDrawBox(rflg->x + (2*scale_by_zoom) * (units_per_pixel_ui) / 16,
                       rflg->y - deltay,
                       ((2*scale_by_zoom) * units_per_pixel_ui + 8) / 16,
                       height,
-                      kfx_sim_state.colours[1][0][0]);
+                      expand_indexed_pixel(kfx_sim_state.colours[1][0][0], RendererGetActivePalette()));
         }
     }
 }
@@ -5721,7 +5728,7 @@ static void draw_room_flag_top(long x, long y, int units_per_px, const struct Ro
     bar_width = (2 * bar_empty * units_per_px + 8) / 16;
     // Compute height in a way which will assure covering whole bar area
     bar_height = (5 * units_per_px - 8) / 16;
-    LbDrawBox(barpos_x - bar_width, y +  (8 * units_per_px + 8) / 16, bar_width, bar_height, kfx_sim_state.colours[0][0][0]);
+    LbDrawBox(barpos_x - bar_width, y +  (8 * units_per_px + 8) / 16, bar_width, bar_height, expand_indexed_pixel(kfx_sim_state.colours[0][0][0], RendererGetActivePalette()));
     bar_empty = 0;
     if (room->total_capacity > 0)
     {
@@ -5729,14 +5736,14 @@ static void draw_room_flag_top(long x, long y, int units_per_px, const struct Ro
         bar_empty = ROOM_FLAG_PROGRESS_BAR_WIDTH - bar_fill;
     }
     bar_width = (2 * bar_empty * units_per_px + 8) / 16;
-    LbDrawBox(barpos_x - bar_width, y + (16 * units_per_px + 8) / 16, bar_width, bar_height, kfx_sim_state.colours[0][0][0]);
+    LbDrawBox(barpos_x - bar_width, y + (16 * units_per_px + 8) / 16, bar_width, bar_height, expand_indexed_pixel(kfx_sim_state.colours[0][0][0], RendererGetActivePalette()));
     bar_empty = 0;
     {
         bar_fill = ROOM_FLAG_PROGRESS_BAR_WIDTH * room->efficiency / ROOM_EFFICIENCY_MAX;
         bar_empty = ROOM_FLAG_PROGRESS_BAR_WIDTH - bar_fill;
     }
     bar_width = (2 * bar_empty * units_per_px + 8) / 16;
-    LbDrawBox(barpos_x - bar_width, y + (24 * units_per_px + 8) / 16, bar_width, bar_height, kfx_sim_state.colours[0][0][0]);
+    LbDrawBox(barpos_x - bar_width, y + (24 * units_per_px + 8) / 16, bar_width, bar_height, expand_indexed_pixel(kfx_sim_state.colours[0][0][0], RendererGetActivePalette()));
     RendererSetDrawFlags(flg_mem);
 }
 #undef ROOM_FLAG_PROGRESS_BAR_WIDTH
@@ -5989,7 +5996,10 @@ static void draw_stripey_line(long x1,long y1,long x2,long y2,unsigned char line
     }
 }
 
-static void draw_clipped_line(long x1, long y1, long x2, long y2, TbPixel color)
+/* color is an SLC_* line-colour-category index passed straight through to
+ * draw_stripey_line() -- see create_line_element()'s comment above. Not a
+ * resolved TbPixel. */
+static void draw_clipped_line(long x1, long y1, long x2, long y2, unsigned char color)
 {
     struct PlayerInfo *player;
     if ((x1 >= 0) || (x2 >= 0))
@@ -6419,12 +6429,12 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 12:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         trig(&polygon_data->vertex_first, &polygon_data->vertex_second, &polygon_data->vertex_third);
         break;
     case 13:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_first.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_first.z + polygon_data->coordinate_second.z) >> 1;
@@ -6436,7 +6446,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 14:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_third.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_third.y) >> 1;
         coord_a.z = (polygon_data->coordinate_third.z + polygon_data->coordinate_second.z) >> 1;
@@ -6448,7 +6458,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 15:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_first.x + polygon_data->coordinate_third.x) >> 1;
         coord_a.y = (polygon_data->coordinate_third.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_third.z + polygon_data->coordinate_first.z) >> 1;
@@ -6460,7 +6470,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 16:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_first.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_first.z + polygon_data->coordinate_second.z) >> 1;
@@ -6486,7 +6496,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 17:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_first.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_first.z + polygon_data->coordinate_second.z) >> 1;
@@ -6512,7 +6522,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 18:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_third.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_third.y) >> 1;
         coord_a.z = (polygon_data->coordinate_third.z + polygon_data->coordinate_second.z) >> 1;
@@ -6538,7 +6548,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 19:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_first.x + polygon_data->coordinate_third.x) >> 1;
         coord_a.y = (polygon_data->coordinate_third.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_third.z + polygon_data->coordinate_first.z) >> 1;
@@ -6564,7 +6574,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 20:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_first.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_first.z + polygon_data->coordinate_second.z) >> 1;
@@ -6604,7 +6614,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 21:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_first.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_first.z + polygon_data->coordinate_second.z) >> 1;
@@ -6644,7 +6654,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 22:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_first.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_first.z + polygon_data->coordinate_second.z) >> 1;
@@ -6684,7 +6694,7 @@ static void draw_subdivided_near_polygon(struct BucketKindPolygonNearFP *polygon
         break;
     case 23:
         vec_mode = VM_SolidColor;
-        vec_colour = (polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16;
+        vec_shade = (int)clamp((polygon_data->vertex_third.S + polygon_data->vertex_second.S + polygon_data->vertex_first.S) / 3 >> 16, 0, 63);
         coord_a.x = (polygon_data->coordinate_second.x + polygon_data->coordinate_first.x) >> 1;
         coord_a.y = (polygon_data->coordinate_second.y + polygon_data->coordinate_first.y) >> 1;
         coord_a.z = (polygon_data->coordinate_first.z + polygon_data->coordinate_second.z) >> 1;
@@ -6811,10 +6821,6 @@ static void display_drawlist(void) // Draws isometric and 1st person view. Not f
     struct PolyPoint point_b;
     struct PolyPoint point_c;
     SYNCDBG(9,"Starting");
-    // Color rendering array pointers used by draw_keepersprite()
-    render_fade_tables = pixmap.fade_tables;
-    render_ghost = pixmap.ghost;
-    render_alpha = (unsigned char *)&alpha_sprite_table;
     render_problems = 0;
     kfx_render_state.thing_pointed_at = 0;
 
@@ -6833,13 +6839,13 @@ static void display_drawlist(void) // Draws isometric and 1st person view. Not f
                 break;
             case QK_PolygonSimple: // Possibly unused
                 vec_mode = VM_SolidColor;
-                vec_colour = ((item.polygonSimple->vertex_third.S + item.polygonSimple->vertex_second.S + item.polygonSimple->vertex_first.S)/3) >> 16;
+                vec_shade = (int)clamp(((item.polygonSimple->vertex_third.S + item.polygonSimple->vertex_second.S + item.polygonSimple->vertex_first.S)/3) >> 16, 0, 63);
                 vec_map = block_ptrs[item.polygonSimple->block];
                 trig(&item.polygonSimple->vertex_first, &item.polygonSimple->vertex_second, &item.polygonSimple->vertex_third);
                 break;
             case QK_PolyMode0: // Possibly unused
                 vec_mode = VM_FlatColor;
-                vec_colour = item.polyMode0->colour;
+                vec_colour = expand_indexed_pixel((uint8_t)clamp(item.polyMode0->colour, 0, 255), RendererGetActivePalette());
                 point_a.X = item.polyMode0->vertex_first_x;
                 point_a.Y = item.polyMode0->vertex_first_y;
                 point_b.X = item.polyMode0->vertex_second_x;
@@ -6850,7 +6856,7 @@ static void display_drawlist(void) // Draws isometric and 1st person view. Not f
                 break;
             case QK_PolyMode4: // Possibly unused
                 vec_mode = VM_QuadFlatColor;
-                vec_colour = item.polyMode4->colour;
+                vec_colour = expand_indexed_pixel((uint8_t)clamp(item.polyMode4->colour, 0, 255), RendererGetActivePalette());
                 point_a.X = item.polyMode4->vertex_first_x;
                 point_a.Y = item.polyMode4->vertex_first_y;
                 point_b.X = item.polyMode4->vertex_second_x;
@@ -6940,7 +6946,7 @@ static void display_drawlist(void) // Draws isometric and 1st person view. Not f
                 break;
             case QK_BasicPolygon:
                 vec_mode = VM_FlatColor;
-                vec_colour = item.basicUnk10->color_value;
+                vec_colour = expand_indexed_pixel((uint8_t)clamp(item.basicUnk10->color_value, 0, 255), RendererGetActivePalette());
                 draw_gpoly(&item.basicUnk10->vertex_first, &item.basicUnk10->vertex_second, &item.basicUnk10->vertex_third);
                 break;
             case QK_JontySprite: // All creatures and things in isometric and 1st person view
@@ -6951,7 +6957,7 @@ static void display_drawlist(void) // Draws isometric and 1st person view. Not f
                 draw_keepsprite_unscaled_in_buffer(item.creatureShadow->anim_sprite, item.creatureShadow->angle, item.creatureShadow->current_frame, big_scratch);
                 vec_map = big_scratch;
                 vec_mode = VM_SpriteTranslucent;
-                vec_colour = item.creatureShadow->vertex_first.S;
+                vec_shade = (int)clamp(item.creatureShadow->vertex_first.S, 0, 63);
                 trig(&item.creatureShadow->vertex_first, &item.creatureShadow->vertex_second, &item.creatureShadow->vertex_third);
                 trig(&item.creatureShadow->vertex_first, &item.creatureShadow->vertex_third, &item.creatureShadow->vertex_fourth);
                 break;
@@ -7246,10 +7252,6 @@ static void display_fast_drawlist(struct Camera *cam) // Draws frontview only. N
         struct BucketKindFloatingGoldText *floatingGoldText;
         struct BucketKindRoomFlag *roomFlag;
     } item;
-    // Color rendering array pointers used by draw_keepersprite()
-    render_fade_tables = pixmap.fade_tables;
-    render_ghost = pixmap.ghost;
-    render_alpha = (unsigned char *)&alpha_sprite_table;
     render_problems = 0;
     kfx_render_state.thing_pointed_at = 0;
 
@@ -8169,7 +8171,7 @@ static void prepare_jonty_remap_and_scale(int32_t *scale, const struct BucketKin
     {
         RendererAddDrawFlags(Lb_SPRITE_REMAP);
         shade_factor = thing->tint_colour;
-        lbSpriteReMapPtr = &pixmap.ghost[256 * shade_factor];
+        SetupSpriteRemapGhost((uint8_t)shade_factor);
     } else
     if (shade_factor == 32)
     {
@@ -8177,7 +8179,7 @@ static void prepare_jonty_remap_and_scale(int32_t *scale, const struct BucketKin
     } else
     {
         RendererAddDrawFlags(Lb_SPRITE_REMAP);
-        lbSpriteReMapPtr = &pixmap.fade_tables[256 * shade_factor];
+        SetupSpriteRemapShade(shade_factor);
     }
 }
 
@@ -8262,7 +8264,7 @@ static void draw_jonty_mapwho(struct BucketKindJontySprite *jspr)
           if ((active_cam != NULL) && (active_cam->view_mode == PVM_IsoWibbleView || active_cam->view_mode == PVM_IsoStraightView))
           {
               RendererAddDrawFlags(Lb_SPRITE_REMAP);
-              lbSpriteReMapPtr = white_pal;
+              SetupSpriteRemapWhiteFlash();
           }
           else if ((active_cam != NULL) && (active_cam->view_mode == PVM_CreatureView))
           {
@@ -8274,7 +8276,7 @@ static void draw_jonty_mapwho(struct BucketKindJontySprite *jspr)
                   if (!thing_exists(dragtng))
                   {
                     RendererAddDrawFlags(Lb_SPRITE_REMAP);
-                    lbSpriteReMapPtr = white_pal;
+                    SetupSpriteRemapWhiteFlash();
                   }
                   else if (thing_is_trap_crate(dragtng))
                   {
@@ -8284,7 +8286,7 @@ static void draw_jonty_mapwho(struct BucketKindJontySprite *jspr)
                           if (handthing->class_id == TCls_Trap)
                           {
                               RendererAddDrawFlags(Lb_SPRITE_REMAP);
-                              lbSpriteReMapPtr = white_pal;
+                              SetupSpriteRemapWhiteFlash();
                           }
                       }
                   }
@@ -8294,7 +8296,7 @@ static void draw_jonty_mapwho(struct BucketKindJontySprite *jspr)
             if (thing->last_turn_damaged == sim_feedback->get_play_gameturn())
             {
                 RendererAddDrawFlags(Lb_SPRITE_REMAP);
-                lbSpriteReMapPtr = red_pal;
+                SetupSpriteRemapRedFlash();
             }
         }
         thing_being_displayed_is_creature = 1;

@@ -35,7 +35,7 @@ extern "C" {
  * Buffer metadata structure stored as userdata in LUA.
  */
 struct LuaBufferInfo {
-    unsigned char* data;
+    TbPixel* data;
     long width;
     long height;
     long pitch;
@@ -43,7 +43,8 @@ struct LuaBufferInfo {
 
 /**
  * LUA API: GetPixel(buffer, x, y) -> color
- * Safely reads a pixel from a buffer with bounds checking.
+ * Safely reads a pixel from a buffer with bounds checking. Color is a
+ * packed 32-bit integer, byte order {r,g,b,a} -- see TbPixel_Pack().
  */
 int LuaLensEffect::LuaGetPixel(lua_State* L)
 {
@@ -52,26 +53,27 @@ int LuaLensEffect::LuaGetPixel(lua_State* L)
     if (buf == NULL || buf->data == NULL) {
         return luaL_argerror(L, 1, "Invalid buffer");
     }
-    
+
     // Get coordinates
     long x = (long)luaL_checkinteger(L, 2);
     long y = (long)luaL_checkinteger(L, 3);
-    
+
     // Bounds check
     if (x < 0 || x >= buf->width || y < 0 || y >= buf->height) {
         lua_pushinteger(L, 0);  // Return black for out-of-bounds
         return 1;
     }
-    
+
     // Read pixel
-    unsigned char pixel = buf->data[y * buf->pitch + x];
-    lua_pushinteger(L, pixel);
+    TbPixel pixel = buf->data[y * buf->pitch + x];
+    lua_pushinteger(L, (lua_Integer)TbPixel_Pack(pixel));
     return 1;
 }
 
 /**
  * LUA API: SetPixel(buffer, x, y, color)
- * Safely writes a pixel to a buffer with bounds checking.
+ * Safely writes a pixel to a buffer with bounds checking. Color is a
+ * packed 32-bit integer, byte order {r,g,b,a} -- see TbPixel_Unpack().
  */
 int LuaLensEffect::LuaSetPixel(lua_State* L)
 {
@@ -80,17 +82,17 @@ int LuaLensEffect::LuaSetPixel(lua_State* L)
     if (buf == NULL || buf->data == NULL) {
         return luaL_argerror(L, 1, "Invalid buffer");
     }
-    
+
     // Get coordinates and color
     long x = (long)luaL_checkinteger(L, 2);
     long y = (long)luaL_checkinteger(L, 3);
-    unsigned char color = (unsigned char)luaL_checkinteger(L, 4);
-    
+    TbPixel color = TbPixel_Unpack((uint32_t)luaL_checkinteger(L, 4));
+
     // Bounds check
     if (x < 0 || x >= buf->width || y < 0 || y >= buf->height) {
         return 0;  // Silently ignore out-of-bounds writes
     }
-    
+
     // Write pixel
     buf->data[y * buf->pitch + x] = color;
     return 0;

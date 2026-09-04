@@ -72,8 +72,8 @@ TEST_CASE_METHOD(RendererManagerFixture, "RendererLockFramebuffer fails when the
 }
 
 TEST_CASE_METHOD(RendererManagerFixture, "RendererUnlockFramebuffer is safe with no active backend, clears the framebuffer pointers", "[kfx_platform][RendererManager]") {
-    lbDisplay.WScreen = (unsigned char*)1; // any non-null sentinel
-    lbDisplay.GraphicsWindowPtr = (unsigned char*)1;
+    lbDisplay.WScreen = (TbPixel*)1; // any non-null sentinel
+    lbDisplay.GraphicsWindowPtr = (TbPixel*)1;
     CHECK(RendererUnlockFramebuffer() == Lb_SUCCESS);
     CHECK(lbDisplay.WScreen == nullptr);
     CHECK(lbDisplay.GraphicsWindowPtr == nullptr);

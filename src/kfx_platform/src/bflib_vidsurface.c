@@ -40,7 +40,7 @@ SDL_Surface * lbDrawSurface;
 void LbScreenSurfaceInit(struct SSurface *surf)
 {
   surf->surf_data = NULL;
-  surf->pitch = 0;
+  surf->pitch = (TbBytePitch){0};
   surf->locks_count = 0;
 }
 
@@ -60,7 +60,7 @@ TbResult LbScreenSurfaceCreate(struct SSurface *surf,unsigned long w,unsigned lo
         return Lb_FAIL;
     }
     surf->locks_count = 0;
-    surf->pitch = surf->surf_data->pitch;
+    surf->pitch = (TbBytePitch){ surf->surf_data->pitch };
 
     //moved color key control to blt_surface()
 
@@ -105,13 +105,19 @@ TbResult LbScreenSurfaceBlit(struct SSurface *surf, unsigned long x, unsigned lo
       //to access front buffer in SDL
     }
 
+    // The colour key must be a pixel value already mapped to this surface's
+    // own format -- literal 255 only ever meant that for an 8bpp indexed
+    // surface (palette index 255). The surface is RGBA32 now (matching the
+    // TbPixel_RGB(255,255,255,255) marker LbI_PointerHandler::Initialise()
+    // fills the backing buffer with), so map it properly instead.
+    Uint32 colour_key = SDL_MapSurfaceRGBA(surf->surf_data, 255, 255, 255, 255);
     if ((blflags & 0x04) != 0) {
         //enable color key
-        SDL_SetSurfaceColorKey(surf->surf_data, true, 255);
+        SDL_SetSurfaceColorKey(surf->surf_data, true, colour_key);
     }
     else {
         //disable color key
-        SDL_SetSurfaceColorKey(surf->surf_data, false, 255);
+        SDL_SetSurfaceColorKey(surf->surf_data, false, colour_key);
     }
 
     if ((blflags & 0x10) != 0) {
@@ -163,7 +169,7 @@ void *LbScreenSurfaceLock(struct SSurface *surf)
     }
 
     surf->locks_count++;
-    surf->pitch = surf->surf_data->pitch;
+    surf->pitch = (TbBytePitch){ surf->surf_data->pitch };
     return surf->surf_data->pixels;
 }
 

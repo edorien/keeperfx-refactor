@@ -47,7 +47,7 @@ void set_engine_view(struct PlayerInfo *player, long val);
 void draw_overlay_compass(long a1, long a2);
 
 TbBool keeper_screen_redraw(void);
-void smooth_screen_area(unsigned char *a1, long a2, long a3, long a4, long a5, long a6);
+void smooth_screen_area(TbPixel *a1, long a2, long a3, long a4, long a5, long a6);
 
 int get_place_terrain_pointer_graphics(SlabKind skind);
 

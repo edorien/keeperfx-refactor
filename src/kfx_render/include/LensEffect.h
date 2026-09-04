@@ -20,13 +20,14 @@
 #define KFX_LENSEFFECT_H
 
 #include "bflib_basics.h"
+#include "bflib_video.h"
 
 /**
  * Effect rendering context - passed to all effect draw methods.
  */
 struct LensRenderContext {
-    unsigned char *dstbuf;       // Destination buffer (viewport)
-    unsigned char *srcbuf;       // Source buffer (full screen width, unclipped)
+    TbPixel *dstbuf;              // Destination buffer (viewport)
+    TbPixel *srcbuf;              // Source buffer (full screen width, unclipped)
     long dstpitch;               // Destination pitch
     long srcpitch;               // Source pitch (full screen width)
     long width;                  // Viewport width

@@ -101,8 +101,6 @@ TbBool MinimalResolutionSetup;
 
 struct TbColorTables pixmap;
 struct TbAlphaTables alpha_sprite_table;
-unsigned char white_pal[256];
-unsigned char red_pal[256];
 /******************************************************************************/
 
 #if (BFDEBUG_LEVEL > 0)
@@ -503,7 +501,14 @@ void unload_pointer_file(short hi_res)
 
 TbBool init_fades_table(void)
 {
-    static const TbPixel abyss_colours[] = {160, 1, 253};
+    /* Raw palette-index bytes (not TbPixel colours) -- pixmap.map_abyss[]
+     * they feed is still an unsigned char[] table read directly as palette
+     * indices by gui_parchment.c/frontmenu_ingame_map.c, which haven't been
+     * migrated yet (see docs/refactor/renderer/02a-pixel-format-design.md's
+     * third scope-correction note on the lens/frontend consumers of
+     * pixmap.ghost/fade_tables/map_abyss). Converting this to real RGB
+     * belongs to that same follow-up pass, not here. */
+    static const unsigned char abyss_colours[] = {160, 1, 253};
     char* fname = prepare_file_path(FGrp_StdData, "tables.dat");
     SYNCDBG(0,"Reading fade table file \"%s\".",fname);
     if (LbFileLoadAt(fname, &pixmap) != sizeof(struct TbColorTables))
@@ -512,13 +517,17 @@ TbBool init_fades_table(void)
         LbFileSaveAt(fname, &pixmap, sizeof(struct TbColorTables));
     }
     lbDisplay.FadeTable = pixmap.fade_tables;
-    // Bflib owns render_fade_tables/render_ghost as its opaque view of
-    // these tables (see bflib_render_trig.c and
-    // docs/refactor/stage-02-decouple-bflib.md). The pointers never change
-    // afterward since fade_tables/ghost are fixed-size members of pixmap.
-    render_fade_tables = pixmap.fade_tables;
-    render_ghost = pixmap.ghost;
-    TbPixel cblack = 144;
+    /* render_fade_tables/render_ghost/render_alpha wiring retired: every
+     * former reader (bflib_render_trig.c, bflib_vidraw*.c, engine_render.c)
+     * now computes shade/ghost/alpha blends directly via
+     * render_shade()/render_ghost_blend()/render_alpha_blend() instead of
+     * indexing a precomputed table -- see
+     * docs/refactor/renderer/02a-pixel-format-design.md §2. pixmap itself
+     * (and lbDisplay.FadeTable/GlassMap below) stays for now: gui_parchment.c/
+     * frontmenu_ingame_map.c/gui_draw.c/MistEffect.cpp still read
+     * pixmap.ghost/fade_tables/map_abyss directly as palette-index bytes,
+     * and retiring the struct needs that whole cluster migrated first. */
+    unsigned char cblack = 144;
     // Update black color
     for (long i = 0; i < 8192; i++)
     {
@@ -545,13 +554,6 @@ TbBool init_alpha_table(void)
     return true;
 }
 
-void sync_render_globals(void)
-{
-    render_fade_tables = pixmap.fade_tables;
-    render_ghost = pixmap.ghost;
-    render_alpha = (unsigned char *)&alpha_sprite_table;
-}
-
 TbBool init_rgb2idx_table(void)
 {
     char* fname = prepare_file_path(FGrp_StdData, "colours.col");
@@ -565,37 +567,27 @@ TbBool init_rgb2idx_table(void)
     return true;
 }
 
-TbBool init_redpal_table(void)
+/* Kept as a no-op rather than removed: still called through
+ * RenderOverlayCallbacks (power_hand.c, gui_parchment.c) after state changes
+ * that used to require re-pointing render_fade_tables/render_ghost/
+ * render_alpha at pixmap/alpha_sprite_table. Nothing to sync anymore -- see
+ * init_fades_table()'s comment -- but the callback contract stays so those
+ * callers don't need touching as part of this pass. */
+void sync_render_globals(void)
 {
-    char* fname = prepare_file_path(FGrp_StdData, "redpal.col");
-    SYNCDBG(0,"Reading red-blended color table file \"%s\".",fname);
-    // Loading file data
-    if (LbFileLoadAt(fname, &red_pal) != 256)
-    {
-        compute_shifted_palette_table(red_pal, engine_palette, engine_palette, 20, -10, -10);
-        LbFileSaveAt(fname, &red_pal, 256);
-    }
-    return true;
 }
 
-TbBool init_whitepal_table(void)
-{
-    char* fname = prepare_file_path(FGrp_StdData, "whitepal.col");
-    SYNCDBG(0,"Reading white-blended color table file \"%s\".",fname);
-    // Loading file data
-    if (LbFileLoadAt(fname, &white_pal) != 256)
-    {
-        compute_shifted_palette_table(white_pal, engine_palette, engine_palette, 48, 48, 48);
-        LbFileSaveAt(fname, &white_pal, 256);
-    }
-    return true;
-}
-
+/* init_redpal_table()/init_whitepal_table()/white_pal/red_pal/
+ * compute_shifted_palette_table() removed: white_pal/red_pal had exactly one
+ * remaining consumer (engine_render.c's lbSpriteReMapPtr flash-effect sites),
+ * already migrated to SetupSpriteRemapWhiteFlash()/SetupSpriteRemapRedFlash()
+ * (bflib_vidraw.c), which compute the same render_flash_blend() formula
+ * on demand instead of indexing a precomputed table -- see
+ * docs/refactor/renderer/02a-pixel-format-design.md §2.4. Confirmed no other
+ * caller exists before deleting. */
 void init_colours(void)
 {
     init_rgb2idx_table();
-    init_redpal_table();
-    init_whitepal_table();
 }
 
 char *get_vidmode_name(TbScreenMode mode)

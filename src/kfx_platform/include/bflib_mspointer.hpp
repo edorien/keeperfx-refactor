@@ -57,7 +57,7 @@ class ScopedScreenSurface {
     }
     void Release() { LbScreenSurfaceRelease(&surf_); }
     struct SSurface *get() { return &surf_; }
-    long pitch() const { return surf_.pitch; }
+    TbBytePitch pitch() const { return surf_.pitch; }
  private:
     struct SSurface surf_{};
 };

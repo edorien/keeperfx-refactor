@@ -23,6 +23,7 @@
 #include <cmath>
 #include <stdlib.h>
 #include <string.h>
+#include <new>
 #include "config_lenses.h"
 #include "lens_api.h"
 
@@ -216,7 +217,6 @@ static void RasterizeHexRef(int hex_x, int hex_y)
 FlyeyeEffect::FlyeyeEffect()
     : LensEffect(LensEffectType::Flyeye, "Flyeye")
     , m_current_lens(-1)
-    , m_lookup_table(nullptr)
     , m_table_width(0)
     , m_table_height(0)
 {
@@ -229,11 +229,8 @@ FlyeyeEffect::~FlyeyeEffect()
 
 void FlyeyeEffect::FreeLookupTable()
 {
-    if (m_lookup_table != nullptr)
-    {
-        free(m_lookup_table);
-        m_lookup_table = nullptr;
-    }
+    m_lookup_table.clear();
+    m_lookup_table.shrink_to_fit();
     m_table_width = 0;
     m_table_height = 0;
 }
@@ -246,7 +243,7 @@ void FlyeyeEffect::FreeLookupTable()
 void FlyeyeEffect::BuildLookupTable(long width, long height)
 {
     FreeLookupTable();
-    
+
     // Allocate reference scanlines
     g_ref_scanlines = (FlyeyeScanline*)malloc(REF_HEIGHT * sizeof(FlyeyeScanline));
     if (g_ref_scanlines == nullptr)
@@ -254,13 +251,13 @@ void FlyeyeEffect::BuildLookupTable(long width, long height)
         ERRORLOG("Failed to allocate flyeye reference scanlines");
         return;
     }
-    
+
     // Initialize reference scanlines
     for (int y = 0; y < REF_HEIGHT; y++)
     {
         g_ref_scanlines[y].num_strips = 0;
     }
-    
+
     // Rasterize all hexagons in reference space
     for (int hex_y = -12; hex_y <= 12; hex_y++)
     {
@@ -269,27 +266,30 @@ void FlyeyeEffect::BuildLookupTable(long width, long height)
             RasterizeHexRef(hex_x, hex_y);
         }
     }
-    
-    // Allocate lookup table for actual resolution
-    size_t table_size = width * height * sizeof(FlyeyeLookupEntry);
-    m_lookup_table = (FlyeyeLookupEntry*)malloc(table_size);
-    if (m_lookup_table == nullptr)
-    {
+
+    // Allocate lookup table for actual resolution. vector::resize throws
+    // std::bad_alloc on failure rather than returning null like malloc()
+    // did; catch it to keep this function's original "log and gracefully
+    // skip" contract.
+    try {
+        m_lookup_table.resize((size_t)width * (size_t)height);
+    } catch (const std::bad_alloc &) {
+        size_t table_size = (size_t)width * (size_t)height * sizeof(FlyeyeLookupEntry);
         ERRORLOG("Failed to allocate flyeye lookup table (%" PRIuSIZE " bytes)", SZCAST(table_size));
         free(g_ref_scanlines);
         g_ref_scanlines = nullptr;
         return;
     }
-    
+
     m_table_width = width;
     m_table_height = height;
-    
+
     // Scale factors
     double scale_x = (double)width / REF_WIDTH;
     double scale_y = (double)height / REF_HEIGHT;
-    
+
     // Convert reference scanlines to screen-resolution lookup table
-    FlyeyeLookupEntry* entry = m_lookup_table;
+    FlyeyeLookupEntry* entry = m_lookup_table.data();
     
     for (long y = 0; y < height; y++)
     {
@@ -376,21 +376,21 @@ TbBool FlyeyeEffect::Draw(LensRenderContext* ctx)
     }
     
     // Build lookup table if needed
-    if (m_lookup_table == nullptr ||
+    if (m_lookup_table.empty() ||
         m_table_width != ctx->width ||
         m_table_height != ctx->height)
     {
         BuildLookupTable(ctx->width, ctx->height);
-        if (m_lookup_table == nullptr)
+        if (m_lookup_table.empty())
         {
             return false;
         }
     }
-    
+
     // Fast lookup-based rendering
-    unsigned char* viewport_src = ctx->srcbuf + ctx->viewport_x;
-    unsigned char* dst = ctx->dstbuf;
-    FlyeyeLookupEntry* entry = m_lookup_table;
+    TbPixel* viewport_src = ctx->srcbuf + ctx->viewport_x;
+    TbPixel* dst = ctx->dstbuf;
+    FlyeyeLookupEntry* entry = m_lookup_table.data();
     
     for (long y = 0; y < ctx->height; y++)
     {

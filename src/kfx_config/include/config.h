@@ -291,6 +291,13 @@ struct ConfigReloadCallbacks {
     void (*panel_map_update)(long x, long y, long w, long h);
     void (*update_panel_color_player_color)(PlayerNumber plyr_idx, unsigned char color_idx);
     void (*setup_panel_colors)(void);
+    // Invalidates the minimap panel's cached background-colour capture
+    // (frontmenu_ingame_map.c's PrevPixelSize gate), so the next in-game
+    // draw recaptures it against the level actually being loaded instead
+    // of reusing a previous level's capture, taken under whatever palette
+    // happened to be active at this early a point in loading. See
+    // docs/refactor/renderer/02b-legacy-bugs-found.md.
+    void (*reset_panel_map_background_cache)(void);
 
     // light_data.h -- lvl_filesdk1.c's load_map_data_file() resets
     // every subtile's lightness while loading a level, same as this

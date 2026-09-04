@@ -114,10 +114,10 @@ static unsigned short noop_get_zoom_key_room_order(long idx) { return 0; }
 static const struct Packet *noop_get_history_packet(PlayerNumber player, GameTurn turn) { return NULL; }
 static void noop_setup_eye_lens(long nlens) {}
 static TbBool noop_lens_is_ready(void) { return false; }
-static unsigned char *noop_lens_get_render_target(void) { return NULL; }
+static TbPixel *noop_lens_get_render_target(void) { return NULL; }
 static unsigned int noop_lens_get_render_target_width(void) { return 0; }
 static unsigned int noop_lens_get_render_target_height(void) { return 0; }
-static void noop_draw_lens_effect(unsigned char *dstbuf, long dstpitch, unsigned char *srcbuf, long srcpitch, long width, long height, long viewport_x, long effect) {}
+static void noop_draw_lens_effect(TbPixel *dstbuf, long dstpitch, TbPixel *srcbuf, long srcpitch, long width, long height, long viewport_x, long effect) {}
 static short noop_get_td_animation_sprite(short animation_sprite) { return 0; }
 static void noop_process_keeper_sprite(short x, short y, unsigned short a3, short kspr_angle, unsigned char a5, long a6) {}
 static void noop_engine(struct PlayerInfo *player, struct Camera *cam) {}

@@ -28,6 +28,7 @@
 #include "bflib_basics.h"
 #include "bflib_sound.h"
 #include "bflib_keybrd.h"
+#include "bflib_video.h"
 #include "globals.h"
 
 #ifdef __cplusplus
@@ -285,10 +286,10 @@ struct SimFeedbackCallbacks {
     /* lens_api.h */
     void (*setup_eye_lens)(long nlens);
     TbBool (*lens_is_ready)(void);
-    unsigned char *(*lens_get_render_target)(void);
+    TbPixel *(*lens_get_render_target)(void);
     unsigned int (*lens_get_render_target_width)(void);
     unsigned int (*lens_get_render_target_height)(void);
-    void (*draw_lens_effect)(unsigned char *dstbuf, long dstpitch, unsigned char *srcbuf, long srcpitch, long width, long height, long viewport_x, long effect);
+    void (*draw_lens_effect)(TbPixel *dstbuf, long dstpitch, TbPixel *srcbuf, long srcpitch, long width, long height, long viewport_x, long effect);
 
     /* engine_arrays.h */
     short (*get_td_animation_sprite)(short animation_sprite);

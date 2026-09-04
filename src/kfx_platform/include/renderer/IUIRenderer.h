@@ -13,6 +13,7 @@
 
 #include "renderer/DrawState.h"
 #include "bflib_basics.h"
+#include "bflib_video.h"
 #include <cstdint>
 
 struct TbSprite;
@@ -26,20 +27,20 @@ public:
     virtual TbResult SubmitRawSprite(int32_t x, int32_t y, const struct TbSprite* spr,
                                      KfxDrawState state);
     virtual TbResult SubmitRawSpriteOneColour(int32_t x, int32_t y, const struct TbSprite* spr,
-                                              unsigned char colour, KfxDrawState state);
+                                              TbPixel colour, KfxDrawState state);
 
     // Drawn at an explicit size rather than the sprite's own.
     virtual TbResult SubmitRawSpriteScaled(int32_t x, int32_t y, const struct TbSprite* spr,
                                            int32_t w, int32_t h, KfxDrawState state);
     virtual TbResult SubmitRawSpriteScaledOneColour(int32_t x, int32_t y, const struct TbSprite* spr,
-                                                    int32_t w, int32_t h, unsigned char colour,
+                                                    int32_t w, int32_t h, TbPixel colour,
                                                     KfxDrawState state);
     virtual int      SubmitRawSpriteScaledRemap(int32_t x, int32_t y, const struct TbSprite* spr,
-                                                int32_t w, int32_t h, const unsigned char* cmap,
+                                                int32_t w, int32_t h, const TbPixel* cmap,
                                                 KfxDrawState state);
 
     virtual void SubmitSolidBox(int32_t x, int32_t y, int32_t w, int32_t h,
-                                uint8_t colour_idx, KfxDrawState state);
+                                TbPixel colour_idx, KfxDrawState state);
 
     /** Tile the GUI slab texture over a rect. */
     virtual void SubmitSlabBackground(int32_t x, int32_t y, int32_t w, int32_t h);

@@ -43,6 +43,25 @@ void RendererPresentFrame(void);
 TbResult RendererLockFramebuffer(void);
 TbResult RendererUnlockFramebuffer(void);
 
+// The current framebuffer pointer (valid while locked) -- for callers outside
+// kfx_platform that need the base pointer for a raw/bulk pixel operation
+// (image blits, per-pixel overlays) rather than a single IUIRenderer
+// submission. A pure read, no lock side effects; mirrors
+// renderer/software/SwDrawTarget.h's SwTargetWScreen() but is the public
+// (RendererManager) entry point non-kfx_platform callers should use instead
+// of reaching into the software backend's internal headers.
+TbPixel* RendererGetFramebuffer(void);
+
+// Redirect lbDisplay.WScreen/GraphicsScreenWidth/GraphicsScreenHeight at an
+// off-screen buffer for off-screen rendering (e.g. the eye-lens effect's
+// render target) -- returns the previous WScreen pointer, which must be
+// passed to RendererRestoreFramebufferTarget() to point drawing back at the
+// real framebuffer. Callers still save/restore the graphics *window* (the
+// clip rect within the target) separately via LbScreenStoreGraphicsWindow()/
+// LbScreenLoadGraphicsWindow() -- this pair only owns the target identity.
+TbPixel* RendererSwapFramebufferTarget(TbPixel *target, uint32_t width, uint32_t height);
+void RendererRestoreFramebufferTarget(TbPixel *previous_target);
+
 // Save the current frame to a file via the active backend (fmt: 1=PNG, 2=BMP).
 TbBool RendererScheduleScreenshot(const char* path, int fmt);
 
@@ -74,13 +93,13 @@ extern const struct RendererDrawCallbacks *renderer_draw_callbacks;
 // Sprites. The Lb* entry points route here so the active backend can record the
 // draw for this frame or draw it now.
 struct TbSprite;
-TbResult RendererDrawBox(int32_t x, int32_t y, uint32_t width, uint32_t height, unsigned char colour);
+TbResult RendererDrawBox(int32_t x, int32_t y, uint32_t width, uint32_t height, TbPixel colour);
 void RendererDrawSlabBackground(int32_t x, int32_t y, int32_t width, int32_t height);
 TbResult RendererSpriteDraw(int32_t x, int32_t y, const struct TbSprite *spr);
-TbResult RendererSpriteDrawOneColour(int32_t x, int32_t y, const struct TbSprite *spr, unsigned char colour);
+TbResult RendererSpriteDrawOneColour(int32_t x, int32_t y, const struct TbSprite *spr, TbPixel colour);
 TbResult RendererSpriteDrawScaled(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h);
-TbResult RendererSpriteDrawScaledOneColour(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, unsigned char colour);
-int      RendererSpriteDrawScaledRemap(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, const unsigned char *cmap);
+TbResult RendererSpriteDrawScaledOneColour(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, TbPixel colour);
+int      RendererSpriteDrawScaledRemap(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, const TbPixel *cmap);
 
 unsigned char RendererGetDrawColour(void);
 void RendererSetDrawColour(unsigned char colour);

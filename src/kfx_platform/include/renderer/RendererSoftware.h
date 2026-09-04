@@ -18,7 +18,7 @@ public:
     void SetDisplayPalette(const unsigned char* pal6) override;
     void ClearScreen(unsigned char colour) override;
     void PresentFrame() override;
-    unsigned char* LockFramebuffer(int* out_pitch) override;
+    unsigned char* LockFramebuffer(TbBytePitch* out_pitch) override;
     void UnlockFramebuffer() override;
     bool ScheduleScreenshot(const char* path, int fmt) override;
 

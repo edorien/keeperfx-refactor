@@ -92,7 +92,12 @@ void frontmap_zoom_in_init(LevelNumber lvnum);
 TbBool frontmap_input_active_ensign(long curr_mx, long curr_my);
 TbBool frontmap_update_zoom(void);
 
-TbPixel net_player_colours[] = { 251, 58, 182, 11 };
+TbPixel net_player_colours[] = {
+    { 40,  36,   0, 255},  /* was idx 251 */
+    {125, 125,  60, 255},  /* was idx  58 */
+    {210, 182,   0, 255},  /* was idx 182 */
+    {113,  93,  48, 255},  /* was idx  11 */
+};
 const int32_t hand_limp_xoffset[] = { 32, 31, 30, 29, 28, 27, 26, 24, 22, 19, 15, 9 };
 const int32_t hand_limp_yoffset[] = { -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0 };
 

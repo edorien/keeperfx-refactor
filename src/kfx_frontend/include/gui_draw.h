@@ -89,7 +89,7 @@ int simple_gui_panel_sprite_width_units_per_px(const struct GuiButton *gbtn, lon
 
 // Moved here from front_simple.h (stage 10,
 // docs/refactor/stage-10-kfx-frontend.md).
-TbBool copy_raw8_image_buffer(unsigned char *dst_buf,const int scanline,const int nlines,const int dst_width,const int dst_height,
+TbBool copy_raw8_image_buffer(TbPixel *dst_buf,const int scanline,const int nlines,const int dst_width,const int dst_height,
     const int spw,const int sph,const unsigned char *src_buf,const int src_width,const int src_height);
 
 void draw_bar64k(long pos_x, long pos_y, int units_per_px, long width);

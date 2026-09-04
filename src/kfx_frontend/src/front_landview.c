@@ -109,7 +109,7 @@ void draw_map_screen(void)
         return;
     }
 
-    copy_raw8_image_buffer(lbDisplay.WScreen,LbGraphicsScreenWidth(),LbGraphicsScreenHeight(),
+    copy_raw8_image_buffer(RendererGetFramebuffer(),LbGraphicsScreenWidth(),LbGraphicsScreenHeight(),
         scale_value_landview(LANDVIEW_MAP_WIDTH), scale_value_landview(LANDVIEW_MAP_HEIGHT),
         -scale_value_landview(map_info.screen_shift_x), -scale_value_landview(map_info.screen_shift_y),
         map_screen,LANDVIEW_MAP_WIDTH,LANDVIEW_MAP_HEIGHT);
@@ -803,12 +803,13 @@ void frontzoom_to_point(long map_x, long map_y, long zoom)
     long scr_y = smap_y - scale_value_landview(map_info.screen_shift_y);
     if (scr_y > lbDisplay.PhysicalScreenHeight-1) scr_y = lbDisplay.PhysicalScreenHeight-1;
     if (scr_y < 1) scr_y = 1;
+    const unsigned char *pal = RendererGetActivePalette();
     unsigned char* src_buf = &map_screen[LANDVIEW_MAP_WIDTH * map_y + map_x];
     long dst_scanln = lbDisplay.GraphicsScreenWidth;
-    unsigned char* dst_buf = &lbDisplay.WScreen[dst_scanln * scr_y + scr_x];
+    TbPixel* dst_buf = &RendererGetFramebuffer()[dst_scanln * scr_y + scr_x];
     // Drawing first quadre
     long bpos_y = 0;
-    unsigned char* dst = dst_buf;
+    TbPixel* dst = dst_buf;
     long dst_width = scr_x;
     long dst_height = scr_y;
     // FIXME: I'm sure there's a less convoluted way of doing this, code below is setting off lots of cppcheck alarms
@@ -819,7 +820,7 @@ void frontzoom_to_point(long map_x, long map_y, long zoom)
         for (x=0; x <= dst_width; x++)
         {
           bpos_x += src_delta;
-          dst[-x] = src[-(bpos_x >> 8)];
+          dst[-x] = resolve_indexed_pixel(src[-(bpos_x >> 8)], pal);
         }
         dst -= dst_scanln;
         bpos_y += src_delta;
@@ -836,7 +837,7 @@ void frontzoom_to_point(long map_x, long map_y, long zoom)
         for (x=0; x < dst_width; x++)
         {
           bpos_x += src_delta;
-          dst[x] = src[(bpos_x >> 8)];
+          dst[x] = resolve_indexed_pixel(src[(bpos_x >> 8)], pal);
         }
         dst -= dst_scanln;
         bpos_y += src_delta;
@@ -853,7 +854,7 @@ void frontzoom_to_point(long map_x, long map_y, long zoom)
         for (x=0; x <= dst_width; x++)
         {
             bpos_x += src_delta;
-            dst[-x] = src[-(bpos_x >> 8)];
+            dst[-x] = resolve_indexed_pixel(src[-(bpos_x >> 8)], pal);
         }
         dst += dst_scanln;
         bpos_y += src_delta;
@@ -869,7 +870,7 @@ void frontzoom_to_point(long map_x, long map_y, long zoom)
         src = &src_buf[LANDVIEW_MAP_WIDTH*(bpos_y >> 8)];
         for (x=0; x < dst_width; x++)
         {
-            dst[x] = src[(bpos_x >> 8)];
+            dst[x] = resolve_indexed_pixel(src[(bpos_x >> 8)], pal);
             bpos_x += src_delta;
         }
         dst += dst_scanln;
@@ -884,7 +885,7 @@ void compressed_window_draw(void)
     long xshift = map_info.screen_shift_x * landview_frame_movement_scale_x / default_movement_scale / 2; // X speed is slower on aspect ratios wider than 4:3
     long yshift = map_info.screen_shift_y *landview_frame_movement_scale_y / default_movement_scale / 2; // Y speed is slower on aspect ratios taller than 4:3
     LbHugeSpriteDraw(&map_window, map_window_len,
-        lbDisplay.WScreen, lbDisplay.GraphicsScreenWidth, lbDisplay.PhysicalScreenHeight,
+        RendererGetFramebuffer(), lbDisplay.GraphicsScreenWidth, lbDisplay.PhysicalScreenHeight,
         xshift, yshift, units_per_pixel_landview_frame);
 }
 
@@ -1268,7 +1269,7 @@ void draw_map_level_descriptions(void)
     long x = lvinfo->ensign_x - (long)map_info.screen_shift_x;
     long y = lvinfo->ensign_y - (long)map_info.screen_shift_y - 8;
     long h = LbTextHeight(level_name);
-    LbDrawBox(scale_value_landview(x-4), scale_value_landview(y), scale_value_landview(w+8), scale_value_landview(h), 0);
+    LbDrawBox(scale_value_landview(x-4), scale_value_landview(y), scale_value_landview(w+8), scale_value_landview(h), resolve_indexed_pixel(0, RendererGetActivePalette()));
     LbTextDrawResized(scale_value_landview(x), scale_value_landview(y), units_per_pixel_landview, level_name);
   }
 }

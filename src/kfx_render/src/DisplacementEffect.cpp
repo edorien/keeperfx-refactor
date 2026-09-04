@@ -23,6 +23,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <new>
 #include "config_lenses.h"
 #include "vidmode.h"
 #include "lens_api.h"
@@ -41,7 +42,6 @@ DisplacementEffect::DisplacementEffect()
     , m_algorithm(DisplaceAlgo_Sinusoidal)
     , m_magnitude(0)
     , m_period(0)
-    , m_lookup_table(nullptr)
     , m_table_width(0)
     , m_table_height(0)
 {
@@ -54,11 +54,8 @@ DisplacementEffect::~DisplacementEffect()
 
 void DisplacementEffect::FreeLookupTable()
 {
-    if (m_lookup_table != nullptr)
-    {
-        free(m_lookup_table);
-        m_lookup_table = nullptr;
-    }
+    m_lookup_table.clear();
+    m_lookup_table.shrink_to_fit();
     m_table_width = 0;
     m_table_height = 0;
 }
@@ -71,16 +68,18 @@ void DisplacementEffect::BuildLookupTable(long width, long height)
 {
     // Free existing table if any
     FreeLookupTable();
-    
-    // Allocate lookup table
-    size_t table_size = width * height * sizeof(DisplaceLookupEntry);
-    m_lookup_table = (DisplaceLookupEntry*)malloc(table_size);
-    if (m_lookup_table == nullptr)
-    {
+
+    // Allocate lookup table. vector::resize throws std::bad_alloc on
+    // failure rather than returning null like malloc() did; catch it to
+    // keep this function's original "log and gracefully skip" contract.
+    try {
+        m_lookup_table.resize((size_t)width * (size_t)height);
+    } catch (const std::bad_alloc &) {
+        size_t table_size = (size_t)width * (size_t)height * sizeof(DisplaceLookupEntry);
         ERRORLOG("Failed to allocate displacement lookup table (%" PRIuSIZE " bytes)", SZCAST(table_size));
         return;
     }
-    
+
     m_table_width = width;
     m_table_height = height;
     
@@ -98,7 +97,7 @@ void DisplacementEffect::BuildLookupTable(long width, long height)
     const double flmag_sq = m_magnitude * (double)m_magnitude;
     const double fldivs = sqrt(ref_center_y * ref_center_y + ref_center_x * ref_center_x + flmag_sq);
     
-    DisplaceLookupEntry* entry = m_lookup_table;
+    DisplaceLookupEntry* entry = m_lookup_table.data();
     
     for (long y = 0; y < height; y++)
     {
@@ -203,21 +202,21 @@ TbBool DisplacementEffect::Draw(LensRenderContext* ctx)
     }
     
     // Build lookup table if needed (resolution may have changed)
-    if (m_lookup_table == nullptr || 
-        m_table_width != ctx->width || 
+    if (m_lookup_table.empty() ||
+        m_table_width != ctx->width ||
         m_table_height != ctx->height)
     {
         BuildLookupTable(ctx->width, ctx->height);
-        if (m_lookup_table == nullptr)
+        if (m_lookup_table.empty())
         {
             return false;
         }
     }
     
     // Fast lookup-based rendering
-    unsigned char* viewport_src = ctx->srcbuf + ctx->viewport_x;
-    unsigned char* dst = ctx->dstbuf;
-    DisplaceLookupEntry* entry = m_lookup_table;
+    TbPixel* viewport_src = ctx->srcbuf + ctx->viewport_x;
+    TbPixel* dst = ctx->dstbuf;
+    DisplaceLookupEntry* entry = m_lookup_table.data();
     
     for (long y = 0; y < ctx->height; y++)
     {

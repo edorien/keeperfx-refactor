@@ -20,6 +20,7 @@
 #define KFX_FLYEYEEFFECT_H
 
 #include "LensEffect.h"
+#include <vector>
 
 /******************************************************************************/
 
@@ -46,8 +47,10 @@ private:
     
     long m_current_lens;
     
-    // Pre-computed lookup table
-    FlyeyeLookupEntry* m_lookup_table;
+    // Pre-computed lookup table. m_table_width/height stay separate fields
+    // (not just m_lookup_table.size()) since that's what Draw() checks
+    // against ctx->width/height to decide whether to rebuild.
+    std::vector<FlyeyeLookupEntry> m_lookup_table;
     long m_table_width;
     long m_table_height;
 };

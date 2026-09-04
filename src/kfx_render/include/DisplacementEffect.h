@@ -20,6 +20,7 @@
 #define KFX_DISPLACEMENTEFFECT_H
 
 #include "LensEffect.h"
+#include <vector>
 
 /******************************************************************************/
 
@@ -57,8 +58,11 @@ private:
     int m_magnitude;
     int m_period;
     
-    // Pre-computed lookup table for current resolution
-    DisplaceLookupEntry* m_lookup_table;
+    // Pre-computed lookup table for current resolution. m_table_width/height
+    // stay separate fields (not just m_lookup_table.size()) since that's
+    // what Draw() checks against ctx->width/height to decide whether the
+    // table needs rebuilding for a new resolution.
+    std::vector<DisplaceLookupEntry> m_lookup_table;
     long m_table_width;
     long m_table_height;
 };

@@ -79,11 +79,9 @@ const unsigned char* RendererGetActivePalette(void)
     return LbPaletteGetReadonly();
 }
 
-// Palette channels are stored 6-bit (0..63) - because of VGA constraint, convert to 8-bit (0..255) for display.
-static inline unsigned char chan6_to_8(unsigned char v)
-{
-    return (unsigned char)((v * 255) / 63);
-}
+// chan6_to_8() (VGA 6-bit -> 8-bit-per-channel) is declared in bflib_video.h --
+// shared with the pixel-format blend-math functions, which need the exact
+// same conversion.
 
 TbResult RendererPaletteSet(unsigned char *palette)
 {
@@ -123,8 +121,8 @@ TbResult RendererLockFramebuffer(void)
 {
     if (!lbScreenInitialised || s_active_renderer == nullptr)
         return Lb_FAIL;
-    int pitch = 0;
-    unsigned char* px = s_active_renderer->LockFramebuffer(&pitch);
+    TbBytePitch pitch = {0};
+    TbPixel* px = (TbPixel*)s_active_renderer->LockFramebuffer(&pitch);
     if (px == nullptr)
     {
         lbDisplay.GraphicsWindowPtr = NULL;
@@ -132,7 +130,7 @@ TbResult RendererLockFramebuffer(void)
         return Lb_FAIL;
     }
     lbDisplay.WScreen = px;
-    lbDisplay.GraphicsScreenWidth = pitch;
+    lbDisplay.GraphicsScreenWidth = TbBytePitch_ToPixels(pitch);
     lbDisplay.GraphicsWindowPtr = &lbDisplay.WScreen[lbDisplay.GraphicsWindowX +
         lbDisplay.GraphicsScreenWidth * lbDisplay.GraphicsWindowY];
     return Lb_SUCCESS;
@@ -145,6 +143,25 @@ TbResult RendererUnlockFramebuffer(void)
     if (s_active_renderer != nullptr)
         s_active_renderer->UnlockFramebuffer();
     return Lb_SUCCESS;
+}
+
+TbPixel* RendererGetFramebuffer(void)
+{
+    return lbDisplay.WScreen;
+}
+
+TbPixel* RendererSwapFramebufferTarget(TbPixel *target, uint32_t width, uint32_t height)
+{
+    TbPixel *previous = lbDisplay.WScreen;
+    lbDisplay.WScreen = target;
+    lbDisplay.GraphicsScreenWidth = width;
+    lbDisplay.GraphicsScreenHeight = height;
+    return previous;
+}
+
+void RendererRestoreFramebufferTarget(TbPixel *previous_target)
+{
+    lbDisplay.WScreen = previous_target;
 }
 
 TbBool RendererScheduleScreenshot(const char* path, int fmt)
@@ -200,7 +217,7 @@ void RendererDrawSlabBackground(int32_t x, int32_t y, int32_t width, int32_t hei
     ui->SubmitSlabBackground((int32_t)x, (int32_t)y, (int32_t)width, (int32_t)height);
 }
 
-TbResult RendererDrawBox(int32_t x, int32_t y, uint32_t width, uint32_t height, unsigned char colour)
+TbResult RendererDrawBox(int32_t x, int32_t y, uint32_t width, uint32_t height, TbPixel colour)
 {
     IUIRenderer* ui = active_ui_renderer();
     if (ui == nullptr) return LbDrawBoxImmediate(x, y, width, height, colour);
@@ -215,7 +232,7 @@ TbResult RendererSpriteDraw(int32_t x, int32_t y, const struct TbSprite *spr)
     return ui->SubmitRawSprite(x, y, spr, ambient_draw_state());
 }
 
-TbResult RendererSpriteDrawOneColour(int32_t x, int32_t y, const struct TbSprite *spr, unsigned char colour)
+TbResult RendererSpriteDrawOneColour(int32_t x, int32_t y, const struct TbSprite *spr, TbPixel colour)
 {
     IUIRenderer* ui = active_ui_renderer();
     if (ui == nullptr) return LbSpriteDrawOneColourImmediate(x, y, spr, colour);
@@ -229,14 +246,14 @@ TbResult RendererSpriteDrawScaled(int32_t x, int32_t y, const struct TbSprite *s
     return ui->SubmitRawSpriteScaled(x, y, spr, w, h, ambient_draw_state());
 }
 
-TbResult RendererSpriteDrawScaledOneColour(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, unsigned char colour)
+TbResult RendererSpriteDrawScaledOneColour(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, TbPixel colour)
 {
     IUIRenderer* ui = active_ui_renderer();
     if (ui == nullptr) return LbSpriteDrawScaledOneColourImmediate(x, y, spr, w, h, colour);
     return ui->SubmitRawSpriteScaledOneColour(x, y, spr, w, h, colour, ambient_draw_state());
 }
 
-int RendererSpriteDrawScaledRemap(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, const unsigned char *cmap)
+int RendererSpriteDrawScaledRemap(int32_t x, int32_t y, const struct TbSprite *spr, int32_t w, int32_t h, const TbPixel *cmap)
 {
     IUIRenderer* ui = active_ui_renderer();
     if (ui == nullptr) return LbSpriteDrawScaledRemapImmediate(x, y, spr, w, h, cmap);

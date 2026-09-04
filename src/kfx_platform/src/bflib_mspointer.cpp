@@ -208,12 +208,17 @@ void LbI_PointerHandler::Initialise(const struct TbSprite *spr, struct TbPoint *
         return;
     }
     buf = (TbPixel *)surfbuf;
+    // pitch() is the surface's raw byte pitch (matches SDL's own convention);
+    // memset() below wants bytes, but pointer arithmetic on a TbPixel* and
+    // PointerDraw()'s scanline stride both need pixel counts.
+    TbBytePitch pitch = surf1.pitch();
+    long pitch_px = TbBytePitch_ToPixels(pitch);
     for (i=0; i < dstheight; i++)
     {
-        memset(buf, 255, surf1.pitch());
-        buf += surf1.pitch();
+        memset(buf, 255, pitch.bytes);
+        buf += pitch_px;
     }
-    PointerDraw(0, 0, this->sprite, (TbPixel *)surfbuf, surf1.pitch());
+    PointerDraw(0, 0, this->sprite, (TbPixel *)surfbuf, pitch_px);
     LbScreenSurfaceUnlock(surf1.get());
     this->position = npos;
     this->spr_offset = noffset;
@@ -325,7 +330,7 @@ void LbI_PointerHandler::OnBeginSwap(void)
     if (RendererLockFramebuffer() == Lb_SUCCESS)
     {
       PointerDraw(position->x - scale_ui_value_lofi(spr_offset->x), position->y - scale_ui_value_lofi(spr_offset->y),
-          sprite, lbDisplay.WScreen, lbDisplay.GraphicsScreenWidth);
+          sprite, RendererGetFramebuffer(), lbDisplay.GraphicsScreenWidth);
       RendererUnlockFramebuffer();
     }
 }

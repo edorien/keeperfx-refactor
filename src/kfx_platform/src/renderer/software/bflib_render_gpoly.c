@@ -23,6 +23,8 @@
 #include "bflib_video.h"
 #include "bflib_sprite.h"
 #include "bflib_vidraw.h"
+#include "renderer/software/SwDrawTarget.h"
+#include "renderer/RendererManager.h"
 #include "post_inc.h"
 
 #ifdef __GNUC__
@@ -383,7 +385,7 @@ struct GPolyDrawState
     int x;
     int y;
     int y_end;
-    uint8_t *dst_line;
+    TbPixel *dst_line;
 };
 
 /******************************************************************************/
@@ -678,19 +680,19 @@ static void pack_texcoords(void)
     texcoord_delta_y = texcoord_delta_y_top;
 }
 
-static void draw_gpoly_line(uint8_t *restrict pixel_dst, int32_t length, TexCoord texcoord)
+static void draw_gpoly_line(TbPixel *restrict pixel_dst, int32_t length, TexCoord texcoord)
 {
-    const uint8_t *const restrict texture = vec_map;
-    const uint8_t *const restrict fade_table = render_fade_tables;
+    const uint8_t *const restrict texture = SwTargetVecMap();
+    const unsigned char *const restrict palette = RendererGetActivePalette();
     const uint64_t texture_step = texcoord_as_uint64(texcoord_delta_x);
     uint64_t texture_position = texcoord_as_uint64(texcoord_truncate(texcoord));
 
     for (int i = 0; i < length; i++)
     {
         const uint16_t uv = rol32(texture_position >> 32, 8) & TEXTURE_UV_WRAP_MASK;
-        const uint16_t shade = texture_position & 0xFF00;
+        const int shade = (texture_position & 0xFF00) >> 8;
         const uint8_t texel = texture[uv];
-        pixel_dst[i] = fade_table[texel | shade];
+        pixel_dst[i] = render_shade(expand_indexed_pixel(texel, palette), shade);
         texture_position += texture_step;
     }
 }
@@ -703,7 +705,7 @@ static void next_line(struct GPolyDrawState *state)
     state->x_left   += slope_left;
     state->x_right  += slope_right;
     state->x        += state->x_left >> 16;
-    state->dst_line += vec_screen_width;
+    state->dst_line += SwTargetVecScreenWidth();
     state->y        += 1;
 }
 
@@ -716,9 +718,9 @@ static void draw_gpoly_clipped_half(struct GPolyDrawState *state)
             continue;
 
         const int x_left_int  = max(state->x_left  >> 16, 0);
-        const int x_right_int = min(state->x_right >> 16, vec_window_width);
+        const int x_right_int = min(state->x_right >> 16, SwTargetVecWindowWidth());
         const int length = x_right_int - x_left_int;
-        uint8_t *const dst = state->dst_line + x_left_int;
+        TbPixel *const dst = state->dst_line + x_left_int;
 
         for (; x_left_int > state->x; ++state->x)
             state->texcoord = texcoord_add(state->texcoord, texcoord_delta_x_exact);
@@ -741,7 +743,7 @@ static void draw_gpoly_whole_half(struct GPolyDrawState *state)
         const int x_left_int  = state->x_left  >> 16;
         const int x_right_int = state->x_right >> 16;
         const int length = x_right_int - x_left_int;
-        uint8_t *const dst = state->dst_line + x_left_int;
+        TbPixel *const dst = state->dst_line + x_left_int;
 
         draw_gpoly_line(dst, length, state->texcoord);
     }
@@ -756,8 +758,8 @@ static void draw_gpoly_clipped(void)
     state.x_right  = vertex_a_x << 16;
     state.x        = vertex_a_x;
     state.y        = vertex_a_y;
-    state.y_end    = min(vertex_b_y, vec_window_height);
-    state.dst_line = &vec_screen[vec_screen_width * state.y];
+    state.y_end    = min(vertex_b_y, SwTargetVecWindowHeight());
+    state.dst_line = &SwTargetVecScreen()[SwTargetVecScreenWidth() * state.y];
 
     draw_gpoly_clipped_half(&state);
 
@@ -776,7 +778,7 @@ static void draw_gpoly_clipped(void)
     }
 
     state.y     = vertex_b_y;
-    state.y_end = min(vertex_c_y, vec_window_height);
+    state.y_end = min(vertex_c_y, SwTargetVecWindowHeight());
 
     draw_gpoly_clipped_half(&state);
 }
@@ -790,8 +792,8 @@ static void draw_gpoly_whole(void)
     state.x_left   = vertex_a_x << 16;
     state.x_right  = vertex_a_x << 16;
     state.y        = vertex_a_y;
-    state.y_end    = min(vertex_b_y, vec_window_height);
-    state.dst_line = &vec_screen[vec_screen_width * state.y];
+    state.y_end    = min(vertex_b_y, SwTargetVecWindowHeight());
+    state.dst_line = &SwTargetVecScreen()[SwTargetVecScreenWidth() * state.y];
 
     draw_gpoly_whole_half(&state);
 
@@ -809,7 +811,7 @@ static void draw_gpoly_whole(void)
     }
 
     state.y     = vertex_b_y;
-    state.y_end = min(vertex_c_y, vec_window_height);
+    state.y_end = min(vertex_c_y, SwTargetVecWindowHeight());
 
     draw_gpoly_whole_half(&state);
 }
@@ -863,9 +865,9 @@ void draw_gpoly(struct PolyPoint *point_a, struct PolyPoint *point_b, struct Pol
     vertex_c_texture_u = point_c->U >> 16;
     vertex_c_texture_v = point_c->V >> 16;
 
-    const bool clip_x = (  (vertex_a_x) | (vec_window_width - vertex_a_x)
-                         | (vertex_b_x) | (vec_window_width - vertex_b_x)
-                         | (vertex_c_x) | (vec_window_width - vertex_c_x) ) < 0;
+    const bool clip_x = (  (vertex_a_x) | (SwTargetVecWindowWidth() - vertex_a_x)
+                         | (vertex_b_x) | (SwTargetVecWindowWidth() - vertex_b_x)
+                         | (vertex_c_x) | (SwTargetVecWindowWidth() - vertex_c_x) ) < 0;
 
     calculate_slopes();
     calculate_texture_mapping();

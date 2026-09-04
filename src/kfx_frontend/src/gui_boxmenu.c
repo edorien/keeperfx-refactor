@@ -782,14 +782,14 @@ void gui_draw_box(struct GuiBox *gbox)
     if (gbox != gui_get_highest_priority_box())
     {
         RendererAddDrawFlags(Lb_SPRITE_TRANSPAR4);
-        LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, kfx_sim_state.colours[6][0][0]);
+        LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, resolve_indexed_pixel(kfx_sim_state.colours[6][0][0], RendererGetActivePalette()));
         if (RendererGetDrawFlags() & Lb_SPRITE_OUTLINE)
         {
-          LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, kfx_sim_state.colours[0][0][0]);
+          LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, resolve_indexed_pixel(kfx_sim_state.colours[0][0][0], RendererGetActivePalette()));
         } else
         {
           RendererToggleDrawFlags(Lb_SPRITE_OUTLINE);
-          LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, kfx_sim_state.colours[0][0][0]);
+          LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, resolve_indexed_pixel(kfx_sim_state.colours[0][0][0], RendererGetActivePalette()));
           RendererToggleDrawFlags(Lb_SPRITE_OUTLINE);
         }
         RendererToggleDrawFlags(Lb_SPRITE_TRANSPAR4);
@@ -815,14 +815,14 @@ void gui_draw_box(struct GuiBox *gbox)
     } else
     {
         RendererAddDrawFlags(Lb_SPRITE_TRANSPAR4);
-        LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, kfx_sim_state.colours[12][0][0]);
+        LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, resolve_indexed_pixel(kfx_sim_state.colours[12][0][0], RendererGetActivePalette()));
         if (RendererGetDrawFlags() & Lb_SPRITE_OUTLINE)
         {
-            LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, kfx_sim_state.colours[2][0][0]);
+            LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, resolve_indexed_pixel(kfx_sim_state.colours[2][0][0], RendererGetActivePalette()));
         } else
         {
             RendererToggleDrawFlags(Lb_SPRITE_OUTLINE);
-            LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, kfx_sim_state.colours[2][0][0]);
+            LbDrawBox(gbox->pos_x/pixel_size, gbox->pos_y/pixel_size, gbox->width/pixel_size, gbox->height/pixel_size, resolve_indexed_pixel(kfx_sim_state.colours[2][0][0], RendererGetActivePalette()));
             RendererToggleDrawFlags(Lb_SPRITE_OUTLINE);
         }
         RendererToggleDrawFlags(Lb_SPRITE_TRANSPAR4);

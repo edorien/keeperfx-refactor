@@ -21,6 +21,7 @@
 #define BFLIB_FMVIDS_H
 
 #include "bflib_basics.h"
+#include "bflib_video.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,7 +49,11 @@ typedef void (*MovieClearKeyPressedFn)(long key);
 TbBool play_smk(const char * filename, int flags, MoviePollInputsFn poll_inputs_fn, MovieClearKeyPressedFn clear_key_pressed_fn);
 short anim_stop(void);
 short anim_record(void);
-TbBool anim_record_frame(unsigned char * screenbuf, unsigned char * palette);
+/* screenbuf's caller (scrcapt.c) hands over RendererGetFramebuffer()'s
+ * TbPixel* directly, not a legacy 8bpp byte buffer -- see the definition's
+ * comment for why the signature reflects that but the FLI encoder behind
+ * it does not. */
+TbBool anim_record_frame(TbPixel * screenbuf, unsigned char * palette);
 
 #ifdef __cplusplus
 }

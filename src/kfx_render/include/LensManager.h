@@ -71,8 +71,8 @@ public:
     long GetAppliedLens() const { return m_applied_lens; }
     
     // Rendering (always succeeds - handles fallback internally)
-    void Draw(unsigned char* srcbuf, unsigned char* dstbuf, 
-             long srcpitch, long dstpitch, 
+    void Draw(TbPixel* srcbuf, TbPixel* dstbuf,
+             long srcpitch, long dstpitch,
              long width, long height, long viewport_x);
     
     // Configuration
@@ -90,8 +90,8 @@ public:
     TbBool IsReady() const { return m_initialized; }
     
     // Helper: Copy buffer with pitch
-    static void CopyBuffer(unsigned char *dst, long dstpitch,
-                          unsigned char *src, long srcpitch,
+    static void CopyBuffer(TbPixel *dst, long dstpitch,
+                          TbPixel *src, long srcpitch,
                           long width, long height);
     
 private:
@@ -125,9 +125,13 @@ private:
     std::map<std::string, LensEffect*> m_custom_lenses;
     std::string m_active_custom_lens;  // Name of currently active custom lens
     
-    // Buffers (managed internally)
-    uint32_t* m_lens_memory;
-    unsigned char* m_spare_screen_memory;
+    // Buffers (managed internally). vector instead of raw calloc/free so
+    // AllocateBuffers()/FreeBuffers() can't leak on an early-return path and
+    // don't need manual null-and-free bookkeeping; eye_lens_memory/
+    // eye_lens_spare_screen_memory (the C-visible globals) point at
+    // .data(), refreshed whenever these are (re)allocated.
+    std::vector<uint32_t> m_lens_memory;
+    std::vector<TbPixel> m_spare_screen_memory;
     long m_buffer_width;
     long m_buffer_height;
     

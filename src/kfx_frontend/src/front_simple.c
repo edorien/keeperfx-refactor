@@ -136,10 +136,6 @@ struct ActiveBitmap nocd_bmp;
  */
 TbBool copy_raw8_image_to_screen_center(const unsigned char *buf, const int img_width, const int img_height)
 {
-    // Only 8bpp supported for now
-    if (LbGraphicsScreenBPP() != 8)
-        return false;
-
     // Get screen dimensions
     int screen_width = LbScreenWidth();
     int screen_height = LbScreenHeight();
@@ -170,7 +166,7 @@ TbBool copy_raw8_image_to_screen_center(const unsigned char *buf, const int img_
         return false;
 
     // Copy image buffer to screen buffer
-    copy_raw8_image_buffer(lbDisplay.WScreen, LbGraphicsScreenWidth(), LbGraphicsScreenHeight(),
+    copy_raw8_image_buffer(RendererGetFramebuffer(), LbGraphicsScreenWidth(), LbGraphicsScreenHeight(),
                            scaled_width, scaled_height, coord_x, coord_y, buf, img_width, img_height);
 
     // Perform any screen capturing
@@ -278,7 +274,7 @@ TbBool init_bitmap_screen(struct ActiveBitmap *actv_bmp,int stype)
     clear_bitmap_screen(actv_bmp);
     return false;
   }
-  actv_bmp->raw_data = (TbPixel *)buf;
+  actv_bmp->raw_data = buf;
   return true;
 }
 

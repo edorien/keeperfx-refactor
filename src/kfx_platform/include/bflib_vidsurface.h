@@ -21,6 +21,7 @@
 #define BFLIB_VIDSURFACE_H
 
 #include "bflib_basics.h"
+#include "bflib_video.h" // TbBytePitch
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +33,7 @@ struct TbRect;
 struct SSurface {
     struct SDL_Surface * surf_data;
     unsigned long locks_count;
-    long pitch;
+    TbBytePitch pitch;
 };
 /******************************************************************************/
 extern struct SDL_Surface * lbDrawSurface;

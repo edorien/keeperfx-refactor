@@ -24,11 +24,14 @@
 #include "bflib_fileio.h"
 #include "bflib_dernc.h"
 #include "bflib_vidraw.h"
+#include "renderer/software/SwDrawTarget.h"
 #include "engine_lenses.h"
 #include "vidmode.h"
 #include "config.h"
 #include "kfx_config_state.h"
 #include "config_mods.h"
+#include "bflib_render.h"
+#include "renderer/RendererManager.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -361,8 +364,13 @@ void scale_tmap2(long texture_block_index, long flags, long fade_level, long scr
     int32_t wlimits[640];
     int32_t *xlim;
     int32_t *ylim;
-    unsigned char *dbuf;
+    TbPixel *dbuf;
     unsigned char *block;
+    const unsigned char *const palette = RendererGetActivePalette();
+    /* Captured once per call, not per pixel -- the rasterizer's own render
+     * target, as last configured by setup_vecs(); see SwDrawTarget.h. */
+    TbPixel *const vscreen = SwTargetVecScreen();
+    const unsigned long vscreen_width = SwTargetVecScreenWidth();
     if (!orient)
     {
         xlim = wlimits;
@@ -379,14 +387,14 @@ void scale_tmap2(long texture_block_index, long flags, long fade_level, long scr
             ylim++;
             ystart += yend;
         }
-        dbuf = &vec_screen[local_screen_x + local_screen_y * vec_screen_width];
+        dbuf = &vscreen[local_screen_x + local_screen_y * vscreen_width];
         block = block_ptrs[texture_block_index];
         ylim = hlimits;
         long px;
         long py;
         int srcx;
         int srcy;
-        unsigned char *d;
+        TbPixel *d;
         if ( fade_level >= 0 )
         {
           for (py = scaled_height; py > 0; py--)
@@ -398,10 +406,10 @@ void scale_tmap2(long texture_block_index, long flags, long fade_level, long scr
               {
                 srcx = (((*xlim) & 0xFF0000u) >> 16);
                 xlim++;
-                *d = pixmap.fade_tables[256 * fade_level + block[(srcy << 8) + srcx]];
+                *d = render_shade(expand_indexed_pixel(block[(srcy << 8) + srcx], palette), fade_level);
                 ++d;
               }
-              dbuf += vec_screen_width;
+              dbuf += vscreen_width;
               ylim++;
           }
         } else
@@ -415,10 +423,10 @@ void scale_tmap2(long texture_block_index, long flags, long fade_level, long scr
             {
               srcx = (((*xlim) & 0xFF0000u) >> 16);
               xlim++;
-              *d = block[(srcy << 8) + srcx];
+              *d = expand_indexed_pixel(block[(srcy << 8) + srcx], palette);
               ++d;
             }
-            dbuf += vec_screen_width;
+            dbuf += vscreen_width;
             ylim++;
           }
         }
@@ -438,14 +446,14 @@ void scale_tmap2(long texture_block_index, long flags, long fade_level, long scr
           xlim++;
           xstart += xend;
         }
-        dbuf = &vec_screen[local_screen_x + local_screen_y * vec_screen_width];
+        dbuf = &vscreen[local_screen_x + local_screen_y * vscreen_width];
         block = block_ptrs[texture_block_index];
         ylim = wlimits;
         long px;
         long py;
         int srcx;
         int srcy;
-        unsigned char *d;
+        TbPixel *d;
         if ( fade_level >= 0 )
         {
           for (py = scaled_height; py > 0; py--)
@@ -457,10 +465,10 @@ void scale_tmap2(long texture_block_index, long flags, long fade_level, long scr
               {
                 srcx = (((*xlim) & 0xFF0000u) >> 16);
                 xlim++;
-                *d = pixmap.fade_tables[256 * fade_level + block[(srcx << 8) + srcy]];
+                *d = render_shade(expand_indexed_pixel(block[(srcx << 8) + srcy], palette), fade_level);
                 ++d;
               }
-              dbuf += vec_screen_width;
+              dbuf += vscreen_width;
               ylim++;
           }
         } else
@@ -474,10 +482,10 @@ void scale_tmap2(long texture_block_index, long flags, long fade_level, long scr
             {
               srcx = (((*xlim) & 0xFF0000u) >> 16);
               xlim++;
-              *d = block[(srcx << 8) + srcy];
+              *d = expand_indexed_pixel(block[(srcx << 8) + srcy], palette);
               ++d;
             }
-            dbuf += vec_screen_width;
+            dbuf += vscreen_width;
             ylim++;
           }
         }

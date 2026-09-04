@@ -83,7 +83,7 @@ struct AsianFontWindow {
   long width;
   long height;
   long scanline;
-  unsigned char *buf_ptr;
+  TbPixel *buf_ptr;
 };
 
 struct AsianFont {
@@ -160,7 +160,11 @@ static TbBool is_duospace_char(unsigned long chr)
  * @param draw_colr
  * @param shadow_colr
  */
-static void LbDrawCharUnderline(long pos_x, long pos_y, long width, long height, int units_per_px, uchar draw_colr, uchar shadow_colr)
+/* draw_colr/shadow_colr are already-resolved TbPixel colours -- callers
+ * resolve their own raw palette index (or remap) before calling, since
+ * draw_dbc_char() needs the remapped colour, not a fresh
+ * expand_indexed_pixel() of the raw index. */
+static void LbDrawCharUnderline(long pos_x, long pos_y, long width, long height, int units_per_px, TbPixel draw_colr, TbPixel shadow_colr)
 {
     if (units_per_px < 1)
         units_per_px = 1;
@@ -221,9 +225,14 @@ static int dbc_get_sprite_for_char(struct AsianDraw *adraw, unsigned long chr)
     return 0;
 }
 
-static int dbc_draw_font_sprite(unsigned char *dst_buf, long dst_scanline, unsigned char *src_buf,
+/* colr1/colr2 used to be `short`, with the "don't draw this bit value"
+ * sentinel spelled as any value outside 0-255 (checked via `colour & 0xFF00`)
+ * -- typically -1. Now that they're resolved TbPixel colours, the same
+ * "don't draw" case is spelled as TbPixel_Transparent, checked via
+ * TbPixel_IsTransparent(). */
+static int dbc_draw_font_sprite(TbPixel *dst_buf, long dst_scanline, unsigned char *src_buf,
       unsigned short src_bitwidth, short start_x, short start_y, short width, short height,
-      short colr1, short colr2)
+      TbPixel colr1, TbPixel colr2)
 {
     SYNCDBG(19,"Starting at %d,%d size %d,%d",(int)start_x, (int)start_y, (int)width, (int)height);
     // Computing width in bytes from the number of bits
@@ -236,14 +245,14 @@ static int dbc_draw_font_sprite(unsigned char *dst_buf, long dst_scanline, unsig
     for (int y = height; y > 0; y--)
     {
         unsigned char* src = src_buf;
-        unsigned char* dst = dst_buf;
+        TbPixel* dst = dst_buf;
         short skip_count = start_x;
         for (int x = 0; x < start_x + width; x++)
         {
           if ((x & 7) == 0)
             src_val = *src++;
           src_val <<= 1;
-          short colour;
+          TbPixel colour;
           if ((src_val & 0x100) != 0)
               colour = colr1;
           else
@@ -253,7 +262,7 @@ static int dbc_draw_font_sprite(unsigned char *dst_buf, long dst_scanline, unsig
             skip_count--;
             continue;
           }
-          if ((colour & 0xFF00) == 0)
+          if (!TbPixel_IsTransparent(colour))
             *dst = colour;
           dst++;
         }
@@ -263,12 +272,15 @@ static int dbc_draw_font_sprite(unsigned char *dst_buf, long dst_scanline, unsig
     return 0;
 }
 
+/* colr1/colr2/colr3 used to be `short`, "don't draw" spelled as a
+ * negative sentinel; see dbc_draw_font_sprite()'s comment for the
+ * TbPixel_IsTransparent() replacement. */
 static int dbc_draw_font_sprite_text(const struct AsianFontWindow *awind, const struct AsianDraw *adraw,
-      long pos_x, long pos_y, short colr1, short colr2, short colr3)
+      long pos_x, long pos_y, TbPixel colr1, TbPixel colr2, TbPixel colr3)
 {
     long scr_x;
     long scr_y;
-    unsigned char *dst_buf;
+    TbPixel *dst_buf;
     long width;
     long height;
     long x;
@@ -278,7 +290,7 @@ static int dbc_draw_font_sprite_text(const struct AsianFontWindow *awind, const 
       return 4;
     if ((adraw->sprite_data == NULL) || (awind->buf_ptr == NULL))
       return 4;
-    if (colr3 >= 0)
+    if (!TbPixel_IsTransparent(colr3))
     {
       x = 0;
       y = 0;
@@ -316,7 +328,7 @@ static int dbc_draw_font_sprite_text(const struct AsianFontWindow *awind, const 
             if ((scr_x < 0) || (scr_x >= awind->width) || (scr_y < 0) || (scr_y >= awind->height))
               goto skip_sprite_draw;
             dst_buf = &awind->buf_ptr[awind->scanline * scr_y + scr_x];
-            dbc_draw_font_sprite(dst_buf, awind->scanline, adraw->sprite_data, adraw->bits_width, x, y, width, height, colr3, -1);
+            dbc_draw_font_sprite(dst_buf, awind->scanline, adraw->sprite_data, adraw->bits_width, x, y, width, height, colr3, TbPixel_Transparent);
           }
         }
       } else
@@ -330,13 +342,13 @@ static int dbc_draw_font_sprite_text(const struct AsianFontWindow *awind, const 
             if ((scr_x < 0) || (scr_x >= awind->width) || (scr_y < 0) || (scr_y >= awind->height))
               goto skip_sprite_draw;
             dst_buf = &awind->buf_ptr[awind->scanline * scr_y + scr_x];
-            dbc_draw_font_sprite(dst_buf, awind->scanline, adraw->sprite_data, adraw->bits_width, x, y, width, height, colr3, -1);
+            dbc_draw_font_sprite(dst_buf, awind->scanline, adraw->sprite_data, adraw->bits_width, x, y, width, height, colr3, TbPixel_Transparent);
           }
         }
       }
     }
 skip_sprite_draw:
-    if ((colr1 >= 0) || (colr2 >= 0))
+    if (!TbPixel_IsTransparent(colr1) || !TbPixel_IsTransparent(colr2))
     {
       y = 0;
       x = 0;
@@ -425,17 +437,23 @@ static int8_t draw_dbc_char(uint32_t chr, struct AsianFontWindow *awind, long *p
 {
     SYNCDBG(19,"Got needs_draw");
     struct AsianDraw adraw;
-    unsigned long colour;
-    unsigned long shadow_colour = dbc_colour1;
+    TbPixel colour;
+    TbPixel shadow_colour;
+    uint8_t colour_idx;
+    uint8_t shadow_idx = (uint8_t)dbc_colour1;
     if (dbc_get_sprite_for_char(&adraw, chr) == 0)
     {
         if ((RendererGetDrawFlags() & Lb_TEXT_ONE_COLOR) == 0)
-          colour = dbc_colour0;
+          colour_idx = (uint8_t)dbc_colour0;
         else
-          colour = RendererGetDrawColour();
+          colour_idx = RendererGetDrawColour();
         if ((RendererGetDrawFlags() & Lb_TEXT_REMAP) != 0) {
-            colour = lbSpriteReMapPtr[colour];
-            shadow_colour = lbSpriteReMapPtr[shadow_colour];
+            colour = lbSpriteReMapPtr[colour_idx];
+            shadow_colour = lbSpriteReMapPtr[shadow_idx];
+        } else {
+            const unsigned char *palette = RendererGetActivePalette();
+            colour = expand_indexed_pixel(colour_idx, palette);
+            shadow_colour = expand_indexed_pixel(shadow_idx, palette);
         }
 
         #define MAX_DBC_SPRITE_SIZE 8192
@@ -470,7 +488,7 @@ static int8_t draw_dbc_char(uint32_t chr, struct AsianFontWindow *awind, long *p
             adraw.y_spacing = adraw.y_spacing * units_per_px / 16;
         }
 
-        dbc_draw_font_sprite_text(awind, &adraw, *pos_x, pos_y, colour, -1, shadow_colour);
+        dbc_draw_font_sprite_text(awind, &adraw, *pos_x, pos_y, colour, TbPixel_Transparent, shadow_colour);
 
         int w;
         if (adraw.bits_height == 16)
@@ -484,7 +502,7 @@ static int8_t draw_dbc_char(uint32_t chr, struct AsianFontWindow *awind, long *p
         if ((RendererGetDrawFlags() & Lb_TEXT_UNDERLINE) != 0)
         {
             int h = adraw.bits_height * units_per_px / 16;
-            LbDrawCharUnderline(*pos_x,pos_y,w,h,units_per_px,colour,lbDisplayEx.ShadowColour);
+            LbDrawCharUnderline(*pos_x,pos_y,w,h,units_per_px,colour,expand_indexed_pixel(lbDisplayEx.ShadowColour, RendererGetActivePalette()));
         }
         *pos_x += w;
         if (*pos_x >= awind->width)
@@ -501,7 +519,7 @@ static int8_t draw_simpletext_char(uint32_t chr, long *pos_x, long pos_y, int un
     if (spr != NULL)
     {
         if ((RendererGetDrawFlags() & Lb_TEXT_ONE_COLOR) != 0) {
-            LbSpriteDrawResizedOneColourImmediate(*pos_x, pos_y, units_per_px, spr, RendererGetDrawColour());
+            LbSpriteDrawResizedOneColourImmediate(*pos_x, pos_y, units_per_px, spr, expand_indexed_pixel(RendererGetDrawColour(), RendererGetActivePalette()));
         }
         else if ((RendererGetDrawFlags() & Lb_TEXT_REMAP) != 0) {
             LbSpriteDrawResizedRemap(*pos_x, pos_y, units_per_px, spr, lbSpriteReMapPtr);
@@ -513,7 +531,7 @@ static int8_t draw_simpletext_char(uint32_t chr, long *pos_x, long pos_y, int un
         if ((RendererGetDrawFlags() & Lb_TEXT_UNDERLINE) != 0)
         {
             int h = LbTextLineHeight() * units_per_px / 16;
-            LbDrawCharUnderline(*pos_x, pos_y, w, h, units_per_px, RendererGetDrawColour(), lbDisplayEx.ShadowColour);
+            LbDrawCharUnderline(*pos_x, pos_y, w, h, units_per_px, expand_indexed_pixel(RendererGetDrawColour(), RendererGetActivePalette()), expand_indexed_pixel(lbDisplayEx.ShadowColour, RendererGetActivePalette()));
         }
         *pos_x += w;
         return 1;
@@ -569,7 +587,7 @@ static void put_down_sprites(const char *sbuf, const char *ebuf, long x, long y,
         if ((RendererGetDrawFlags() & Lb_TEXT_UNDERLINE) != 0)
         {
             h = LbTextLineHeight() * units_per_px / 16;
-            LbDrawCharUnderline(x,y,w,h,units_per_px,RendererGetDrawColour(),lbDisplayEx.ShadowColour);
+            LbDrawCharUnderline(x,y,w,h,units_per_px,expand_indexed_pixel(RendererGetDrawColour(), RendererGetActivePalette()),expand_indexed_pixel(lbDisplayEx.ShadowColour, RendererGetActivePalette()));
         }
         x += w;
     } else
@@ -586,7 +604,7 @@ static void put_down_sprites(const char *sbuf, const char *ebuf, long x, long y,
         if ((RendererGetDrawFlags() & Lb_TEXT_UNDERLINE) != 0)
         {
             h = LbTextLineHeight() * units_per_px / 16;
-            LbDrawCharUnderline(x,y,w,h,units_per_px,RendererGetDrawColour(),lbDisplayEx.ShadowColour);
+            LbDrawCharUnderline(x,y,w,h,units_per_px,expand_indexed_pixel(RendererGetDrawColour(), RendererGetActivePalette()),expand_indexed_pixel(lbDisplayEx.ShadowColour, RendererGetActivePalette()));
         }
         x += w;
     } else
@@ -990,7 +1008,7 @@ int LbTextSetWindow(int posx, int posy, int width, int height)
     lbTextJustifyWindow.x = posx;
     lbTextJustifyWindow.y = posy;
     lbTextJustifyWindow.width = width;
-    lbTextJustifyWindow.ptr = &lbDisplay.WScreen[posx + posy * lbDisplay.GraphicsScreenWidth];
+    lbTextJustifyWindow.ptr = &RendererGetFramebuffer()[posx + posy * lbDisplay.GraphicsScreenWidth];
     LbTextSetClipWindow(posx, posy, width, height);
     return 1;
 }

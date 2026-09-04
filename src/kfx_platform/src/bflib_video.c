@@ -587,18 +587,16 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
             PlatformManager_SetWindowDisplayMode((int)mdinfo->Width, (int)mdinfo->Height);
         }
     }
-    // The engine renders 8-bit indexed into a standalone draw surface; the software
+    // The engine renders true-colour (TbPixel, byte-compatible with
+    // SDL_PIXELFORMAT_RGBA32) into a standalone draw surface; the software
     // backend presents it through an SDL_Renderer + texture (which is incompatible with
-    // a window surface, so we no longer call SDL_GetWindowSurface here). SDL3 does not
-    // allocate a palette for indexed surfaces, so create one.
-    lbDrawSurface = SDL_CreateSurface(mdinfo->Width, mdinfo->Height, SDL_PIXELFORMAT_INDEX8);
+    // a window surface, so we no longer call SDL_GetWindowSurface here). No palette is
+    // allocated -- RGBA surfaces don't have one; the game's own 256-colour palette
+    // (LbPaletteGetReadonly()/RendererGetActivePalette()) is what source-asset bytes
+    // still get resolved against, independently of this surface's pixel format.
+    lbDrawSurface = SDL_CreateSurface(mdinfo->Width, mdinfo->Height, SDL_PIXELFORMAT_RGBA32);
     if (lbDrawSurface == NULL) {
         ERRORLOG("Can't create draw surface for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
-        LbScreenReset(false);
-        return Lb_FAIL;
-    }
-    if (!SDL_CreateSurfacePalette(lbDrawSurface)) {
-        ERRORLOG("Can't create palette for draw surface (mode %d, %s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
         LbScreenReset(false);
         return Lb_FAIL;
     }
@@ -611,12 +609,12 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     lbDisplay.ScreenMode = mode;
     lbDisplay.PhysicalScreen = NULL;
     // The graphics screen size should be really taken after screen is locked, but it seem just getting in now will work too
-    lbDisplay.GraphicsScreenWidth = lbDrawSurface->pitch;
+    lbDisplay.GraphicsScreenWidth = lbDrawSurface->pitch / sizeof(TbPixel);
     lbDisplay.GraphicsScreenHeight = mdinfo->Height;
     lbDisplay.WScreen = NULL;
     lbDisplay.GraphicsWindowPtr = NULL;
     lbScreenInitialised = true;
-    SYNCLOG("Mode %dx%dx8 setup succeeded (indexed draw surface)",(int)lbDrawSurface->w,(int)lbDrawSurface->h);
+    SYNCLOG("Mode %dx%d setup succeeded (true-colour draw surface)",(int)lbDrawSurface->w,(int)lbDrawSurface->h);
     if (palette != NULL)
     {
         RendererPaletteSet(palette);
@@ -1029,7 +1027,12 @@ TbScreenMode LbRegisterVideoModeString(const char *desc)
     return LbRegisterVideoMode(desc, width, height, bpp, flags);
 }
 
-TbPixel LbPaletteFindColour(const unsigned char *pal, unsigned char r, unsigned char g, unsigned char b)
+/* Returns a palette INDEX, not a resolved colour -- every caller writes the
+ * result into an 8-bit palette-index table (vidfade.c's fade/ghost/alpha/
+ * rgb2idx generators, engine_redraw.c's map_fade_ghost_table). Declared
+ * TbPixel only because TbPixel used to BE unsigned char; retyped explicitly
+ * so the widening does not silently change its meaning. */
+unsigned char LbPaletteFindColour(const unsigned char *pal, unsigned char r, unsigned char g, unsigned char b)
 {
     int i;
     // Compute minimal square difference in color; return exact match if found

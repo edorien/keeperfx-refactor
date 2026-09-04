@@ -4342,19 +4342,16 @@ void draw_creature_view(struct Thing *thing)
   }
   // So there is an eye lens - we have to put a buffer in place of screen,
   // draw on that buffer, an then copy it to screen applying lens effect.
-  unsigned char* scrmem = sim_feedback->lens_get_render_target();
+  TbPixel* scrmem = sim_feedback->lens_get_render_target();
   unsigned int render_width = sim_feedback->lens_get_render_target_width();
   unsigned int render_height = sim_feedback->lens_get_render_target_height();
   
   // Store previous graphics settings
-  unsigned char* wscr_cp = lbDisplay.WScreen;
   TbGraphicsWindow grwnd;
   LbScreenStoreGraphicsWindow(&grwnd);
   // Prepare new settings
   memset(scrmem, 0, render_width*render_height*sizeof(TbPixel));
-  lbDisplay.WScreen = scrmem;
-  lbDisplay.GraphicsScreenHeight = render_height;
-  lbDisplay.GraphicsScreenWidth = render_width;
+  TbPixel* wscr_cp = RendererSwapFramebufferTarget(scrmem, render_width, render_height);
   LbScreenSetGraphicsWindow(0, 0, MyScreenWidth/pixel_size, MyScreenHeight/pixel_size);
   // Draw on our buffer
   sim_feedback->setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
@@ -4367,7 +4364,7 @@ void draw_creature_view(struct Thing *thing)
   long view_x = player->engine_window_x / pixel_size;
   long view_y = player->engine_window_y / pixel_size;
   // Restore original graphics settings
-  lbDisplay.WScreen = wscr_cp;
+  RendererRestoreFramebufferTarget(wscr_cp);
   LbScreenLoadGraphicsWindow(&grwnd);
   // Draw the buffer on real screen using actual viewport dimensions
   sim_feedback->setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
@@ -4375,7 +4372,7 @@ void draw_creature_view(struct Thing *thing)
   // Pass full srcbuf so displacement map lookups work correctly
   // Calculate 2D viewport offset for destination buffer
   long dst_offset = view_y * lbDisplay.GraphicsScreenWidth + view_x;
-  sim_feedback->draw_lens_effect(lbDisplay.WScreen + dst_offset, lbDisplay.GraphicsScreenWidth, 
+  sim_feedback->draw_lens_effect(RendererGetFramebuffer() + dst_offset, lbDisplay.GraphicsScreenWidth,
       scrmem, render_width, view_width, view_height, view_x, kfx_sim_state.applied_lens_type);
 }
 

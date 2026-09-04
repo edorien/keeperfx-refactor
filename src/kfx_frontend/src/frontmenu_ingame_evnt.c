@@ -232,7 +232,7 @@ void draw_battle_head(struct Thing *thing, long scr_x, long scr_y, int units_per
     }
     curscr_x = scr_x - 8*units_per_px/16;
     curscr_y = scr_y - 8*units_per_px/16 + (spr->SHeight*ps_units_per_px/16)/2;
-    LbDrawBox(curscr_x, curscr_y, 16*units_per_px/16, 6*units_per_px/16, kfx_sim_state.colours[0][0][0]);
+    LbDrawBox(curscr_x, curscr_y, 16*units_per_px/16, 6*units_per_px/16, resolve_indexed_pixel(kfx_sim_state.colours[0][0][0], RendererGetActivePalette()));
     // Show health
     struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
     HitPoints health = thing->health;
@@ -269,7 +269,7 @@ void gui_area_friendly_battlers(struct GuiButton *gbtn)
     int scr_pos_x = gbtn->scr_pos_x - wdelta + gbtn->width;
     RendererAddDrawFlags(Lb_SPRITE_TRANSPAR4);
     LbDrawBox(gbtn->scr_pos_x, gbtn->scr_pos_y,
-        gbtn->width, gbtn->height, kfx_sim_state.colours[0][0][0]);
+        gbtn->width, gbtn->height, resolve_indexed_pixel(kfx_sim_state.colours[0][0][0], RendererGetActivePalette()));
     RendererClearDrawFlags(Lb_SPRITE_TRANSPAR4);
     for (int battlr_id = 0; battlr_id < MESSAGE_BATTLERS_COUNT-1; battlr_id++)
     {
@@ -332,7 +332,7 @@ void gui_area_enemy_battlers(struct GuiButton *gbtn)
     int scr_pos_x = gbtn->scr_pos_x;
     RendererAddDrawFlags(Lb_SPRITE_TRANSPAR4);
     LbDrawBox(gbtn->scr_pos_x, gbtn->scr_pos_y,
-        gbtn->width, gbtn->height, kfx_sim_state.colours[0][0][0]);
+        gbtn->width, gbtn->height, resolve_indexed_pixel(kfx_sim_state.colours[0][0][0], RendererGetActivePalette()));
     RendererClearDrawFlags(Lb_SPRITE_TRANSPAR4);
     for (int battlr_id = 0; battlr_id < MESSAGE_BATTLERS_COUNT-1; battlr_id++)
     {

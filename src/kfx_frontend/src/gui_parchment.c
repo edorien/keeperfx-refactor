@@ -40,6 +40,7 @@
 #include "engine_render.h"
 #include "engine_textures.h"
 #include "vidmode.h"
+#include "vidfade.h"
 #include "map_data.h"
 #include "map_blocks.h"
 #include "player_data.h"
@@ -185,11 +186,8 @@ TbBool parchment_copy_background_at(const struct TbRect *bkgnd_area, int units_p
         srcbuf = hires_parchment;
         shift = 4;
     }
-    // Only 8bpp supported for now
-    if (LbGraphicsScreenBPP() != 8)
-        return false;
     // Do the drawing
-    copy_raw8_image_buffer(lbDisplay.WScreen,LbGraphicsScreenWidth(),LbGraphicsScreenHeight(),
+    copy_raw8_image_buffer(RendererGetFramebuffer(),LbGraphicsScreenWidth(),LbGraphicsScreenHeight(),
         img_width*units_per_px/16,img_height*units_per_px/16,bkgnd_area->left,bkgnd_area->top,srcbuf,img_width,img_height);
     // Burning candle flames
     const struct TbSprite* spr = get_button_sprite(GBS_parchment_map_screen_flame_1 + (get_gameturn() & 3));
@@ -213,7 +211,9 @@ void draw_map_parchment(void)
 }
 
 enum OverheadMapStyle {
-    OMapSt_Unchanged = 256,
+    OMapSt_Unchanged,
+    // A flat opaque colour, resolved into *out_colour by the caller.
+    OMapSt_Flat,
     OMapSt_Tagged,
     OMapSt_TaggedGems,
     OMapSt_Gold,
@@ -222,8 +222,13 @@ enum OverheadMapStyle {
     OMapSt_Abyss,
 };
 
-static int get_overhead_mapblock_style(const struct Map* mapblk, const struct SlabMap* slb, MapSlabCoord slb_x, MapSlabCoord slb_y, PlayerNumber plyr_idx, int gui_frame, TbPixel neutral_colour)
+// Returns a control-flow style tag; for OMapSt_Flat, *out_colour holds the
+// resolved colour to fill the run with. OMapSt_Tagged/TaggedGems/Gold/Gems/
+// Wall/Abyss instead ghost-blend a fixed reference colour against whatever
+// is already on screen for each pixel of the run -- see draw_overhead_map().
+static enum OverheadMapStyle get_overhead_mapblock_style(const struct Map* mapblk, const struct SlabMap* slb, MapSlabCoord slb_x, MapSlabCoord slb_y, PlayerNumber plyr_idx, int gui_frame, TbPixel neutral_colour, TbPixel *out_colour)
 {
+    const unsigned char *pal = RendererGetActivePalette();
     PlayerNumber owner = slb->owner;
     if ((((mapblk->flags & SlbAtFlg_Unexplored) != 0) || ((mapblk->flags & SlbAtFlg_TaggedValuable) != 0)) && (gui_frame >= 4)) {
         if (slb->kind == SlbT_GEMS) {
@@ -243,19 +248,24 @@ static int get_overhead_mapblock_style(const struct Map* mapblk, const struct Sl
     if ((mapblk->flags & SlbAtFlg_IsRoom) != 0) {
         struct Room* room = room_get(slb->room_index);
         if (((gui_frame & 1) != 0) && (room->kind == gui_room_type_highlighted)) {
-            return player_highlight_colours[owner];
+            *out_colour = player_highlight_colours[owner];
+            return OMapSt_Flat;
         }
         unsigned char color_idx = get_player_color_idx(owner);
         if (color_idx == PLAYER_NEUTRAL) {
-            return neutral_colour;
+            *out_colour = neutral_colour;
+            return OMapSt_Flat;
         }
-        return player_room_colours[color_idx];
+        *out_colour = player_room_colours[color_idx];
+        return OMapSt_Flat;
     }
     if (slb->kind == SlbT_ROCK) {
-        return 0;
+        *out_colour = resolve_indexed_pixel(0, pal);
+        return OMapSt_Flat;
     }
     if (slb->kind == SlbT_ROCK_FLOOR) {
-        return pixmap.ghost[3];
+        *out_colour = resolve_indexed_pixel(pixmap.ghost[3], pal);
+        return OMapSt_Flat;
     }
     if (subtile_has_abyss_on_top(slab_subtile_center(slb_x), slab_subtile_center(slb_y))) {
         return OMapSt_Abyss;
@@ -266,54 +276,66 @@ static int get_overhead_mapblock_style(const struct Map* mapblk, const struct Sl
     if ((mapblk->flags & SlbAtFlg_IsDoor) != 0) {
         struct Thing* thing = get_door_for_position(slab_subtile_center(slb_x), slab_subtile_center(slb_y));
         if (thing_is_invalid(thing)) {
-            return 60;
+            *out_colour = resolve_indexed_pixel(60, pal);
+            return OMapSt_Flat;
         }
         if (((gui_frame & 1) != 0) && (thing->model == gui_door_type_highlighted)) {
-            return player_highlight_colours[owner];
+            *out_colour = player_highlight_colours[owner];
+            return OMapSt_Flat;
         }
         if (door_is_hidden_to_player(thing, plyr_idx)) {
             return OMapSt_Wall;
         }
         if (thing->door.is_locked) {
-            return 79;
+            *out_colour = resolve_indexed_pixel(79, pal);
+            return OMapSt_Flat;
         }
-        return 60;
+        *out_colour = resolve_indexed_pixel(60, pal);
+        return OMapSt_Flat;
     }
     if ((mapblk->flags & SlbAtFlg_Blocking) != 0) {
         return OMapSt_Unchanged;
     }
     if (slb->kind == SlbT_LAVA) {
-        return 146;
+        *out_colour = resolve_indexed_pixel(146, pal);
+        return OMapSt_Flat;
     }
     if (slb->kind == SlbT_WATER) {
-        return 85;
+        *out_colour = resolve_indexed_pixel(85, pal);
+        return OMapSt_Flat;
     }
     if (slb->kind == SlbT_PURPLE) {
-        return 255;
+        *out_colour = resolve_indexed_pixel(255, pal);
+        return OMapSt_Flat;
     }
-    return get_player_path_colour(owner);
+    *out_colour = get_player_path_colour(owner);
+    return OMapSt_Flat;
 }
 
 void draw_overhead_map(const struct TbRect *map_area, long block_size, PlayerNumber plyr_idx)
 {
+    const unsigned char *pal = RendererGetActivePalette();
     GameTurn turn = get_gameturn();
     int gui_frame = (turn / kfx_config_state.gui_blink_rate) & 7;
     TbPixel neutral_colour = player_room_colours[(turn / kfx_config_state.neutral_flash_rate) & 3];
     int32_t screen_width = lbDisplay.GraphicsScreenWidth;
     int32_t block_stride = screen_width * block_size;
-    int styles[MAX_TILES_X];
+    enum OverheadMapStyle styles[MAX_TILES_X];
+    TbPixel colours[MAX_TILES_X];
     const struct SlabMap* slb = get_slabmap_block(0, 0);
-    unsigned char* dstrow = &lbDisplay.WScreen[map_area->left + screen_width * map_area->top];
+    TbPixel* dstrow = &RendererGetFramebuffer()[map_area->left + screen_width * map_area->top];
     for (MapSlabCoord slb_y = 0; slb_y < kfx_sim_state.map_tiles_y; slb_y++, dstrow += block_stride) {
         const struct Map* mapblk = get_map_block_at(slab_subtile_center(0), slab_subtile_center(slb_y));
         for (MapSlabCoord slb_x = 0; slb_x < kfx_sim_state.map_tiles_x; slb_x++, slb++, mapblk += STL_PER_SLB) {
-            styles[slb_x] = get_overhead_mapblock_style(mapblk, slb, slb_x, slb_y, plyr_idx, gui_frame, neutral_colour);
+            styles[slb_x] = get_overhead_mapblock_style(mapblk, slb, slb_x, slb_y, plyr_idx, gui_frame, neutral_colour, &colours[slb_x]);
         }
-        unsigned char* dstblock = dstrow;
+        TbPixel* dstblock = dstrow;
         for (MapSlabCoord slb_x = 0; slb_x < kfx_sim_state.map_tiles_x;) {
-            int style = styles[slb_x];
+            enum OverheadMapStyle style = styles[slb_x];
+            TbPixel colour = colours[slb_x];
             MapSlabCoord run = 1;
-            while ((slb_x + run < kfx_sim_state.map_tiles_x) && (styles[slb_x + run] == style)) {
+            while ((slb_x + run < kfx_sim_state.map_tiles_x) && (styles[slb_x + run] == style)
+                && ((style != OMapSt_Flat) || TbPixel_Equal(colours[slb_x + run], colour))) {
                 run++;
             }
             int32_t run_width = run * block_size;
@@ -341,20 +363,24 @@ void draw_overhead_map(const struct TbRect *map_area, long block_size, PlayerNum
             } else if (style == OMapSt_Abyss) {
                 remap = pixmap.map_abyss;
             }
-            unsigned char* dstline = dstblock;
+            TbPixel* dstline = dstblock;
             for (int32_t y = 0; y < block_size; y++) {
                 if (remap == NULL) {
-                    if (run_width >= 16) {
-                        memset(dstline, style, run_width);
-                    } else {
-                        volatile unsigned char* dstpixel = dstline;
-                        for (int32_t x = 0; x < run_width; x++) {
-                            dstpixel[x] = style;
-                        }
+                    for (int32_t x = 0; x < run_width; x++) {
+                        dstline[x] = colour;
                     }
                 } else {
                     for (int32_t x = 0; x < run_width; x++) {
-                        dstline[x] = add + (remap[dstline[x]] >> shift);
+                        // remap[] is still an index-space ghost-blend table
+                        // (pixmap.ghost isn't retired this pass); recover the
+                        // nearest palette index of the pixel already there,
+                        // same technique as frontmenu_ingame_map.c's
+                        // MapBackColours dedup. This runs every frame the
+                        // parchment map is open, so use the O(1) quantized
+                        // lookup instead of LbPaletteFindColour()'s O(256)
+                        // linear scan -- see docs/refactor/renderer/02c.
+                        unsigned char existing_idx = TbRGBColorTable_Lookup(kfx_sim_state.colours, dstline[x]);
+                        dstline[x] = resolve_indexed_pixel((uint8_t)(add + (remap[existing_idx] >> shift)), pal);
                     }
                 }
                 dstline += screen_width;
@@ -447,7 +473,7 @@ int draw_overhead_creatures(const struct TbRect *map_area, long block_size, Play
         {
             unsigned char color_idx = get_player_color_idx(thing->owner);
             TbPixel col1 = player_highlight_colours[color_idx];
-            TbPixel col2 = 1;
+            TbPixel col2 = resolve_indexed_pixel(1, RendererGetActivePalette());
             if (thing_revealed(thing, plyr_idx))
             {
                 if (color_idx == kfx_config_state.neutral_player_num)
@@ -547,7 +573,7 @@ int draw_overhead_traps(const struct TbRect *map_area, long block_size, PlayerNu
                     long pos_y = map_area->top + (block_size * (int)thing->mappos.y.stl.num / STL_PER_SLB) + ((block_size + 1)/5);
                     short pixels_amount = scale_pixel(ONE_PIXEL);
                     short pixel_end = get_pixels_scaled_and_zoomed(ONE_PIXEL);
-                    short colour = 60;
+                    TbPixel colour = resolve_indexed_pixel(60, RendererGetActivePalette());
                     for (int p = 0; p < pixel_end; p++)
                     {
                         // Draw a cross
@@ -599,7 +625,7 @@ int draw_overhead_spells(const struct TbRect *map_area, long block_size, PlayerN
                   short pixel_end = get_pixels_scaled_and_zoomed(TWO_PIXELS);
                   for (int p = 0; p < pixel_end; p++)
                   {
-                      LbDrawPixel(pos_x + draw_square[p].delta_x, pos_y + draw_square[p].delta_y, kfx_sim_state.colours[15][0][15]);
+                      LbDrawPixel(pos_x + draw_square[p].delta_x, pos_y + draw_square[p].delta_y, resolve_indexed_pixel(kfx_sim_state.colours[15][0][15], RendererGetActivePalette()));
                   }
               }
               else if ( thing_is_workshop_crate(thing) )
@@ -609,7 +635,7 @@ int draw_overhead_spells(const struct TbRect *map_area, long block_size, PlayerN
                   short pixel_end = get_pixels_scaled_and_zoomed(TWO_PIXELS);
                   for (int p = 0; p < pixel_end; p++)
                   {
-                      LbDrawPixel(pos_x + draw_square[p].delta_x, pos_y + draw_square[p].delta_y, kfx_sim_state.colours[7][6][7]);
+                      LbDrawPixel(pos_x + draw_square[p].delta_x, pos_y + draw_square[p].delta_y, resolve_indexed_pixel(kfx_sim_state.colours[7][6][7], RendererGetActivePalette()));
                   }
               }
             }
@@ -638,12 +664,6 @@ void draw_overhead_things(const struct TbRect *map_area, long block_size, Player
 void draw_2d_map(void)
 {
     SYNCDBG(8, "Starting");
-    if (!render_fade_tables || !render_ghost || !render_alpha)
-    {
-        render_fade_tables = pixmap.fade_tables;
-        render_ghost = pixmap.ghost;
-        render_alpha = (unsigned char*)&alpha_sprite_table;
-    }
     struct PlayerInfo* player = get_my_player();
     // Size of the parchment map on which we're drawing
     struct TbRect map_area;
@@ -779,7 +799,7 @@ void draw_zoom_box_terrain(long scrtop_x, long scrtop_y, int stl_x, int stl_y, P
     RendererSetDrawFlags(0);
     scrtop_x += 4*units_per_pixel/16;
     scrtop_y -= 4*units_per_pixel/16;
-    setup_vecs(lbDisplay.WScreen, 0, lbDisplay.GraphicsScreenWidth, MyScreenWidth/pixel_size, MyScreenHeight/pixel_size);
+    setup_vecs(RendererGetFramebuffer(), 0, lbDisplay.GraphicsScreenWidth, MyScreenWidth/pixel_size, MyScreenHeight/pixel_size);
     // Draw the actual map
     int scr_y = scrtop_y;
     for (int map_dy = 0; map_dy < draw_tiles_y; map_dy++)
@@ -795,14 +815,14 @@ void draw_zoom_box_terrain(long scrtop_x, long scrtop_y, int stl_x, int stl_y, P
                 draw_texture(scr_x, scr_y, subtile_size, subtile_size, k, 0, -1);
             } else
           {
-            LbDrawBox(scr_x, scr_y, subtile_size, subtile_size, 1);
+            LbDrawBox(scr_x, scr_y, subtile_size, subtile_size, resolve_indexed_pixel(1, RendererGetActivePalette()));
           }
           scr_x += subtile_size;
       }
       scr_y += subtile_size;
     }
     RendererAddDrawFlags(Lb_SPRITE_OUTLINE);
-    LbDrawBox(scrtop_x, scrtop_y, draw_tiles_x*subtile_size, draw_tiles_y*subtile_size, 0);
+    LbDrawBox(scrtop_x, scrtop_y, draw_tiles_x*subtile_size, draw_tiles_y*subtile_size, resolve_indexed_pixel(0, RendererGetActivePalette()));
     RendererClearDrawFlags(Lb_SPRITE_OUTLINE);
 }
 

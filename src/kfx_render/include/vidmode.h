@@ -149,8 +149,6 @@ void set_base_mouse_sensitivity(long val);
 
 extern struct TbColorTables pixmap;
 extern struct TbAlphaTables alpha_sprite_table;
-extern unsigned char white_pal[256];
-extern unsigned char red_pal[256];
 
 extern TbBool MinimalResolutionSetup;
 
@@ -200,10 +198,9 @@ void free_testfont_fonts(void);
 TbBool init_fades_table(void);
 TbBool init_alpha_table(void);
 void init_colours(void);
-// Registered with render_overlay.h's RenderOverlayCallbacks; power_hand.c
-// needs bflib's render_fade_tables/render_ghost/render_alpha pointed at
-// kfx_render's pixmap/alpha_sprite_table (see the comment above their
-// first sync site in vidmode.c).
+// Registered with render_overlay.h's RenderOverlayCallbacks; kept as a
+// no-op now that there's nothing left to sync (see its definition's
+// comment in vidmode.c).
 void sync_render_globals(void);
 
 TbBool set_pointer_graphic_none(void);

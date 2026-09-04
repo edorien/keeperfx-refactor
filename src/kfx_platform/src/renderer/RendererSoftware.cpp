@@ -1,7 +1,7 @@
 #include "pre_inc.h"
 #include "renderer/RendererSoftware.h"
 #include "bflib_video.h"       // PALETTE_COLORS, lbWindow, SDL, vsync_enabled
-#include "bflib_vidsurface.h"  // lbDrawSurface (goes away when the framebuffer migrates)
+#include "bflib_vidsurface.h"  // lbDrawSurface
 #include "bflib_mouse.h"       // LbMouseOnBeginSwap/EndSwap (software cursor around present)
 #include <SDL3_image/SDL_image.h> // IMG_SavePNG (screenshots)
 #include "post_inc.h"
@@ -18,26 +18,25 @@ void RendererSoftware::Shutdown()
 
 void RendererSoftware::SetDisplayPalette(const unsigned char* rgb8)
 {
-    if (lbDrawSurface == NULL)
-        return;
-    SDL_Color colors[PALETTE_COLORS];
-    for (int i = 0; i < PALETTE_COLORS; i++)
-    {
-        colors[i].r = rgb8[3 * i + 0];
-        colors[i].g = rgb8[3 * i + 1];
-        colors[i].b = rgb8[3 * i + 2];
-        colors[i].a = SDL_ALPHA_OPAQUE;
-    }
-    SDL_Palette* surfpal = SDL_GetSurfacePalette(lbDrawSurface);
-    if (surfpal != NULL)
-        SDL_SetPaletteColors(surfpal, colors, 0, PALETTE_COLORS);
+    // Vestigial: the draw surface is RGBA32 now, not an indexed surface with
+    // its own SDL palette to push colours into. The game's authoritative
+    // palette (LbPaletteGetReadonly()/RendererGetActivePalette()) is tracked
+    // independently of the surface's pixel format and is what source-asset
+    // bytes actually get resolved against; this callback has nothing left
+    // to do for the software backend.
+    (void)rgb8;
 }
 
 void RendererSoftware::ClearScreen(unsigned char colour)
 {
     if (lbDrawSurface == NULL)
         return;
-    if (!SDL_FillSurfaceRect(lbDrawSurface, NULL, colour))
+    // colour is a palette index (every caller passes a literal like 0 or
+    // 144) -- resolve it through the game's own palette, then map it to
+    // the draw surface's own (RGBA32) pixel format for the fill.
+    TbPixel px = resolve_indexed_pixel(colour, LbPaletteGetReadonly());
+    Uint32 mapped = SDL_MapSurfaceRGBA(lbDrawSurface, px.r, px.g, px.b, px.a);
+    if (!SDL_FillSurfaceRect(lbDrawSurface, NULL, mapped))
         ERRORLOG("Error while clearing screen: %s", SDL_GetError());
 }
 
@@ -88,12 +87,12 @@ void RendererSoftware::destroy_present_target()
     m_vsync = -1;
 }
 
-unsigned char* RendererSoftware::LockFramebuffer(int* out_pitch)
+unsigned char* RendererSoftware::LockFramebuffer(TbBytePitch* out_pitch)
 {
     if (lbDrawSurface == NULL || !SDL_LockSurface(lbDrawSurface))
         return nullptr;
     if (out_pitch != nullptr)
-        *out_pitch = lbDrawSurface->pitch;
+        *out_pitch = TbBytePitch{ lbDrawSurface->pitch };
     return static_cast<unsigned char*>(lbDrawSurface->pixels);
 }
 
@@ -123,22 +122,16 @@ void RendererSoftware::PresentFrame()
 {
     if (lbDrawSurface == NULL || !ensure_present_target())
         return;
-    SDL_Surface* texture_surface;
-    if (!SDL_LockTextureToSurface(m_texture, NULL, &texture_surface))
-    {
-        ERRORLOG("Present texture lock failed: %s", SDL_GetError());
-        return;
-    }
     LbMouseOnBeginSwap();
-    // INDEX8 (palette) -> RGBA and present
-    if (!SDL_BlitSurface(lbDrawSurface, NULL, texture_surface, NULL))
+    // The draw surface is already RGBA32 -- the same format m_texture was
+    // created with -- so presentation is a direct upload now, no more
+    // INDEX8->RGBA blit through a locked texture surface.
+    if (!SDL_UpdateTexture(m_texture, NULL, lbDrawSurface->pixels, lbDrawSurface->pitch))
     {
-        ERRORLOG("Present blit failed: %s", SDL_GetError());
-        SDL_UnlockTexture(m_texture);
+        ERRORLOG("Present texture update failed: %s", SDL_GetError());
         LbMouseOnEndSwap();
         return;
     }
-    SDL_UnlockTexture(m_texture);
     SDL_RenderClear(m_renderer);
     SDL_RenderTexture(m_renderer, m_texture, NULL, NULL);
     SDL_RenderPresent(m_renderer);

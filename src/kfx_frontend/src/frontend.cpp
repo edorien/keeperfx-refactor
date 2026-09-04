@@ -1150,10 +1150,11 @@ TbBool fronttestfont_draw(void)
   long x;
   long y;
   SYNCDBG(9,"Starting");
+  TbPixel* const wscr = RendererGetFramebuffer();
   for (y=0; y < lbDisplay.GraphicsScreenHeight; y++)
     for (x=0; x < lbDisplay.GraphicsScreenWidth; x++)
     {
-        lbDisplay.WScreen[y*lbDisplay.GraphicsScreenWidth+x] = 0;
+        wscr[y*lbDisplay.GraphicsScreenWidth+x] = TbPixel_RGB(0, 0, 0);
     }
   LbTextSetWindow(0/pixel_size, 0/pixel_size, MyScreenHeight/pixel_size, MyScreenWidth/pixel_size);
   // Drawing
@@ -1171,7 +1172,7 @@ TbBool fronttestfont_draw(void)
       spr = NULL;
     if (spr != NULL)
     {
-      LbDrawBox(x, y, spr->SWidth+2, spr->SHeight+2, 255);
+      LbDrawBox(x, y, spr->SWidth+2, spr->SHeight+2, resolve_indexed_pixel(255, RendererGetActivePalette()));
       LbSpriteDraw(x+1, y+1, spr);
     }
 //TODO SPRITES enhance font support

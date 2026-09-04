@@ -5,7 +5,7 @@
 // config_reload_callbacks.c file the way net_callbacks.c/game_callbacks.c/
 // etc. are. Same shape as every other one: every noop_* stub is
 // `static`, only reachable through the default table's function-pointer
-// fields, every body a one-liner ignoring its pointer args. 93 fields,
+// fields, every body a one-liner ignoring its pointer args. 94 fields,
 // the largest *Callbacks table in this library.
 #include <catch2/catch_test_macros.hpp>
 
@@ -27,6 +27,7 @@ TEST_CASE("the default config_reload_callbacks table's every stub is a safe no-o
     config_reload_callbacks->panel_map_update(0, 0, 0, 0);
     config_reload_callbacks->update_panel_color_player_color(0, 0);
     config_reload_callbacks->setup_panel_colors();
+    config_reload_callbacks->reset_panel_map_background_cache();
     config_reload_callbacks->clear_subtiles_lightness();
     CHECK(config_reload_callbacks->get_lua_function_idx(nullptr, nullptr) == -1);
     CHECK(config_reload_callbacks->get_map_subtiles_x() == 0);

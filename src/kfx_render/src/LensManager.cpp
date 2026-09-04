@@ -20,6 +20,8 @@
 #include "pre_inc.h"
 #include "LensManager.h"
 
+#include <new>
+
 #include "MistEffect.h"
 #include "DisplacementEffect.h"
 #include "FlyeyeEffect.h"
@@ -53,8 +55,6 @@ LensManager::LensManager()
     : m_initialized(false)
     , m_active_lens(0)
     , m_applied_lens(0)
-    , m_lens_memory(nullptr)
-    , m_spare_screen_memory(nullptr)
     , m_buffer_width(0)
     , m_buffer_height(0)
 {
@@ -215,8 +215,8 @@ TbBool LensManager::SetLens(long lens_idx)
     return success;
 }
 
-void LensManager::Draw(unsigned char* srcbuf, unsigned char* dstbuf, 
-                      long srcpitch, long dstpitch, 
+void LensManager::Draw(TbPixel* srcbuf, TbPixel* dstbuf,
+                      long srcpitch, long dstpitch,
                       long width, long height, long viewport_x)
 {
     SYNCDBG(0, "LensManager::Draw() called: m_initialized=%d, m_applied_lens=%ld, m_active_custom_lens='%s'",
@@ -235,7 +235,7 @@ void LensManager::Draw(unsigned char* srcbuf, unsigned char* dstbuf,
     
     // If not initialized or no lens active, just copy the buffer
     if (!m_initialized || (m_applied_lens == 0 && m_active_custom_lens.empty())) {
-        unsigned char* viewport_src = srcbuf + viewport_x;
+        TbPixel* viewport_src = srcbuf + viewport_x;
         CopyBuffer(dstbuf, dstpitch, viewport_src, srcpitch, width, height);
         return;
     }
@@ -263,7 +263,7 @@ void LensManager::Draw(unsigned char* srcbuf, unsigned char* dstbuf,
     
     // If no effects rendered (all failed or none applicable), copy as fallback
     if (!rendered) {
-        unsigned char* viewport_src = srcbuf + viewport_x;
+        TbPixel* viewport_src = srcbuf + viewport_x;
         CopyBuffer(dstbuf, dstpitch, viewport_src, srcpitch, width, height);
     }
 }
@@ -448,43 +448,42 @@ TbBool LensManager::AllocateBuffers()
         buffer_size = 256 * 256 + 2;
     }
     
-    m_lens_memory = (uint32_t*)calloc(buffer_size, sizeof(uint32_t));
-    m_spare_screen_memory = (unsigned char*)calloc(buffer_size, sizeof(unsigned char));
-    
-    if (m_lens_memory == nullptr || m_spare_screen_memory == nullptr) {
+    // vector::resize throws std::bad_alloc on failure rather than returning
+    // null like calloc() did; catch it to keep this function's original
+    // "log and gracefully fail" contract instead of letting an exception
+    // escape into C code that isn't set up to handle one.
+    try {
+        m_lens_memory.assign(buffer_size, 0);
+        m_spare_screen_memory.assign(buffer_size, TbPixel{});
+    } catch (const std::bad_alloc &) {
         ERRORLOG("Failed to allocate lens buffers (%lu bytes)", buffer_size * sizeof(uint32_t));
         FreeBuffers();
         return false;
     }
-    
+
     // Update global pointers for C code compatibility
-    eye_lens_memory = m_lens_memory;
-    eye_lens_spare_screen_memory = m_spare_screen_memory;
+    eye_lens_memory = m_lens_memory.data();
+    eye_lens_spare_screen_memory = m_spare_screen_memory.data();
     eye_lens_width = m_buffer_width;
     eye_lens_height = m_buffer_height;
-    
+
     SYNCDBG(9, "Allocated lens buffers: %ldx%ld, size=%lu", m_buffer_width, m_buffer_height, buffer_size);
     return true;
 }
 
 void LensManager::FreeBuffers()
 {
-    if (m_lens_memory != nullptr) {
-        free(m_lens_memory);
-        m_lens_memory = nullptr;
-    }
-    
-    if (m_spare_screen_memory != nullptr) {
-        free(m_spare_screen_memory);
-        m_spare_screen_memory = nullptr;
-    }
-    
+    m_lens_memory.clear();
+    m_lens_memory.shrink_to_fit();
+    m_spare_screen_memory.clear();
+    m_spare_screen_memory.shrink_to_fit();
+
     // Clear global pointers for C code compatibility
     eye_lens_memory = nullptr;
     eye_lens_spare_screen_memory = nullptr;
     eye_lens_width = 0;
     eye_lens_height = 0;
-    
+
     m_buffer_width = 0;
     m_buffer_height = 0;
 }
@@ -535,7 +534,7 @@ TbBool LensManager_IsReady(void* mgr)
     return static_cast<LensManager*>(mgr)->IsReady();
 }
 
-void LensManager_Draw(void* mgr, unsigned char* srcbuf, unsigned char* dstbuf,
+void LensManager_Draw(void* mgr, TbPixel* srcbuf, TbPixel* dstbuf,
                       long srcpitch, long dstpitch, long width, long height, long viewport_x)
 {
     if (mgr != nullptr) {
@@ -544,8 +543,8 @@ void LensManager_Draw(void* mgr, unsigned char* srcbuf, unsigned char* dstbuf,
     }
 }
 
-void LensManager_CopyBuffer(unsigned char* dstbuf, long dstpitch,
-                           unsigned char* srcbuf, long srcpitch,
+void LensManager_CopyBuffer(TbPixel* dstbuf, long dstpitch,
+                           TbPixel* srcbuf, long srcpitch,
                            long width, long height)
 {
     LensManager::CopyBuffer(dstbuf, dstpitch, srcbuf, srcpitch, width, height);
@@ -590,12 +589,12 @@ void LuaLensEffect_SetDrawCallback(void* effect, int callback_ref)
 // HELPER FUNCTIONS
 /******************************************************************************/
 
-void LensManager::CopyBuffer(unsigned char* dstbuf, long dstpitch,
-                            unsigned char* srcbuf, long srcpitch,
+void LensManager::CopyBuffer(TbPixel* dstbuf, long dstpitch,
+                            TbPixel* srcbuf, long srcpitch,
                             long width, long height)
 {
-    unsigned char* dst = dstbuf;
-    unsigned char* src = srcbuf;
+    TbPixel* dst = dstbuf;
+    TbPixel* src = srcbuf;
     for (long i = 0; i < height; i++)
     {
         memcpy(dst, src, width * sizeof(TbPixel));

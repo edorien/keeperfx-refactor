@@ -27,25 +27,33 @@ extern "C" {
 #endif
 /******************************************************************************/
 
-// uses a color of the given ID from the palette: MAIN.PAL
-// See https://github.com/dkfans/keeperfx/pull/811#issuecomment-688918505 for more instructions on how to add colours
-struct stripey_line      basic_stripey_line  = { { 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x07, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00, 0x00 },              0 }; // example
-struct stripey_line     basic_stripey_line2  = { { 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x0f, 0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09, 0x08, 0x08 },              0 }; // example
-struct stripey_line        red_stripey_line  = { { 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x47, 0x47, 0x46, 0x45, 0x44, 0x43, 0x42, 0x41, 0x40, 0x40 },        SLC_RED };
-struct stripey_line      green_stripey_line  = { { 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa7, 0xa7, 0xa6, 0xa5, 0xa4, 0xa3, 0xa2, 0xa1, 0xa0, 0xa0 },      SLC_GREEN };
-struct stripey_line     yellow_stripey_line  = { { 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb7, 0xb7, 0xb6, 0xb5, 0xb4, 0xb3, 0xb2, 0xb1, 0xb0, 0xb0 },     SLC_YELLOW };
-struct stripey_line      brown_stripey_line  = { { 0x04, 0x09, 0x0b, 0x0c, 0x0d, 0x0d, 0x0d, 0x0c, 0x0b, 0x09, 0x07, 0x03, 0x03, 0x01, 0x00, 0x00 },      SLC_BROWN };
-struct stripey_line       grey_stripey_line  = { { 0x09, 0x0b, 0x0c, 0x0d, 0x0e, 0x7f, 0x7f, 0x7f, 0x0e, 0x0d, 0x0c, 0x0b, 0x09, 0x07, 0x03, 0x03 },       SLC_GREY };
-struct stripey_line  redyellow_stripey_line  = { { 0x82, 0x83, 0x84, 0x85, 0x86, 0x8a, 0x8a, 0x8a, 0x86, 0x85, 0x84, 0x83, 0x82, 0x81, 0x80, 0x80 },  SLC_REDYELLOW };
-struct stripey_line greenflash_stripey_line  = { { 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0x8a, 0x8a, 0x8a, 0xa6, 0xa5, 0xa4, 0xa3, 0xa2, 0xa1, 0xa0, 0xa0 }, SLC_GREENFLASH };
-struct stripey_line   redflash_stripey_line  = { { 0x42, 0x43, 0x44, 0x45, 0x46, 0x8a, 0x8a, 0x8a, 0x46, 0x45, 0x44, 0x43, 0x42, 0x41, 0x40, 0x40 },   SLC_REDFLASH };
-struct stripey_line     purple_stripey_line  = { { 0x69, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x6f, 0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x69, 0x67, 0x62, 0x62 },     SLC_PURPLE };
-struct stripey_line       blue_stripey_line  = { { 0x58, 0x59, 0x5b, 0x5c, 0x5d, 0x5e, 0x5e, 0x5e, 0x5d, 0x5c, 0x5b, 0x59, 0x58, 0x53, 0x51, 0x51 },       SLC_BLUE };
-struct stripey_line     orange_stripey_line  = { { 0x26, 0x28, 0x2a, 0x86, 0x87, 0x88, 0x88, 0x88, 0x87, 0x86, 0x2a, 0x28, 0x26, 0x23, 0x21, 0x21 },     SLC_ORANGE };
-struct stripey_line      white_stripey_line  = { { 0x13, 0x15, 0x19, 0x1a, 0x1b, 0x1c, 0x1c, 0x1c, 0x1b, 0x1a, 0x19, 0x15, 0x13, 0x12, 0x08, 0x08 },      SLC_WHITE };
-struct stripey_line     green2_stripey_line  = { { 0x38, 0x39, 0x3b, 0x3c, 0x3d, 0x3e, 0x3e, 0x3e, 0x3d, 0x3c, 0x3b, 0x39, 0x38, 0x33, 0x31, 0x31 },     SLC_GREEN2 };
-struct stripey_line   darkgreen_stripey_line = { { 0xa2, 0xa3, 0xa4, 0xa4, 0xa4, 0xa5, 0xa5, 0xa5, 0xa4, 0xa4, 0xa4, 0xa3, 0xa2, 0xa1, 0xa0, 0xa0 },  SLC_DARKGREEN };
-struct stripey_line mixed_green_stripey_line = { { 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0x3a, 0x3a, 0x3a, 0xa6, 0xa5, 0xa4, 0xa3, 0xa2, 0xa1, 0xa0, 0xa0 }, SLC_MIXEDGREEN };
+// Original colours (see 02b-legacy-bugs-found.md) came from a color of the
+// given ID from the palette: MAIN.PAL; see
+// https://github.com/dkfans/keeperfx/pull/811#issuecomment-688918505 for the
+// old add-a-colour instructions. stripey_line_color_array is TbPixel[16]
+// now, not unsigned char[16] -- initializing it from 16 bare palette-index
+// scalars silently only filled the first ~4 TbPixel structs (4 scalars per
+// TbPixel via brace elision) and zero-initialized (transparent black) the
+// rest, which is why these lines rendered mostly black instead of their
+// named colour. Converted to real RGB (via core_files/data/palette.dat) so
+// every one of the 16 animation frames gets an actual colour.
+struct stripey_line      basic_stripey_line  = { { { 28, 20,  0,255}, { 40, 28,  0,255}, { 52, 36,  4,255}, { 60, 44, 12,255}, { 72, 52, 16,255}, { 80, 60, 24,255}, { 80, 60, 24,255}, { 80, 60, 24,255}, { 72, 52, 16,255}, { 60, 44, 12,255}, { 52, 36,  4,255}, { 40, 28,  0,255}, { 28, 20,  0,255}, { 20, 16,  0,255}, {  0,  0,  0,255}, {  0,  0,  0,255} },              0 }; // example
+struct stripey_line     basic_stripey_line2  = { { {105, 85, 44,255}, {113, 93, 48,255}, {121, 97, 56,255}, {129,105, 64,255}, {137,113, 72,255}, {145,121, 80,255}, {145,121, 80,255}, {145,121, 80,255}, {137,113, 72,255}, {129,105, 64,255}, {121, 97, 56,255}, {113, 93, 48,255}, {105, 85, 44,255}, { 97, 76, 36,255}, { 89, 68, 28,255}, { 89, 68, 28,255} },              0 }; // example
+struct stripey_line        red_stripey_line  = { { { 85, 36,  4,255}, {105, 44, 12,255}, {125, 52, 16,255}, {145, 56, 20,255}, {161, 64, 24,255}, {182, 68, 28,255}, {182, 68, 28,255}, {182, 68, 28,255}, {161, 64, 24,255}, {145, 56, 20,255}, {125, 52, 16,255}, {105, 44, 12,255}, { 85, 36,  4,255}, { 60, 24,  0,255}, { 36, 20,  0,255}, { 36, 20,  0,255} },        SLC_RED };
+struct stripey_line      green_stripey_line  = { { { 40, 68,  4,255}, { 52, 93,  4,255}, { 56,113, 12,255}, { 60,137, 12,255}, { 64,161, 12,255}, { 64,182, 16,255}, { 64,182, 16,255}, { 64,182, 16,255}, { 64,161, 12,255}, { 60,137, 12,255}, { 56,113, 12,255}, { 52, 93,  4,255}, { 40, 68,  4,255}, { 28, 44,  0,255}, { 20, 20,  0,255}, { 20, 20,  0,255} },      SLC_GREEN };
+struct stripey_line     yellow_stripey_line  = { { {121, 85,  0,255}, {145,105,  0,255}, {165,133,  0,255}, {190,157,  0,255}, {210,182,  0,255}, {230,214,  0,255}, {230,214,  0,255}, {230,214,  0,255}, {210,182,  0,255}, {190,157,  0,255}, {165,133,  0,255}, {145,105,  0,255}, {121, 85,  0,255}, { 97, 64,  0,255}, { 76, 44,  0,255}, { 76, 44,  0,255} },     SLC_YELLOW };
+struct stripey_line      brown_stripey_line  = { { { 52, 36,  4,255}, { 97, 76, 36,255}, {113, 93, 48,255}, {121, 97, 56,255}, {129,105, 64,255}, {129,105, 64,255}, {129,105, 64,255}, {121, 97, 56,255}, {113, 93, 48,255}, { 97, 76, 36,255}, { 80, 60, 24,255}, { 40, 28,  0,255}, { 40, 28,  0,255}, { 20, 16,  0,255}, {  0,  0,  0,255}, {  0,  0,  0,255} },      SLC_BROWN };
+struct stripey_line       grey_stripey_line  = { { { 97, 76, 36,255}, {113, 93, 48,255}, {121, 97, 56,255}, {129,105, 64,255}, {137,113, 72,255}, {165,145,105,255}, {165,145,105,255}, {165,145,105,255}, {137,113, 72,255}, {129,105, 64,255}, {121, 97, 56,255}, {113, 93, 48,255}, { 97, 76, 36,255}, { 80, 60, 24,255}, { 40, 28,  0,255}, { 40, 28,  0,255} },       SLC_GREY };
+struct stripey_line  redyellow_stripey_line  = { { {105, 40,  0,255}, {133, 44,  0,255}, {157, 48,  0,255}, {186, 48,  0,255}, {190, 76,  0,255}, {210,194,  0,255}, {210,194,  0,255}, {210,194,  0,255}, {190, 76,  0,255}, {186, 48,  0,255}, {157, 48,  0,255}, {133, 44,  0,255}, {105, 40,  0,255}, { 76, 32,  0,255}, { 48, 20,  0,255}, { 48, 20,  0,255} },  SLC_REDYELLOW };
+struct stripey_line greenflash_stripey_line  = { { { 40, 68,  4,255}, { 52, 93,  4,255}, { 56,113, 12,255}, { 60,137, 12,255}, { 64,161, 12,255}, {210,194,  0,255}, {210,194,  0,255}, {210,194,  0,255}, { 64,161, 12,255}, { 60,137, 12,255}, { 56,113, 12,255}, { 52, 93,  4,255}, { 40, 68,  4,255}, { 28, 44,  0,255}, { 20, 20,  0,255}, { 20, 20,  0,255} }, SLC_GREENFLASH };
+struct stripey_line   redflash_stripey_line  = { { { 85, 36,  4,255}, {105, 44, 12,255}, {125, 52, 16,255}, {145, 56, 20,255}, {161, 64, 24,255}, {210,194,  0,255}, {210,194,  0,255}, {210,194,  0,255}, {161, 64, 24,255}, {145, 56, 20,255}, {125, 52, 16,255}, {105, 44, 12,255}, { 85, 36,  4,255}, { 60, 24,  0,255}, { 36, 20,  0,255}, { 36, 20,  0,255} },   SLC_REDFLASH };
+struct stripey_line     purple_stripey_line  = { { {157, 68, 97,255}, {190, 97,141,255}, {202,105,165,255}, {218,121,194,255}, {230,137,218,255}, {246,157,242,255}, {246,157,242,255}, {246,157,242,255}, {230,137,218,255}, {218,121,194,255}, {202,105,165,255}, {190, 97,141,255}, {157, 68, 97,255}, {121, 44, 60,255}, { 60, 24, 12,255}, { 60, 24, 12,255} },     SLC_PURPLE };
+struct stripey_line       blue_stripey_line  = { { {113, 93,113,255}, {125,101,129,255}, {149,125,165,255}, {161,137,182,255}, {178,153,202,255}, {190,170,222,255}, {190,170,222,255}, {190,170,222,255}, {178,153,202,255}, {161,137,182,255}, {149,125,165,255}, {125,101,129,255}, {113, 93,113,255}, { 64, 48, 28,255}, { 40, 28,  4,255}, { 40, 28,  4,255} },       SLC_BLUE };
+struct stripey_line     orange_stripey_line  = { { {133, 68, 24,255}, {157, 89, 36,255}, {190,109, 52,255}, {190, 76,  0,255}, {194,101,  0,255}, {198,133,  0,255}, {198,133,  0,255}, {198,133,  0,255}, {194,101,  0,255}, {190, 76,  0,255}, {190,109, 52,255}, {157, 89, 36,255}, {133, 68, 24,255}, { 89, 40,  4,255}, { 56, 24,  0,255}, { 56, 24,  0,255} },     SLC_ORANGE };
+struct stripey_line      white_stripey_line  = { { {174,153,117,255}, {190,170,133,255}, {214,198,174,255}, {222,206,182,255}, {230,214,194,255}, {234,222,202,255}, {234,222,202,255}, {234,222,202,255}, {230,214,194,255}, {222,206,182,255}, {214,198,174,255}, {190,170,133,255}, {174,153,117,255}, {165,145,105,255}, { 89, 68, 28,255}, { 89, 68, 28,255} },      SLC_WHITE };
+struct stripey_line     green2_stripey_line  = { { {109,101, 44,255}, {117,113, 52,255}, {137,141, 72,255}, {145,153, 80,255}, {153,170, 89,255}, {157,178, 97,255}, {157,178, 97,255}, {157,178, 97,255}, {153,170, 89,255}, {145,153, 80,255}, {137,141, 72,255}, {117,113, 52,255}, {109,101, 44,255}, { 60, 48, 12,255}, { 36, 24,  0,255}, { 36, 24,  0,255} },     SLC_GREEN2 };
+struct stripey_line   darkgreen_stripey_line = { { { 40, 68,  4,255}, { 52, 93,  4,255}, { 56,113, 12,255}, { 56,113, 12,255}, { 56,113, 12,255}, { 60,137, 12,255}, { 60,137, 12,255}, { 60,137, 12,255}, { 56,113, 12,255}, { 56,113, 12,255}, { 56,113, 12,255}, { 52, 93,  4,255}, { 40, 68,  4,255}, { 28, 44,  0,255}, { 20, 20,  0,255}, { 20, 20,  0,255} },  SLC_DARKGREEN };
+struct stripey_line mixed_green_stripey_line = { { { 40, 68,  4,255}, { 52, 93,  4,255}, { 56,113, 12,255}, { 60,137, 12,255}, { 64,161, 12,255}, {125,125, 60,255}, {125,125, 60,255}, {125,125, 60,255}, { 64,161, 12,255}, { 60,137, 12,255}, { 56,113, 12,255}, { 52, 93,  4,255}, { 40, 68,  4,255}, { 28, 44,  0,255}, { 20, 20,  0,255}, { 20, 20,  0,255} }, SLC_MIXEDGREEN };
 
 
 struct stripey_line colored_stripey_lines[STRIPEY_LINE_COLOR_COUNT] = { 

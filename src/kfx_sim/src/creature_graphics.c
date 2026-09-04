@@ -382,7 +382,10 @@ void untint_thing(struct Thing *thing)
     thing->rendering_flags &= ~(TRF_Tint_1|TRF_Tint_2);
 }
 
-void tint_thing(struct Thing *thing, TbPixel colour, unsigned char tint)
+/* colour is a palette INDEX (matches Thing::tint_colour, unsigned char),
+ * not a resolved TbPixel -- see possession_hit_colours' comment in
+ * player_data.c. */
+void tint_thing(struct Thing *thing, unsigned char colour, unsigned char tint)
 {
     thing->rendering_flags ^= (thing->rendering_flags ^ (tint << 2)) & (TRF_Tint_1|TRF_Tint_2);
     thing->tint_colour = colour;

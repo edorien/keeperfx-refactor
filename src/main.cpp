@@ -1179,6 +1179,7 @@ short setup_game(void)
       &update_all_door_stats, &update_all_trap_draws_of_model,
       &add_research_to_all_players, &clear_research_for_all_players,
       &panel_map_update, &update_panel_color_player_color, &setup_panel_colors,
+      &reset_panel_map_background_cache,
       &clear_subtiles_lightness_wrapper,
       &get_function_idx,
       &config_reload_get_map_subtiles_x, &config_reload_get_map_subtiles_y,

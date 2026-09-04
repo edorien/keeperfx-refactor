@@ -27,6 +27,7 @@
 #include "custom_sprites.h"
 #include "globals.h"
 #include "vidmode.h"
+#include "bflib_render.h"
 
 #include "post_inc.h"
 
@@ -43,21 +44,24 @@ public:
     CMistFade();
     ~CMistFade();
     
-    void Setup(unsigned char *lens_mem, unsigned char *fade, unsigned char *ghost,
+    void Setup(unsigned char *lens_mem, int lightness_base,
                unsigned char pos_x_step, unsigned char pos_y_step,
                unsigned char sec_x_step, unsigned char sec_y_step);
     void SetAnimation(long counter, long speed);
-    void Render(unsigned char *dstbuf, long dstpitch, 
-               unsigned char *srcbuf, long srcpitch,
+    void Render(TbPixel *dstbuf, long dstpitch,
+               TbPixel *srcbuf, long srcpitch,
                long width, long height);
     void Animate();
-    
+
 private:
     /** Mist data width and height are the same and equal to this dimension */
     unsigned int lens_dim;
     unsigned char *lens_data;
-    unsigned char *fade_data;
-    unsigned char *ghost_data;
+    // Base row of the legacy fade_tables shade axis (cfg->mist_lightness);
+    // combined per-pixel with the mist density n (0-32) and fed straight
+    // into render_shade() -- replaces indexing pixmap.fade_tables directly,
+    // which required the screen pixel to still be a palette-index byte.
+    int lightness_base;
     unsigned char position_offset_x;
     unsigned char position_offset_y;
     unsigned char secondary_offset_x;
@@ -72,20 +76,19 @@ private:
 
 CMistFade::CMistFade()
 {
-    Setup(NULL, NULL, NULL, 2, 1, 253, 3);
+    Setup(NULL, 0, 2, 1, 253, 3);
 }
 
 CMistFade::~CMistFade()
 {
 }
 
-void CMistFade::Setup(unsigned char *lens_mem, unsigned char *fade, unsigned char *ghost,
+void CMistFade::Setup(unsigned char *lens_mem, int mist_lightness_base,
                      unsigned char pos_x_step, unsigned char pos_y_step,
                      unsigned char sec_x_step, unsigned char sec_y_step)
 {
     this->lens_data = lens_mem;
-    this->fade_data = fade;
-    this->ghost_data = ghost;
+    this->lightness_base = mist_lightness_base;
     this->lens_dim = 256;
     this->position_offset_x = 0;
     this->position_offset_y = 0;
@@ -114,11 +117,11 @@ void CMistFade::Animate()
     this->secondary_offset_y += this->secondary_y_step;
 }
 
-void CMistFade::Render(unsigned char *dstbuf, long dstpitch,
-                      unsigned char *srcbuf, long srcpitch,
+void CMistFade::Render(TbPixel *dstbuf, long dstpitch,
+                      TbPixel *srcbuf, long srcpitch,
                       long width, long height)
 {
-    if ((lens_data == NULL) || (fade_data == NULL))
+    if (lens_data == NULL)
     {
         ERRORLOG("Can't draw Mist as it's not initialized!");
         return;
@@ -140,8 +143,8 @@ void CMistFade::Render(unsigned char *dstbuf, long dstpitch,
     const int sec_x = this->secondary_offset_x;
     const int sec_y = this->secondary_offset_y;
     
-    unsigned char *src = srcbuf;
-    unsigned char *dst = dstbuf;
+    TbPixel *src = srcbuf;
+    TbPixel *dst = dstbuf;
     
     for (long y = 0; y < height; y++)
     {
@@ -176,8 +179,10 @@ void CMistFade::Render(unsigned char *dstbuf, long dstpitch,
             if (n > 32) n = 32;
             else if (n < 0) n = 0;
             
-            // Apply fade table and write result
-            *dst = this->fade_data[(n << 8) + *src];
+            // Apply shading and write result -- n (0-32) stacks onto the
+            // configured lightness base to form the 0-63 shade level;
+            // *src is already a real colour, no palette expansion needed.
+            *dst = render_shade(*src, this->lightness_base + (int)n);
             src++;
             dst++;
         }
@@ -227,8 +232,7 @@ TbBool MistEffect::Setup(long lens_idx)
     // Setup the mist renderer
     CMistFade* renderer = new CMistFade();
     renderer->Setup((unsigned char*)eye_lens_memory,
-                   &pixmap.fade_tables[(cfg->mist_lightness) * 256],
-                   &pixmap.ghost[(cfg->mist_ghost) * 256],
+                   (int)cfg->mist_lightness,
                    (unsigned char)cfg->mist_pos_x_step,
                    (unsigned char)cfg->mist_pos_y_step,
                    (unsigned char)cfg->mist_sec_x_step,
@@ -271,7 +275,7 @@ TbBool MistEffect::Draw(LensRenderContext* ctx)
     CMistFade* renderer = static_cast<CMistFade*>(m_user_data);
     
     // Mist reads from viewport-aligned source
-    unsigned char* viewport_src = ctx->srcbuf + ctx->viewport_x;
+    TbPixel* viewport_src = ctx->srcbuf + ctx->viewport_x;
     
     // Render mist effect
     renderer->Render(ctx->dstbuf, ctx->dstpitch, viewport_src, ctx->srcpitch,

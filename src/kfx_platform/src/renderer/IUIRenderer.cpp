@@ -48,7 +48,7 @@ TbResult IUIRenderer::SubmitRawSprite(int32_t x, int32_t y, const struct TbSprit
 }
 
 TbResult IUIRenderer::SubmitRawSpriteOneColour(int32_t x, int32_t y, const struct TbSprite* spr,
-                                               unsigned char colour, KfxDrawState state)
+                                               TbPixel colour, KfxDrawState state)
 {
     if (!spr) return Lb_FAIL;
     ScopedDrawState guard(state.flags);
@@ -64,7 +64,7 @@ TbResult IUIRenderer::SubmitRawSpriteScaled(int32_t x, int32_t y, const struct T
 }
 
 TbResult IUIRenderer::SubmitRawSpriteScaledOneColour(int32_t x, int32_t y, const struct TbSprite* spr,
-                                                     int32_t w, int32_t h, unsigned char colour,
+                                                     int32_t w, int32_t h, TbPixel colour,
                                                      KfxDrawState state)
 {
     if (!spr) return Lb_FAIL;
@@ -73,7 +73,7 @@ TbResult IUIRenderer::SubmitRawSpriteScaledOneColour(int32_t x, int32_t y, const
 }
 
 int IUIRenderer::SubmitRawSpriteScaledRemap(int32_t x, int32_t y, const struct TbSprite* spr,
-                                            int32_t w, int32_t h, const unsigned char* cmap,
+                                            int32_t w, int32_t h, const TbPixel* cmap,
                                             KfxDrawState state)
 {
     if (!spr || !cmap) return Lb_FAIL;
@@ -82,7 +82,7 @@ int IUIRenderer::SubmitRawSpriteScaledRemap(int32_t x, int32_t y, const struct T
 }
 
 void IUIRenderer::SubmitSolidBox(int32_t x, int32_t y, int32_t w, int32_t h,
-                                 uint8_t colour_idx, KfxDrawState state)
+                                 TbPixel colour_idx, KfxDrawState state)
 {
     if (w <= 0 || h <= 0) return;
     // LbDrawBox reads the outline flag itself, so the whole state just goes ambient.

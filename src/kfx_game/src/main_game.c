@@ -420,6 +420,15 @@ static TbBool init_level(void)
     game_callbacks->clear_top_message_stats();
     init_dungeons();
     config_reload_callbacks->setup_panel_colors();
+    // This early call above runs before this level's own map/camera has
+    // rendered a single frame, so on any level after the first in this
+    // process it builds the minimap panel's colours from a previous
+    // level's background capture under whatever palette was active at
+    // this early point -- not this level's. Force the lazy in-game
+    // rebuild (frontmenu_ingame_map.c's auto_gen_tables(), invoked from
+    // the first real panel_map_draw_slabs() call) to run again once this
+    // level is actually rendering, so it captures and rebuilds correctly.
+    config_reload_callbacks->reset_panel_map_background_cache();
     init_map_size(get_selected_level_number());
     sim_feedback->clear_sound_messages();
     

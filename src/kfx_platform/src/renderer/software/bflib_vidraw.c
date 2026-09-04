@@ -44,7 +44,7 @@ struct TbSpriteDrawData {
     char *sp;
     short Wd;
     short Ht;
-    unsigned char *r;
+    TbPixel *r;
     int nextRowDelta;
     short startShift;
     TbBool mirror;
@@ -53,16 +53,55 @@ struct TbSpriteDrawData {
 int32_t xsteps_array[2*SPRITE_SCALING_XSTEPS];
 int32_t ysteps_array[2*SPRITE_SCALING_YSTEPS];
 
-unsigned char *poly_screen;
-unsigned char *vec_screen;
+TbPixel *poly_screen;
+TbPixel *vec_screen;
 unsigned char *vec_map;
 unsigned long vec_screen_width;
 long vec_window_width;
 long vec_window_height;
 unsigned char *dither_map;
 unsigned char *dither_end;
-unsigned char *lbSpriteReMapPtr;
+TbPixel *lbSpriteReMapPtr;
+TbPixel lbSpriteRemapTable[256];
 long scale_up;
+/******************************************************************************/
+
+void SetupSpriteRemapGhost(uint8_t ref_index)
+{
+    const unsigned char *palette = RendererGetActivePalette();
+    TbPixel ref = expand_indexed_pixel(ref_index, palette);
+    for (int i = 0; i < 256; i++) {
+        lbSpriteRemapTable[i] = render_ghost_blend(ref, expand_indexed_pixel((uint8_t)i, palette));
+    }
+    lbSpriteReMapPtr = lbSpriteRemapTable;
+}
+
+void SetupSpriteRemapShade(int shade)
+{
+    const unsigned char *palette = RendererGetActivePalette();
+    for (int i = 0; i < 256; i++) {
+        lbSpriteRemapTable[i] = render_shade(expand_indexed_pixel((uint8_t)i, palette), shade);
+    }
+    lbSpriteReMapPtr = lbSpriteRemapTable;
+}
+
+void SetupSpriteRemapWhiteFlash(void)
+{
+    const unsigned char *palette = RendererGetActivePalette();
+    for (int i = 0; i < 256; i++) {
+        lbSpriteRemapTable[i] = render_flash_blend(expand_indexed_pixel((uint8_t)i, palette), 48, 48, 48);
+    }
+    lbSpriteReMapPtr = lbSpriteRemapTable;
+}
+
+void SetupSpriteRemapRedFlash(void)
+{
+    const unsigned char *palette = RendererGetActivePalette();
+    for (int i = 0; i < 256; i++) {
+        lbSpriteRemapTable[i] = render_flash_blend(expand_indexed_pixel((uint8_t)i, palette), 20, -10, -10);
+    }
+    lbSpriteReMapPtr = lbSpriteRemapTable;
+}
 /******************************************************************************/
 /**  Prints horizontal or vertical line on current graphics window.
  *  Does no screen locking - screen must be lock before and unlocked
@@ -121,18 +160,15 @@ void LbDrawHVLine(long xpos1, long ypos1, long xpos2, long ypos2, TbPixel colour
       ypos2 = SwTargetWindowHeight() - 1;
   }
   //And now to drawing
-  unsigned char *screen_ptr = SwTargetGraphicsWindowPtr() + xpos1 +
+  TbPixel *screen_ptr = SwTargetGraphicsWindowPtr() + xpos1 +
           SwTargetScanline() * ypos1;
   if ( xpos2 == xpos1 )
   {//Vertical line
     long idx = ypos2 - ypos1 + 1;
     if (RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR4)
     {
-      unsigned short glass_idx = (unsigned char)colour << 8;
       do {
-        glass_idx&=0xff00;
-        glass_idx |= *screen_ptr;
-        *screen_ptr = lbDisplay.GlassMap[glass_idx];
+        *screen_ptr = render_ghost_blend(colour, *screen_ptr);
         screen_ptr += SwTargetScanline();
         idx--;
       } while ( idx>0 );
@@ -140,22 +176,18 @@ void LbDrawHVLine(long xpos1, long ypos1, long xpos2, long ypos2, TbPixel colour
     {
       if (RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR8)
       {
-        unsigned short glass_idx = (unsigned char)colour;
         do
         {
-          glass_idx&=0x00ff;
-          glass_idx |= ((*screen_ptr)<<8);
-          *screen_ptr = lbDisplay.GlassMap[glass_idx];
+          *screen_ptr = render_ghost_blend_2(colour, *screen_ptr);
           screen_ptr += SwTargetScanline();
           idx--;
         }
         while ( idx>0 );
       } else
       {
-        unsigned char col_idx = colour;
         do
         {
-          *screen_ptr = col_idx;
+          *screen_ptr = colour;
           screen_ptr += SwTargetScanline();
           idx--;
         }
@@ -167,12 +199,9 @@ void LbDrawHVLine(long xpos1, long ypos1, long xpos2, long ypos2, TbPixel colour
     long idx = xpos2 - xpos1 + 1;
     if (RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR4)
     {
-      unsigned short glass_idx = (unsigned char)colour << 8;
       do
       {
-        glass_idx&=0xff00;
-        glass_idx |= *screen_ptr;
-        *screen_ptr = lbDisplay.GlassMap[glass_idx];
+        *screen_ptr = render_ghost_blend(colour, *screen_ptr);
         screen_ptr++;
         idx--;
       }
@@ -182,12 +211,9 @@ void LbDrawHVLine(long xpos1, long ypos1, long xpos2, long ypos2, TbPixel colour
     {
       if (RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR8)
       {
-        unsigned short glass_idx = (unsigned char)colour;
         do
         {
-          glass_idx&=0x00ff;
-          glass_idx |= (((unsigned short)*screen_ptr)<<8);
-          *screen_ptr = lbDisplay.GlassMap[glass_idx];
+          *screen_ptr = render_ghost_blend_2(colour, *screen_ptr);
           screen_ptr++;
           idx--;
         }
@@ -195,10 +221,9 @@ void LbDrawHVLine(long xpos1, long ypos1, long xpos2, long ypos2, TbPixel colour
       }
       else
       {
-        unsigned char col_idx = colour;
         while ( idx>0 )
         {
-          *screen_ptr = col_idx;
+          *screen_ptr = colour;
           screen_ptr++;
           idx--;
         }
@@ -247,19 +272,16 @@ void LbDrawBoxClip(long x, long y, unsigned long width, unsigned long height, Tb
   if ( (long)width <= 0 )
       return;
   //And now let's start drawing
-  unsigned char *screen_ptr = &SwTargetWScreen()[SwTargetWindowX()] + xpos + ypos;
+  TbPixel *screen_ptr = &SwTargetWScreen()[SwTargetWindowX()] + xpos + ypos;
   unsigned long idxh = height;
   //Space between lines in video buffer
   unsigned long screen_delta = SwTargetScanline() - width;
   if ( RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR4 )
   {
-      unsigned short glass_idx = (unsigned char)colour << 8;
       do {
           unsigned long idxw = width;
           do {
-                glass_idx&=0xff00;
-                glass_idx |= *screen_ptr;
-                *screen_ptr = lbDisplay.GlassMap[glass_idx];
+                *screen_ptr = render_ghost_blend(colour, *screen_ptr);
                 screen_ptr++;
                 idxw--;
           } while ( idxw>0 );
@@ -269,13 +291,10 @@ void LbDrawBoxClip(long x, long y, unsigned long width, unsigned long height, Tb
   } else
   if ( RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR8 )
   {
-      unsigned short glass_idx = (unsigned char)colour;
       do {
             unsigned long idxw = width;
             do {
-              glass_idx&=0x00ff;
-              glass_idx |= (((unsigned short)*screen_ptr)<<8);
-              *screen_ptr = lbDisplay.GlassMap[glass_idx];
+              *screen_ptr = render_ghost_blend_2(colour, *screen_ptr);
               screen_ptr++;
               idxw--;
             } while ( idxw>0 );
@@ -284,11 +303,10 @@ void LbDrawBoxClip(long x, long y, unsigned long width, unsigned long height, Tb
       } while ( idxh>0 );
   } else
   {
-      unsigned char col_idx = colour;
       do {
             unsigned long idxw = width;
             do {
-              *screen_ptr = col_idx;
+              *screen_ptr = colour;
               screen_ptr++;
               idxw--;
             } while ( idxw>0 );
@@ -551,19 +569,20 @@ static inline void LbSpriteDrawLineSkipToEol(const char **sp, short *remaining_w
  * @param buf_len
  * @param mirror
  */
-static inline void LbDrawBufferTranspr(unsigned char **buf_out,const char *buf_inp,
+static inline void LbDrawBufferTranspr(TbPixel **buf_out,const char *buf_inp,
         const int buf_len, const TbBool mirror)
 {
   int i;
-  unsigned int val;
+  const unsigned char *palette = RendererGetActivePalette();
+  TbPixel val;
   if ( mirror )
   {
     if ((RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR4) != 0)
     {
         for (i=0; i<buf_len; i++ )
         {
-            val = *(const unsigned char *)buf_inp;
-            **buf_out = lbDisplay.GlassMap[(val<<8) + **buf_out];
+            val = expand_indexed_pixel(*(const unsigned char *)buf_inp, palette);
+            **buf_out = render_ghost_blend(val, **buf_out);
             buf_inp++;
             (*buf_out)--;
         }
@@ -571,8 +590,8 @@ static inline void LbDrawBufferTranspr(unsigned char **buf_out,const char *buf_i
     {
         for (i=0; i<buf_len; i++ )
         {
-            val = *(const unsigned char *)buf_inp;
-            **buf_out = lbDisplay.GlassMap[((**buf_out)<<8) + val];
+            val = expand_indexed_pixel(*(const unsigned char *)buf_inp, palette);
+            **buf_out = render_ghost_blend_2(val, **buf_out);
             buf_inp++;
             (*buf_out)--;
         }
@@ -583,8 +602,8 @@ static inline void LbDrawBufferTranspr(unsigned char **buf_out,const char *buf_i
     {
         for (i=0; i<buf_len; i++ )
         {
-            val = *(const unsigned char *)buf_inp;
-            **buf_out = lbDisplay.GlassMap[(val<<8) + **buf_out];
+            val = expand_indexed_pixel(*(const unsigned char *)buf_inp, palette);
+            **buf_out = render_ghost_blend(val, **buf_out);
             buf_inp++;
             (*buf_out)++;
         }
@@ -592,8 +611,8 @@ static inline void LbDrawBufferTranspr(unsigned char **buf_out,const char *buf_i
     {
         for (i=0; i<buf_len; i++ )
         {
-            val = *(const unsigned char *)buf_inp;
-            **buf_out = lbDisplay.GlassMap[((**buf_out)<<8) + val];
+            val = expand_indexed_pixel(*(const unsigned char *)buf_inp, palette);
+            **buf_out = render_ghost_blend_2(val, **buf_out);
             buf_inp++;
             (*buf_out)++;
         }
@@ -610,15 +629,16 @@ static inline void LbDrawBufferTranspr(unsigned char **buf_out,const char *buf_i
  * @param buf_len
  * @param mirror
  */
-static inline void LbDrawBufferSolid(unsigned char **buf_out,const char *buf_inp,
+static inline void LbDrawBufferSolid(TbPixel **buf_out,const char *buf_inp,
         const int buf_len, const TbBool mirror)
 {
     int i;
+    const unsigned char *palette = RendererGetActivePalette();
     if ( mirror )
     {
         for (i=0; i < buf_len; i++)
         {
-            **buf_out = *(const unsigned char *)buf_inp;
+            **buf_out = expand_indexed_pixel(*(const unsigned char *)buf_inp, palette);
             buf_inp++;
             (*buf_out)--;
         }
@@ -626,7 +646,7 @@ static inline void LbDrawBufferSolid(unsigned char **buf_out,const char *buf_inp
     {
         for (i=0; i < buf_len; i++)
         {
-            **buf_out = *(const unsigned char *)buf_inp;
+            **buf_out = expand_indexed_pixel(*(const unsigned char *)buf_inp, palette);
             buf_inp++;
             (*buf_out)++;
         }
@@ -640,7 +660,7 @@ static inline void LbDrawBufferSolid(unsigned char **buf_out,const char *buf_inp
  * @param buf_len
  * @param mirror
  */
-static inline void LbDrawBufferOneColour(unsigned char **buf_out,const TbPixel colour,
+static inline void LbDrawBufferOneColour(TbPixel **buf_out,const TbPixel colour,
         const int buf_len, const TbBool mirror)
 {
     int i;
@@ -650,14 +670,14 @@ static inline void LbDrawBufferOneColour(unsigned char **buf_out,const TbPixel c
         {
             for (i=0; i<buf_len; i++ )
             {
-                **buf_out = lbDisplay.GlassMap[(colour<<8) + **buf_out];
+                **buf_out = render_ghost_blend(colour, **buf_out);
                 (*buf_out)--;
             }
         } else
         {
             for (i=0; i<buf_len; i++ )
             {
-                **buf_out = lbDisplay.GlassMap[((**buf_out)<<8) + colour];
+                **buf_out = render_ghost_blend_2(colour, **buf_out);
                 (*buf_out)--;
             }
         }
@@ -667,14 +687,14 @@ static inline void LbDrawBufferOneColour(unsigned char **buf_out,const TbPixel c
         {
             for (i=0; i<buf_len; i++ )
             {
-                **buf_out = lbDisplay.GlassMap[(colour<<8) + **buf_out];
+                **buf_out = render_ghost_blend(colour, **buf_out);
                 (*buf_out)++;
             }
         } else
         {
             for (i=0; i<buf_len; i++ )
             {
-                **buf_out = lbDisplay.GlassMap[((**buf_out)<<8) + colour];
+                **buf_out = render_ghost_blend_2(colour, **buf_out);
                 (*buf_out)++;
             }
         }
@@ -687,7 +707,7 @@ static inline void LbDrawBufferOneColour(unsigned char **buf_out,const TbPixel c
  * @param colour
  * @param buf_len
  */
-static inline void LbDrawBufferOneColorSolid(unsigned char **buf_out,const TbPixel colour,
+static inline void LbDrawBufferOneColorSolid(TbPixel **buf_out,const TbPixel colour,
         const int buf_len, const TbBool mirror)
 {
     int i;
@@ -716,7 +736,7 @@ static inline void LbDrawBufferOneColorSolid(unsigned char **buf_out,const TbPix
  * @param lpos
  * @param mirror
  */
-static inline void LbSpriteDrawLineTranspr(const char **sp, unsigned char **r, short *remaining_width,
+static inline void LbSpriteDrawLineTranspr(const char **sp, TbPixel **r, short *remaining_width,
     short lpos, const TbBool mirror)
 {
     char schr;
@@ -777,10 +797,10 @@ static inline void LbSpriteDrawLineTranspr(const char **sp, unsigned char **r, s
     } //end while
 }
 
-static inline TbResult LbSpriteDrawTranspr(const char *sp,short sprWd,short sprHt,unsigned char *r,
+static inline TbResult LbSpriteDrawTranspr(const char *sp,short sprWd,short sprHt,TbPixel *r,
     int nextRowDelta,short left,const TbBool mirror)
 {
-    unsigned char *nextRow;
+    TbPixel *nextRow;
     long htIndex;
     nextRow = &(r[nextRowDelta]);
     htIndex = sprHt;
@@ -814,7 +834,7 @@ static inline TbResult LbSpriteDrawTranspr(const char *sp,short sprWd,short sprH
  * @param lpos
  * @param mirror
  */
-static inline void LbSpriteDrawLineSolid(const char **sp, unsigned char **r, short *remaining_width, short lpos, const TbBool mirror)
+static inline void LbSpriteDrawLineSolid(const char **sp, TbPixel **r, short *remaining_width, short lpos, const TbBool mirror)
 {
     char schr;
     unsigned char drawOut;
@@ -878,10 +898,10 @@ static inline void LbSpriteDrawLineSolid(const char **sp, unsigned char **r, sho
  * @param mirror
  * @return
  */
-static inline TbResult LbSpriteDrawSolid(const char *sp,short sprWd,short sprHt,unsigned char *r,
+static inline TbResult LbSpriteDrawSolid(const char *sp,short sprWd,short sprHt,TbPixel *r,
     int nextRowDelta,short left,const TbBool mirror)
 {
-    unsigned char *nextRow;
+    TbPixel *nextRow;
     long htIndex;
     nextRow = &(r[nextRowDelta]);
     htIndex = sprHt;
@@ -906,7 +926,7 @@ static inline TbResult LbSpriteDrawSolid(const char *sp,short sprWd,short sprHt,
     return Lb_SUCCESS;
 }
 
-static inline void LbSpriteDrawLineFastCpy(const char **sp, unsigned char **r, short *remaining_width, short lpos)
+static inline void LbSpriteDrawLineFastCpy(const char **sp, TbPixel **r, short *remaining_width, short lpos)
 {
     char schr;
     unsigned char drawOut;
@@ -970,10 +990,10 @@ static inline void LbSpriteDrawLineFastCpy(const char **sp, unsigned char **r, s
  * @param mirror
  * @return
  */
-static inline TbResult LbSpriteDrawFastCpy(const char *sp,short sprWd,short sprHt,unsigned char *r,
+static inline TbResult LbSpriteDrawFastCpy(const char *sp,short sprWd,short sprHt,TbPixel *r,
     int nextRowDelta,short left,const TbBool mirror)
 {
-    unsigned char *nextRow;
+    TbPixel *nextRow;
     long htIndex;
     nextRow = &(r[nextRowDelta]);
     htIndex = sprHt;
@@ -1020,7 +1040,7 @@ TbResult LbSpriteDrawScaledOneColour(long xpos, long ypos, const struct TbSprite
     return RendererSpriteDrawScaledOneColour(xpos, ypos, sprite, dest_width, dest_height, colour);
 }
 
-int LbSpriteDrawScaledRemap(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const unsigned char *cmap)
+int LbSpriteDrawScaledRemap(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const TbPixel *cmap)
 {
     return RendererSpriteDrawScaledRemap(xpos, ypos, sprite, dest_width, dest_height, cmap);
 }
@@ -1050,7 +1070,7 @@ TbResult LbSpriteDrawImmediate(long x, long y, const struct TbSprite *spr)
  * @param lpos
  * @param mirror
  */
-static inline void LbSpriteDrawLineTrOneColour(const char **sp, unsigned char **r, short *remaining_width,
+static inline void LbSpriteDrawLineTrOneColour(const char **sp, TbPixel **r, short *remaining_width,
     TbPixel colour, short lpos,const TbBool mirror)
 {
     char schr;
@@ -1112,9 +1132,9 @@ static inline void LbSpriteDrawLineTrOneColour(const char **sp, unsigned char **
 }
 
 static inline TbResult LbSpriteDrawTrOneColour(const char *sp,short sprWd,short sprHt,
-        unsigned char *r,TbPixel colour,int nextRowDelta,short left,const TbBool mirror)
+        TbPixel *r,TbPixel colour,int nextRowDelta,short left,const TbBool mirror)
 {
-    unsigned char *nextRow;
+    TbPixel *nextRow;
     long htIndex;
     nextRow = &(r[nextRowDelta]);
     htIndex = sprHt;
@@ -1139,7 +1159,7 @@ static inline TbResult LbSpriteDrawTrOneColour(const char *sp,short sprWd,short 
     return Lb_SUCCESS;
 }
 
-static inline void LbSpriteDrawLineSlOneColour(const char **sp, unsigned char **r, short *remaining_width,
+static inline void LbSpriteDrawLineSlOneColour(const char **sp, TbPixel **r, short *remaining_width,
     TbPixel colour, short lpos,const TbBool mirror)
 {
     char schr;
@@ -1194,9 +1214,9 @@ static inline void LbSpriteDrawLineSlOneColour(const char **sp, unsigned char **
 }
 
 static inline TbResult LbSpriteDrawSlOneColour(const char *sp,short sprWd,short sprHt,
-        unsigned char *r,TbPixel colour,int nextRowDelta,short left,const TbBool mirror)
+        TbPixel *r,TbPixel colour,int nextRowDelta,short left,const TbBool mirror)
 {
-    unsigned char *nextRow;
+    TbPixel *nextRow;
     long htIndex;
     nextRow = &(r[nextRowDelta]);
     htIndex = sprHt;
@@ -1221,7 +1241,7 @@ static inline TbResult LbSpriteDrawSlOneColour(const char *sp,short sprWd,short 
     return Lb_SUCCESS;
 }
 
-static inline void LbSpriteDrawLineFCOneColour(const char **sp, unsigned char **r, short *remaining_width, TbPixel colour, short lpos)
+static inline void LbSpriteDrawLineFCOneColour(const char **sp, TbPixel **r, short *remaining_width, TbPixel colour, short lpos)
 {
     char schr;
     unsigned char drawOut;
@@ -1266,7 +1286,9 @@ static inline void LbSpriteDrawLineFCOneColour(const char **sp, unsigned char **
             drawOut = schr;
             if (drawOut >= (*remaining_width))
                 drawOut = (*remaining_width);
-            memset((*r), colour, drawOut);
+            /* Was memset() -- no longer valid now a pixel is 4 bytes, not 1. */
+            for (int px = 0; px < drawOut; px++)
+                (*r)[px] = colour;
             (*remaining_width) -= schr;
             (*r) += schr;
             (*sp) += (*(*sp)) + 1;
@@ -1285,10 +1307,10 @@ static inline void LbSpriteDrawLineFCOneColour(const char **sp, unsigned char **
  * @param mirror
  * @return
  */
-static inline TbResult LbSpriteDrawFCOneColour(const char *sp,short sprWd,short sprHt,unsigned char *r,
+static inline TbResult LbSpriteDrawFCOneColour(const char *sp,short sprWd,short sprHt,TbPixel *r,
     TbPixel colour,int nextRowDelta,short left,const TbBool mirror)
 {
-    unsigned char *nextRow;
+    TbPixel *nextRow;
     long htIndex;
     nextRow = &(r[nextRowDelta]);
     htIndex = sprHt;
@@ -1331,33 +1353,19 @@ TbResult LbSpriteDrawOneColourImmediate(long x, long y, const struct TbSprite *s
     }
 }
 
+/* Used to byte-align dst to a 4-byte boundary and then bulk-copy 4 bytes
+ * (= 4 pixels) at a time via uint32_t -- a real win while TbPixel was one
+ * byte. TbPixel is a 4-byte struct now, exactly the width of that uint32_t
+ * "batch", so the alignment dance no longer means anything and the bulk
+ * copy was silently copying 1 pixel while advancing both pointers by 4
+ * pixels' worth of storage -- 3 out of every 4 pixels in a run were never
+ * written, which is what "dotted" sprites are: whatever was already in the
+ * framebuffer at those positions, left untouched. Plain per-element copy;
+ * the compiler vectorizes this itself, no need for a hand-rolled trick. */
 void LbPixelBlockCopyForward(TbPixel * dst, const TbPixel * src, long len)
 {
-    TbPixel px;
-    unsigned long pxquad;
-    if ( !((ptrdiff_t)dst & 3) || ((px = *src, ++src, *dst = px, ++dst, --len, len)
-     && (!((ptrdiff_t)dst & 3) || ((px = *src, ++src, *dst = px, ++dst, --len, len)
-     && (!((ptrdiff_t)dst & 3) ||  (px = *src, ++src, *dst = px, ++dst, --len, len))))) )
-    {
-        long l;
-        for ( l = len>>2; l > 0; l--)
-        {
-            pxquad = *(uint32_t *)src;
-            src += sizeof(uint32_t);
-            *(uint32_t *)dst = pxquad;
-            dst += sizeof(uint32_t);
-        }
-        if (len & 3)
-        {
-          *dst = *src;
-          if ((len & 3) != 1)
-          {
-            *(dst + 1) = *(src + 1);
-            if ((len & 3) != 2)
-              *(dst + 2) = *(src + 2);
-          }
-        }
-    }
+    for (long i = 0; i < len; i++)
+        dst[i] = src[i];
 }
 
 /**
@@ -1571,7 +1579,7 @@ TbResult LbSpriteDrawScaledImmediate(long xpos, long ypos, const struct TbSprite
     if ((dest_width <= 0) || (dest_height <= 0))
       return 1;
     if ((RendererGetDrawFlags() & Lb_SPRITE_REMAP) != 0)
-        lbSpriteReMapPtr = lbDisplay.FadeTable + ((lbDisplay.FadeStep & 0x3F) << 8);
+        SetupSpriteRemapShade(lbDisplay.FadeStep & 0x3F);
     LbSpriteSetScalingData(xpos, ypos, sprite->SWidth, sprite->SHeight, dest_width, dest_height);
     const struct TbSourceBuffer buffer = {
         sprite->Data,
@@ -1588,18 +1596,18 @@ TbResult LbSpriteDrawScaledOneColourImmediate(long xpos, long ypos, const struct
     if ((dest_width <= 0) || (dest_height <= 0))
       return 1;
     if ((RendererGetDrawFlags() & Lb_SPRITE_REMAP) != 0)
-        lbSpriteReMapPtr = lbDisplay.FadeTable + ((lbDisplay.FadeStep & 0x3F) << 8);
+        SetupSpriteRemapShade(lbDisplay.FadeStep & 0x3F);
     LbSpriteSetScalingData(xpos, ypos, sprite->SWidth, sprite->SHeight, dest_width, dest_height);
     return LbSpriteDrawOneColourUsingScalingData(0, 0, sprite, colour);
 }
 
-int LbSpriteDrawScaledRemapImmediate(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const unsigned char *cmap)
+int LbSpriteDrawScaledRemapImmediate(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const TbPixel *cmap)
 {
     SYNCDBG(19,"At (%ld,%ld) size (%ld,%ld)",xpos,ypos,dest_width,dest_height);
     if ((dest_width <= 0) || (dest_height <= 0))
       return 1;
     if ((RendererGetDrawFlags() & Lb_SPRITE_REMAP) != 0)
-        lbSpriteReMapPtr = lbDisplay.FadeTable + ((lbDisplay.FadeStep & 0x3F) << 8);
+        SetupSpriteRemapShade(lbDisplay.FadeStep & 0x3F);
     LbSpriteSetScalingData(xpos, ypos, sprite->SWidth, sprite->SHeight, dest_width, dest_height);
     const struct TbSourceBuffer buffer = {
         sprite->Data,
@@ -1611,7 +1619,7 @@ int LbSpriteDrawScaledRemapImmediate(long xpos, long ypos, const struct TbSprite
 }
 
 
-void setup_vecs(unsigned char *screenbuf, unsigned char *nvec_map,
+void setup_vecs(TbPixel *screenbuf, unsigned char *nvec_map,
         unsigned int line_len, unsigned int width, unsigned int height)
 {
   if ( line_len > 0 )
@@ -1644,13 +1652,14 @@ void setup_vecs(unsigned char *screenbuf, unsigned char *nvec_map,
  * @param sprite The source sprite.
  * @return Gives 0 on success.
  */
-TbResult LbHugeSpriteDrawUsingScalingUpData(uchar *outbuf, int scanline, int outheight,
+TbResult LbHugeSpriteDrawUsingScalingUpData(TbPixel *outbuf, int scanline, int outheight,
     int32_t *xstep, int32_t *ystep, const struct TbHugeSprite *sprite)
 {
     SYNCDBG(17,"Drawing");
     int ystep_delta;
     const unsigned char *sprdata;
     int32_t *ycurstep;
+    const unsigned char *palette = RendererGetActivePalette();
 
     ystep_delta = 2;
     if (scanline < 0) {
@@ -1689,8 +1698,7 @@ TbResult LbHugeSpriteDrawUsingScalingUpData(uchar *outbuf, int scanline, int out
                         xdup = abs(scanline)-xcurstep[0];
                     if (xdup > 0)
                     {
-                        unsigned char pxval;
-                        pxval = *sprdata;
+                        TbPixel pxval = expand_indexed_pixel(*sprdata, palette);
                         for (;xdup > 0; xdup--)
                         {
                             *out_end = pxval;
@@ -1748,7 +1756,7 @@ TbResult LbHugeSpriteDrawUsingScalingUpData(uchar *outbuf, int scanline, int out
  * @return
  */
 TbResult LbHugeSpriteDraw(const struct TbHugeSprite * spr, long sp_len,
-    unsigned char *r, int r_row_delta, int r_height, short xshift, short yshift, int units_per_px)
+    TbPixel *r, int r_row_delta, int r_height, short xshift, short yshift, int units_per_px)
 {
     LbSpriteSetScalingData(-xshift*units_per_px/16, -yshift*units_per_px/16, spr->SWidth, spr->SHeight, spr->SWidth*units_per_px/16, spr->SHeight*units_per_px/16);
     return LbHugeSpriteDrawUsingScalingUpData(r, r_row_delta, r_height, xsteps_array, ysteps_array, spr);
@@ -1827,18 +1835,14 @@ void LbDrawPixelClip(long x, long y, TbPixel colour)
     if ( (y < 0) || (y >= SwTargetWindowHeight()) )
         return;
     TbPixel *buf;
-    int val;
     buf = SwTargetGraphicsWindowPtr() + SwTargetScanline() * y + x;
-    val = 0;
     if ((RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR4) != 0)
     {
-        val = (colour << 8) + (*buf);
-        *buf = lbDisplay.GlassMap[val];
+        *buf = render_ghost_blend(colour, *buf);
     } else
     if ((RendererGetDrawFlags() & Lb_SPRITE_TRANSPAR8) != 0)
     {
-        val = ((*buf) << 8) + colour;
-        *buf = lbDisplay.GlassMap[val];
+        *buf = render_ghost_blend_2(colour, *buf);
     } else
     {
         *buf = colour;
@@ -1913,10 +1917,8 @@ static inline void LbDrawPixelClipOpaq1(long x, long y, TbPixel colour)
     if ( (y < 0) || (y >= SwTargetWindowHeight()) )
         return;
     TbPixel *buf;
-    int val;
     buf = SwTargetGraphicsWindowPtr() + SwTargetScanline() * y + x;
-    val = (colour << 8) + (*buf);
-    *buf = lbDisplay.GlassMap[val];
+    *buf = render_ghost_blend(colour, *buf);
 }
 
 static inline void LbDrawPixelClipOpaq2(long x, long y, TbPixel colour)
@@ -1926,10 +1928,8 @@ static inline void LbDrawPixelClipOpaq2(long x, long y, TbPixel colour)
     if ( (y < 0) || (y >= SwTargetWindowHeight()) )
         return;
     TbPixel *buf;
-    int val;
     buf = SwTargetGraphicsWindowPtr() + SwTargetScanline() * y + x;
-    val = ((*buf) << 8) + colour;
-    *buf = lbDisplay.GlassMap[val];
+    *buf = render_ghost_blend_2(colour, *buf);
 }
 
 static inline void LbDrawPixelClipSolid(long x, long y, TbPixel colour)
@@ -2097,7 +2097,7 @@ void setup_steps(long posx, long posy, const struct TbSourceBuffer * src_buf, in
     (*ystep) = &ysteps_array[2 * sposy];
 }
 
-void setup_outbuf(const int32_t *xstep, const int32_t *ystep, uchar **outbuf, int *outheight)
+void setup_outbuf(const int32_t *xstep, const int32_t *ystep, TbPixel **outbuf, int *outheight)
 {
     int gspos_x;
     int gspos_y;

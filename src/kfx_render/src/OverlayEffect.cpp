@@ -20,12 +20,15 @@
 #include "OverlayEffect.h"
 
 #include <string.h>
+#include <memory>
+#include <new>
 #include "bflib_basics.h"
 #include "bflib_fileio.h"
 #include "bflib_dernc.h"
 #include "globals.h"
 #include "config_lenses.h"
 #include "custom_sprites.h"
+#include "renderer/RendererManager.h"
 
 #include "post_inc.h"
 
@@ -43,17 +46,24 @@ public:
     ~COverlayRenderer();
     
     TbBool LoadOverlay(long lens_idx);
-    void Render(unsigned char *dstbuf, long dstpitch, unsigned char *srcbuf, long srcpitch, 
+    void Render(TbPixel *dstbuf, long dstpitch, TbPixel *srcbuf, long srcpitch,
                 long width, long height);
     
 private:
     OverlayEffect* m_parent;         // Parent effect for asset loading
-    unsigned char* m_overlay_data;   // Overlay image data (from registry)
+    // m_owned_data is non-null only when we allocated the overlay ourselves
+    // (the file-fallback path below) and RAII-frees it; m_overlay_data is
+    // the pointer Render() actually reads through, set to either
+    // m_owned_data.get() or a borrowed (never freed) registry pointer. Two
+    // fields instead of one pointer + an "am I responsible for freeing it"
+    // bool makes a future call site that forgets to check the bool before
+    // freeing structurally impossible, not just unlikely.
+    std::unique_ptr<unsigned char[]> m_owned_data;
+    const unsigned char* m_overlay_data;
     int m_width;                     // Overlay width
     int m_height;                    // Overlay height
     short m_alpha;                   // Alpha blending level (0-256)
     TbBool m_loaded;                 // Whether overlay is loaded
-    TbBool m_owns_data;              // True if we allocated m_overlay_data and must free it
 };
 
 COverlayRenderer::COverlayRenderer(OverlayEffect* parent)
@@ -63,19 +73,10 @@ COverlayRenderer::COverlayRenderer(OverlayEffect* parent)
     , m_height(0)
     , m_alpha(128)
     , m_loaded(false)
-    , m_owns_data(false)
 {
 }
 
-COverlayRenderer::~COverlayRenderer()
-{
-    // Only free if we allocated the data (file fallback path)
-    if (m_owns_data && m_overlay_data != NULL)
-    {
-        free(m_overlay_data);
-    }
-    m_overlay_data = NULL;
-}
+COverlayRenderer::~COverlayRenderer() = default;
 
 TbBool COverlayRenderer::LoadOverlay(long lens_idx)
 {
@@ -97,16 +98,16 @@ TbBool COverlayRenderer::LoadOverlay(long lens_idx)
     // Try to get overlay data from asset registry (ZIP files with lenses.json)
     const struct LensOverlayData* overlay = get_lens_overlay_data(cfg->overlay_file);
     
-    if (overlay != NULL && overlay->data != NULL && 
+    if (overlay != NULL && overlay->data != NULL &&
         overlay->width > 0 && overlay->height > 0)
     {
         // Use registry data (we don't own it, no need to free)
+        m_owned_data.reset();
         m_overlay_data = overlay->data;
         m_width = overlay->width;
         m_height = overlay->height;
-        m_owns_data = false;  // Registry owns this data
-        
-        SYNCDBG(7, "Loaded overlay '%s' (%dx%d) from asset registry", 
+
+        SYNCDBG(7, "Loaded overlay '%s' (%dx%d) from asset registry",
                 cfg->overlay_file, m_width, m_height);
     }
     else
@@ -115,28 +116,25 @@ TbBool COverlayRenderer::LoadOverlay(long lens_idx)
         // This allows simple file-based mods without requiring ZIP/JSON
         // For overlays without registry, assume 256x256 (standard size)
         const int default_size = 256;
-        m_overlay_data = (unsigned char*)malloc(default_size * default_size);
-        
-        if (m_overlay_data == NULL)
+        m_owned_data.reset(new (std::nothrow) unsigned char[default_size * default_size]);
+
+        if (!m_owned_data)
         {
             ERRORLOG("Failed to allocate memory for overlay (lens %ld)", lens_idx);
             return false;
         }
-        
-        m_owns_data = true;  // We allocated this, must free in destructor
-        
+
         const char* loaded_from = NULL;
-        if (!m_parent->LoadAssetWithFallback(cfg->overlay_file, m_overlay_data, 
+        if (!m_parent->LoadAssetWithFallback(cfg->overlay_file, m_owned_data.get(),
                                              default_size * default_size, &loaded_from))
         {
-            WARNLOG("Failed to load overlay '%s' from registry or files for lens %ld", 
+            WARNLOG("Failed to load overlay '%s' from registry or files for lens %ld",
                     cfg->overlay_file, lens_idx);
-            free(m_overlay_data);
-            m_overlay_data = NULL;
-            m_owns_data = false;
+            m_owned_data.reset();
             return false;
         }
-        
+
+        m_overlay_data = m_owned_data.get();
         m_width = default_size;
         m_height = default_size;
         
@@ -156,67 +154,71 @@ TbBool COverlayRenderer::LoadOverlay(long lens_idx)
     return true;
 }
 
-void COverlayRenderer::Render(unsigned char *dstbuf, long dstpitch, unsigned char *srcbuf, long srcpitch,
+void COverlayRenderer::Render(TbPixel *dstbuf, long dstpitch, TbPixel *srcbuf, long srcpitch,
                               long width, long height)
 {
     if (!m_loaded || m_overlay_data == NULL)
     {
         return;
     }
-    
+
     const unsigned char* overlay_src = m_overlay_data;
     const short alpha = m_alpha;
-    
+    const unsigned char *pal = RendererGetActivePalette();
+
     // Overlay dimensions
     const int overlay_w = m_width;
     const int overlay_h = m_height;
-    
+
     // Stretch-to-fit: use fixed-point scaling (16.16 format) for precision
     // Scale factors map viewport coordinates to overlay texture coordinates
     const unsigned int scale_x = (overlay_w << 16) / width;
     const unsigned int scale_y = (overlay_h << 16) / height;
-    
+
     // Clamp alpha to valid range (0-256, where 256 = opaque)
     int alpha_clamped = (alpha < 0) ? 0 : ((alpha > 256) ? 256 : alpha);
     int inv_alpha = 256 - alpha_clamped;
-    
+
     // Composite overlay onto destination buffer with stretch-to-fit
     for (int y = 0; y < height; y++)
     {
         // Calculate overlay Y coordinate using fixed-point
         int overlay_y = (y * scale_y) >> 16;
         if (overlay_y >= overlay_h) overlay_y = overlay_h - 1;
-        
+
         const unsigned char* overlay_row = overlay_src + (overlay_y * overlay_w);
-        unsigned char* dst_row = dstbuf + (y * dstpitch);
-        const unsigned char* src_row = srcbuf + (y * srcpitch);
-        
+        TbPixel* dst_row = dstbuf + (y * dstpitch);
+        const TbPixel* src_row = srcbuf + (y * srcpitch);
+
         for (int x = 0; x < width; x++)
         {
-            // Get source pixel (the 3D view)
-            unsigned char src_pixel = src_row[x];
-            
+            // Get source pixel (the 3D view) -- already a real colour
+            TbPixel src_pixel = src_row[x];
+
             // Calculate overlay X coordinate using fixed-point (nearest-neighbor sampling)
             int overlay_x = (x * scale_x) >> 16;
             if (overlay_x >= overlay_w) overlay_x = overlay_w - 1;
-            
-            // Get overlay pixel
-            unsigned char overlay_pixel = overlay_row[overlay_x];
-            
-            // Palette index 255 is transparent - skip blending
-            if (overlay_pixel == 255)
+
+            // Get overlay pixel (still a palette-index byte in the loaded asset)
+            unsigned char overlay_idx = overlay_row[overlay_x];
+
+            // Index 255 is this overlay format's transparent sentinel (distinct
+            // from the sprite-blit index-0 convention) - skip blending.
+            if (overlay_idx == 255)
             {
                 dst_row[x] = src_pixel;
                 continue;
             }
-            
-            // Alpha blend: result = (overlay * alpha + src * (1 - alpha)) / 256
-            unsigned char result = (unsigned char)(
-                (overlay_pixel * alpha_clamped + src_pixel * inv_alpha) >> 8
-            );
-            
-            // Write to destination
-            dst_row[x] = result;
+
+            TbPixel overlay_pixel = resolve_indexed_pixel(overlay_idx, pal);
+
+            // Alpha blend: result = (overlay * alpha + src * (1 - alpha)) / 256,
+            // done per RGB channel now instead of averaging raw index bytes.
+            dst_row[x] = TbPixel_RGBA(
+                (uint8_t)((overlay_pixel.r * alpha_clamped + src_pixel.r * inv_alpha) >> 8),
+                (uint8_t)((overlay_pixel.g * alpha_clamped + src_pixel.g * inv_alpha) >> 8),
+                (uint8_t)((overlay_pixel.b * alpha_clamped + src_pixel.b * inv_alpha) >> 8),
+                255);
         }
     }
 }
@@ -297,7 +299,7 @@ TbBool OverlayEffect::Draw(LensRenderContext* ctx)
     COverlayRenderer* renderer = static_cast<COverlayRenderer*>(m_user_data);
     
     // Overlay reads from source (3D view) and composites with overlay sprite to destination
-    unsigned char* viewport_src = ctx->srcbuf + ctx->viewport_x;
+    TbPixel* viewport_src = ctx->srcbuf + ctx->viewport_x;
     renderer->Render(ctx->dstbuf, ctx->dstpitch, viewport_src, ctx->srcpitch,
                     ctx->width, ctx->height);
     

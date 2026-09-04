@@ -41,7 +41,11 @@ enum LensConfigFlags {
 struct LensConfig {
     char code_name[COMMAND_WORD_LEN];
     unsigned char flags;
-    TbPixel palette[PALETTE_SIZE];
+    /* A genuine 768-byte RGB palette buffer a lens effect can swap in
+     * wholesale (same shape as engine_palette/frontend_palette), not a
+     * TbPixel array -- see docs/refactor/renderer/02a-pixel-format-design.md
+     * §4's config_lenses.h entry. */
+    unsigned char palette[PALETTE_SIZE];
     short mist_lightness;
     short mist_ghost;
     char mist_file[DISKPATH_SIZE];

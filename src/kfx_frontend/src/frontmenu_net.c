@@ -586,12 +586,12 @@ void frontnet_draw_current_message(struct GuiButton *gbtn)
 
 void frontnet_draw_messages(struct GuiButton *gbtn)
 {
-    static unsigned char player_left_remap[PALETTE_COLORS];
+    static TbPixel player_left_remap[PALETTE_COLORS];
     static int player_left_remap_initialized;
     if (!player_left_remap_initialized) {
         for (int i = 0; i < PALETTE_COLORS; i++) {
             int intensity = max(frontend_palette[3*i], max(frontend_palette[3*i+1], frontend_palette[3*i+2]));
-            player_left_remap[i] = LbPaletteFindColour(frontend_palette, intensity*5/8, intensity*3/8, intensity/4);
+            player_left_remap[i] = TbPixel_RGB(chan6_to_8(intensity*5/8), chan6_to_8(intensity*3/8), chan6_to_8(intensity/4));
         }
         player_left_remap_initialized = 1;
     }

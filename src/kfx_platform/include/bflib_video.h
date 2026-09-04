@@ -24,6 +24,7 @@
 
 #include "globals.h"
 
+#include <stdint.h>
 #include <SDL3/SDL.h>
 
 /** Window-mode flags: the currency passed across the window-system seam. */
@@ -50,8 +51,133 @@ extern "C" {
 /******************************************************************************/
 #pragma pack(1)
 
-/** Pixel definition - represents value of one point on the graphics screen. */
-typedef unsigned char TbPixel;
+/**
+ * Pixel definition - represents value of one point on the graphics screen.
+ * True-colour RGBA, byte order {r,g,b,a} -- matches SDL_PIXELFORMAT_RGBA32
+ * exactly (RendererSoftware's present-time texture format) on both little-
+ * and big-endian hosts, so the CPU framebuffer can be handed to SDL with no
+ * reinterpretation. See docs/refactor/renderer/02a-pixel-format-design.md
+ * for the full migration design (was `unsigned char`, a palette index).
+ */
+typedef struct TbPixel {
+    uint8_t r, g, b, a;
+} TbPixel;
+
+static inline TbPixel TbPixel_RGB(uint8_t r, uint8_t g, uint8_t b)
+{
+    TbPixel p = { r, g, b, 255 };
+    return p;
+}
+
+static inline TbPixel TbPixel_RGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    TbPixel p = { r, g, b, a };
+    return p;
+}
+
+#define TbPixel_Transparent ((TbPixel){0, 0, 0, 0})
+
+static inline TbBool TbPixel_IsTransparent(TbPixel p)
+{
+    return p.a == 0;
+}
+
+static inline TbBool TbPixel_Equal(TbPixel a, TbPixel b)
+{
+    return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+}
+
+/**
+ * Pack/unpack a TbPixel to/from a plain 32-bit integer, byte order {r,g,b,a}
+ * matching the struct's own layout exactly (so this is a bit-reinterpret,
+ * not a format conversion). For call sites that smuggle a colour through an
+ * existing `long`-typed field never intended to hold a struct -- e.g.
+ * engine_render.c's line-drawing bucket items reuse `struct PolyPoint::S`
+ * (otherwise a shade value) to carry a flat line colour through the same
+ * queue regular shaded polygons use. Prefer passing TbPixel directly
+ * wherever the call site's own type isn't already fixed by something else
+ * (e.g. serialized/queued data); this exists only for the sites that can't.
+ */
+static inline uint32_t TbPixel_Pack(TbPixel p)
+{
+    return ((uint32_t)p.r << 24) | ((uint32_t)p.g << 16) | ((uint32_t)p.b << 8) | (uint32_t)p.a;
+}
+
+static inline TbPixel TbPixel_Unpack(uint32_t v)
+{
+    return TbPixel_RGBA((uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v);
+}
+
+/**
+ * A stride reported in bytes, as every SDL ->pitch field does. Distinct from
+ * a plain int/long pixel count so "used a byte pitch where a pixel-stride
+ * TbPixel* advance was expected" is a compile error rather than a silent 4x
+ * under-advance -- exactly the bug found three times independently in Stage
+ * 2 (RendererLockFramebuffer(), bflib_video.c's mode setup, and
+ * bflib_mspointer.cpp's cursor backup surface -- see
+ * docs/refactor/renderer/02c-post-migration-audit-and-refactor-opportunities.md
+ * §2.3.1). Convert to a TbPixel* pixel count via TbBytePitch_ToPixels()
+ * before using it as pointer arithmetic on a TbPixel buffer; use .bytes
+ * directly for byte-counted APIs (memset(), SDL's own pitch parameters).
+ */
+typedef struct TbBytePitch {
+    long bytes;
+} TbBytePitch;
+
+static inline long TbBytePitch_ToPixels(TbBytePitch bp)
+{
+    return bp.bytes / (long)sizeof(TbPixel);
+}
+
+/** VGA 6-bit (0-63) palette channel to 8-bit (0-255). Canonical conversion --
+ * every 6-bit-scale blend formula in the pixel-format design doc (§2) uses
+ * this, not an ad-hoc scale factor, so results match exactly. */
+static inline uint8_t chan6_to_8(uint8_t v)
+{
+    return (uint8_t)((v * 255) / 63);
+}
+
+/**
+ * Expand one palette-indexed sprite byte to a true-colour pixel, sampling
+ * the given palette (768-byte VGA-6 RGB triples, PALETTE_SIZE bytes -- e.g.
+ * engine_palette, or the palette a specific draw call is using). Preserves
+ * the "index 0 = transparent" convention every sprite blit primitive relied
+ * on before this migration. See docs/refactor/renderer/
+ * 02a-pixel-format-design.md §3.1.
+ */
+static inline TbPixel expand_indexed_pixel(uint8_t index, const unsigned char *pal)
+{
+    if (index == 0)
+        return TbPixel_Transparent;
+    return TbPixel_RGB(
+        chan6_to_8(pal[3 * index + 0]),
+        chan6_to_8(pal[3 * index + 1]),
+        chan6_to_8(pal[3 * index + 2]));
+}
+
+/** Inverse of chan6_to_8: an 8-bit (0-255) colour channel down to VGA 6-bit
+ * (0-63) palette scale. Needed when a genuine true-colour pixel must be
+ * matched back to a palette index, e.g. via LbPaletteFindColour(). */
+static inline uint8_t chan8_to_6(uint8_t v)
+{
+    return (uint8_t)((v * 63) / 255);
+}
+
+/**
+ * Plain palette-index to true-colour lookup, with no transparency
+ * special-case (unlike expand_indexed_pixel(), which reserves index 0 to
+ * mean "sprite texel not drawn"). Use this for flat colour-table lookups
+ * where index 0 is a normal opaque colour like any other -- e.g. the
+ * minimap panel colour table -- and expand_indexed_pixel() for sprite/font
+ * texel expansion.
+ */
+static inline TbPixel resolve_indexed_pixel(uint8_t index, const unsigned char *pal)
+{
+    return TbPixel_RGB(
+        chan6_to_8(pal[3 * index + 0]),
+        chan6_to_8(pal[3 * index + 1]),
+        chan6_to_8(pal[3 * index + 2]));
+}
 
 /** Standard video modes, registered by LbScreenInitialize().
  * These are standard VESA modes, indexed this way in all Bullfrog games.
@@ -156,15 +282,15 @@ typedef struct ScreenModeInfo TbScreenModeInfo;
 
 struct DisplayStruct {
         /** Pointer to physical screen buffer, if locked. */
-        uchar *PhysicalScreen;
+        TbPixel *PhysicalScreen;
         /** Pointer to graphics screen buffer, if locked. */
-        uchar *WScreen;
+        TbPixel *WScreen;
         /** Pointer to glass map, used for 8-bit video transparency. */
         uchar *GlassMap;
         /** Pointer to fade table, used for 8-bit video fading. */
         uchar *FadeTable;
         /** Pointer to graphics window buffer, if locked. */
-        uchar *GraphicsWindowPtr;
+        TbPixel *GraphicsWindowPtr;
         /** Sprite used as mouse cursor. */
         const struct TbSprite *MouseSprite;
         /** Resolution in width of the current video mode.
@@ -362,7 +488,8 @@ TbResult LbPaletteStopOpenFade(void);
 TbResult LbPaletteStore(const unsigned char *palette);
 TbResult LbPaletteGet(unsigned char *palette);
 const unsigned char *LbPaletteGetReadonly(void);
-TbPixel LbPaletteFindColour(const unsigned char *pal, unsigned char r, unsigned char g, unsigned char b);
+/** Returns a palette INDEX (not a resolved TbPixel) -- see the definition's comment. */
+unsigned char LbPaletteFindColour(const unsigned char *pal, unsigned char r, unsigned char g, unsigned char b);
 TbResult LbPaletteDataFillBlack(unsigned char *palette);
 TbResult LbPaletteDataFillWhite(unsigned char *palette);
 

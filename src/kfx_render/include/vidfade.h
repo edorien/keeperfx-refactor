@@ -39,6 +39,20 @@ struct TbAlphaTables;
 struct PlayerInfo;
 typedef unsigned char TbRGBColorTable[COLOUR_TABLE_DIMENSION][COLOUR_TABLE_DIMENSION][COLOUR_TABLE_DIMENSION];
 
+/** Reverse RGB -> palette-index lookup via the precomputed quantized table
+ * (16x16x16 buckets over the palette's own 6-bit VGA space) -- O(1) instead
+ * of LbPaletteFindColour()'s O(256) linear scan (with a second full pass for
+ * tie-breaking). Use for per-pixel reverse lookups against the game's own
+ * tracked palette; ctab must already be populated for that palette (see
+ * compute_rgb2idx_table()/init_colours()) and colour is assumed already
+ * expanded to true colour (e.g. read back off the true-colour framebuffer),
+ * not a raw palette index. */
+static inline unsigned char TbRGBColorTable_Lookup(const TbRGBColorTable ctab, TbPixel colour)
+{
+    const int scaler = (1 << 6) / COLOUR_TABLE_DIMENSION;
+    return ctab[chan8_to_6(colour.r) / scaler][chan8_to_6(colour.g) / scaler][chan8_to_6(colour.b) / scaler];
+}
+
 /******************************************************************************/
 extern unsigned char fade_palette_in;
 extern unsigned char frontend_palette[768];
@@ -57,8 +71,6 @@ void ProperForcedFadePalette(unsigned char *pal, long n, enum TbPaletteFadeFlag 
 
 void compute_alpha_tables(struct TbAlphaTables *alphtbls,unsigned char *spal,unsigned char *dpal);
 void compute_rgb2idx_table(TbRGBColorTable ctab,unsigned char *spal);
-void compute_shifted_palette_table(TbPixel *ocol, const unsigned char *spal,
-    const unsigned char *dpal, int shiftR, int shiftG, int shiftB);
 
 
 long PaletteFadePlayer(struct PlayerInfo *player);

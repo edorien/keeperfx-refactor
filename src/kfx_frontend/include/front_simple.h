@@ -54,7 +54,9 @@ struct ActiveBitmap {
   int height;
   int bpp;
   TbClockMSec start_tm;
-  TbPixel *raw_data;
+  // Raw 8bpp indexed bitmap bytes loaded straight from a .raw file (1 byte
+  // per pixel on disk) -- genuinely a byte buffer, not TbPixel storage.
+  unsigned char *raw_data;
   unsigned char *pal_data;
 };
 

@@ -86,6 +86,7 @@ static void config_reload_noop_set_vidmode(unsigned short nmode) {}
 static void config_reload_noop_set_game_vidmode(unsigned int i, unsigned short nmode) {}
 static void config_reload_noop_set_base_mouse_sensitivity(long val) {}
 static void config_reload_noop_setup_panel_colors(void) {}
+static void config_reload_noop_reset_panel_map_background_cache(void) {}
 static void config_reload_noop_update_creatr_model_activities_list(TbBool forced) {}
 static struct SlabMap *config_reload_noop_get_slabmap_for_subtile(MapSubtlCoord stl_x, MapSubtlCoord stl_y) { return NULL; }
 static long config_reload_noop_slabmap_owner(const struct SlabMap *slb) { return 0; }
@@ -135,6 +136,7 @@ static const struct ConfigReloadCallbacks default_config_reload_callbacks = {
     &config_reload_noop_panel_map_update,
     &config_reload_noop_update_panel_color_player_color,
     &config_reload_noop_setup_panel_colors,
+    &config_reload_noop_reset_panel_map_background_cache,
     &config_reload_noop_void,
     &config_reload_noop_get_lua_function_idx,
     &config_reload_noop_get_map_dimension,

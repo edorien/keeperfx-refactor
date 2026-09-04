@@ -25,11 +25,17 @@
 #include "post_inc.h"
 
 /******************************************************************************/
-TbPixel vec_colour = 112;
+/* Was `TbPixel vec_colour = 112;` -- a palette-index literal. 112's actual
+ * rendered colour under the shipped palette is not yet resolved (needs
+ * checking against data/palette.dat, same "resolve once, hardcode the RGB
+ * result" treatment as docs/refactor/renderer/02a-pixel-format-design.md §4's
+ * other literal-array sites) -- flagged, not silently reinterpreted. Kept as
+ * a placeholder RGB for now so the type compiles; every real call site sets
+ * vec_colour explicitly before use (confirmed via grep), so this initial
+ * value is very unlikely to ever actually render. */
+TbPixel vec_colour = { 112, 112, 112, 255 };
+int vec_shade = 0;
 unsigned char vec_mode;
-unsigned char *render_fade_tables = NULL;
-unsigned char *render_ghost = NULL;
-unsigned char *render_alpha = NULL;
 struct PolyPoint *polyscans = NULL;
 /******************************************************************************/
 

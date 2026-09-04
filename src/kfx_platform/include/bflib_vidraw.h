@@ -159,15 +159,35 @@ struct TbSourceBuffer {
 };
 
 /******************************************************************************/
-extern unsigned char *poly_screen;
-extern unsigned char *vec_screen;
+extern TbPixel *poly_screen;
+extern TbPixel *vec_screen;
+/* vec_map is the texture atlas SOURCE (block_mem-backed) -- stays 8-bit
+ * palette-indexed, like TbSpriteData, not a TbPixel framebuffer pointer.
+ * See docs/refactor/renderer/02a-pixel-format-design.md §2/§3. */
 extern unsigned char *vec_map;
 extern unsigned long vec_screen_width;
 extern long vec_window_width;
 extern long vec_window_height;
 extern unsigned char *dither_map;
 extern unsigned char *dither_end;
-extern unsigned char *lbSpriteReMapPtr;
+/* lbSpriteReMapPtr: a 256-entry TbPixel lookup, indexed by a sprite's own
+ * source byte, used by the "remp" family of blit functions
+ * (bflib_vidraw_spr_remp.c) for tint/shade sprite effects. Used to be a
+ * pointer straight into a row of the old palette-index render_ghost/
+ * render_fade_tables 2D tables (retired -- see
+ * docs/refactor/renderer/02a-pixel-format-design.md's scope-correction
+ * note); now points at lbSpriteRemapTable, filled on demand by
+ * SetupSpriteRemapGhost()/SetupSpriteRemapShade() below. */
+extern TbPixel *lbSpriteReMapPtr;
+extern TbPixel lbSpriteRemapTable[256];
+/** Fills lbSpriteRemapTable[i] = render_ghost_blend(ref=ref_index, dest=i) for every possible source byte i, and points lbSpriteReMapPtr at it. */
+void SetupSpriteRemapGhost(uint8_t ref_index);
+/** Fills lbSpriteRemapTable[i] = render_shade(i, shade) for every possible source byte i, and points lbSpriteReMapPtr at it. */
+void SetupSpriteRemapShade(int shade);
+/** Fills lbSpriteRemapTable with the possession/full-flash remap (replaces the old white_pal[256]) and points lbSpriteReMapPtr at it. */
+void SetupSpriteRemapWhiteFlash(void);
+/** Fills lbSpriteRemapTable with the damage-flash remap (replaces the old red_pal[256]) and points lbSpriteReMapPtr at it. */
+void SetupSpriteRemapRedFlash(void);
 extern long scale_up;
 extern int32_t xsteps_array[2*SPRITE_SCALING_XSTEPS];
 extern int32_t ysteps_array[2*SPRITE_SCALING_YSTEPS];
@@ -182,10 +202,10 @@ void LbDrawHVLine(long xpos1, long ypos1, long xpos2, long ypos2, TbPixel colour
 void LbDrawPixel(long x, long y, TbPixel colour);
 void LbDrawCircle(long x, long y, long radius, TbPixel colour);
 
-void setup_vecs(unsigned char *screenbuf, unsigned char *nvec_map,
+void setup_vecs(TbPixel *screenbuf, unsigned char *nvec_map,
         unsigned int line_len, unsigned int width, unsigned int height);
 void setup_steps(long posx, long posy, const struct TbSourceBuffer * src_buf, int32_t **xstep, int32_t **ystep, int *scanline);
-void setup_outbuf(const int32_t *xstep, const int32_t *ystep, uchar **outbuf, int *outheight);
+void setup_outbuf(const int32_t *xstep, const int32_t *ystep, TbPixel **outbuf, int *outheight);
 TbResult LbSpriteDrawUsingScalingData(long posx, long posy, const struct TbSourceBuffer *);
 TbResult LbSpriteDrawRemapUsingScalingData(long posx, long posy, const struct TbSourceBuffer *, const TbPixel *cmap);
 TbResult LbSpriteDrawOneColourUsingScalingData(long posx, long posy, const struct TbSprite *sprite, TbPixel colour);
@@ -205,14 +225,14 @@ TbResult LbSpriteDrawOneColour(long x, long y, const struct TbSprite *spr, const
 
 TbResult LbSpriteDrawScaled(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height);
 TbResult LbSpriteDrawScaledOneColour(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const TbPixel colour);
-int LbSpriteDrawScaledRemap(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const unsigned char *cmap);
+int LbSpriteDrawScaledRemap(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const TbPixel *cmap);
 /* The draws themselves. The entry points above route through the renderer first;
  * these are what it calls when it is time to put pixels down. */
 TbResult LbSpriteDrawImmediate(long x, long y, const struct TbSprite *spr);
 TbResult LbSpriteDrawOneColourImmediate(long x, long y, const struct TbSprite *spr, const TbPixel colour);
 TbResult LbSpriteDrawScaledImmediate(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height);
 TbResult LbSpriteDrawScaledOneColourImmediate(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const TbPixel colour);
-int LbSpriteDrawScaledRemapImmediate(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const unsigned char *cmap);
+int LbSpriteDrawScaledRemapImmediate(long xpos, long ypos, const struct TbSprite *sprite, long dest_width, long dest_height, const TbPixel *cmap);
 #define LbSpriteDrawResizedImmediate(xpos, ypos, un_per_px, sprite) LbSpriteDrawScaledImmediate(xpos, ypos, sprite, ((sprite)->SWidth * un_per_px + 8) / 16, ((sprite)->SHeight * un_per_px + 8) / 16)
 #define LbSpriteDrawResizedOneColourImmediate(xpos, ypos, un_per_px, sprite, colour) LbSpriteDrawScaledOneColourImmediate(xpos, ypos, sprite, ((sprite)->SWidth * un_per_px + 8) / 16, ((sprite)->SHeight * un_per_px + 8) / 16, colour)
 #define LbSpriteDrawResizedRemapImmediate(xpos, ypos, un_per_px, sprite, cmap) LbSpriteDrawScaledRemapImmediate(xpos, ypos, sprite, ((sprite)->SWidth * un_per_px + 8) / 16, ((sprite)->SHeight * un_per_px + 8) / 16, cmap)
@@ -221,7 +241,7 @@ int LbSpriteDrawScaledRemapImmediate(long xpos, long ypos, const struct TbSprite
 #define LbSpriteDrawResizedRemap(xpos, ypos, un_per_px, sprite, cmap) LbSpriteDrawScaledRemap(xpos, ypos, sprite, ((sprite)->SWidth * un_per_px + 8) / 16, ((sprite)->SHeight * un_per_px + 8) / 16, cmap)
 
 TbResult LbHugeSpriteDraw(const struct TbHugeSprite * spr, long sp_len,
-    unsigned char *r, int r_row_delta, int r_height, short xshift, short yshift, int units_per_px);
+    TbPixel *r, int r_row_delta, int r_height, short xshift, short yshift, int units_per_px);
 // Injected lookup for the panel sprite behind a TiledSprite index (impl. in
 // custom_sprites.c), so this file doesn't need custom_sprites.h directly.
 // See docs/refactor/stage-02-decouple-bflib.md.
@@ -231,7 +251,12 @@ void LbTiledSpriteDraw(long x, long y, long units_per_px, struct TiledSprite *bi
 int LbTiledSpriteHeight(struct TiledSprite *bigspr, PanelSpriteLookupFn panel_sprite_fn);
 
 // mspointer needs this for some reason
-TbResult LbSpriteDrawUsingScalingUpDataSolidLR(uchar *outbuf, int scanline, int outheight, int32_t *xstep, int32_t *ystep, const struct TbSourceBuffer * src_buf);
+TbResult LbSpriteDrawUsingScalingUpDataSolidLR(TbPixel *outbuf, int scanline, int outheight, int32_t *xstep, int32_t *ystep, const struct TbSourceBuffer * src_buf);
+
+// Shared "solid run" copy helper used by the scaled-sprite blitters in
+// bflib_vidraw_spr_norm.c/_onec.c/_remp.c, defined in bflib_vidraw.c. One
+// declaration here instead of three identical local externs.
+void LbPixelBlockCopyForward(TbPixel * dst, const TbPixel * src, long len);
 
 /******************************************************************************/
 #ifdef __cplusplus

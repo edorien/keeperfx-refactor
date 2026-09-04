@@ -45,6 +45,7 @@
 #include "frontmenu_ingame_tabs.h"
 #include "thing_doors.h"
 #include "vidmode.h"
+#include "vidfade.h"
 #include "player_instances.h"
 #include "engine_redraw.h"
 #include "engine_render.h"
@@ -102,7 +103,11 @@ static long PanelMapX;
 static long NumBackColours;
 static long PrevPixelSize;
 static unsigned char MapBackColours[256];
-static unsigned char PanelColours[16*PnC_End];
+// PanelColours[] holds PnC_End colour slots per distinct captured
+// background colour class; setup_background() must never let num_colours
+// exceed this or it overflows the array below.
+#define PANEL_MAP_BACKGROUND_COLOURS_MAX 16
+static TbPixel PanelColours[PANEL_MAP_BACKGROUND_COLOURS_MAX*PnC_End];
 static long PrevRoomHighlight;
 static long PrevDoorHighlight;
 static unsigned short PanelMap[MAX_SUBTILES_X*MAX_SUBTILES_Y];
@@ -121,7 +126,7 @@ void panel_map_draw_pixel(RealScreenCoord x, RealScreenCoord y, TbPixel col)
     {
         if ((x >= MapShapeStart[y]) && (x < MapShapeEnd[y]))
         {
-            lbDisplay.WScreen[(PanelMapY + y) * lbDisplay.GraphicsScreenWidth + (PanelMapX + x)] = col;
+            RendererGetFramebuffer()[(PanelMapY + y) * lbDisplay.GraphicsScreenWidth + (PanelMapX + x)] = col;
         }
     }
 }
@@ -340,7 +345,7 @@ int draw_overlay_traps(struct PlayerInfo *player, long units_per_px, long scaled
                 if ((thing->model == gui_trap_type_highlighted) && ((get_gameturn() % (2 * kfx_config_state.gui_blink_rate)) >= kfx_config_state.gui_blink_rate)) {
                     col = player_highlight_colours[thing->owner];
                 } else {
-                    col = 60;
+                    col = resolve_indexed_pixel(60, RendererGetActivePalette());
                 }
                 short pixels_amount = scale_pixel(basic_zoom*2);
                 short pixel_end = get_pixels_scaled_and_zoomed(basic_zoom*2);
@@ -425,7 +430,7 @@ int draw_overlay_spells_and_boxes(struct PlayerInfo *player, long units_per_px, 
                         {
                             panel_map_draw_pixel(pos.x.val + basepos + draw_square[p].delta_x,
                                                  pos.y.val + basepos + draw_square[p].delta_y,
-                                                 kfx_sim_state.colours[15][0][15]);
+                                                 resolve_indexed_pixel(kfx_sim_state.colours[15][0][15], RendererGetActivePalette()));
                         }
                         n++;
                     }
@@ -437,7 +442,7 @@ int draw_overlay_spells_and_boxes(struct PlayerInfo *player, long units_per_px, 
                         {
                             panel_map_draw_pixel(pos.x.val + basepos + draw_square[p].delta_x,
                                                  pos.y.val + basepos + draw_square[p].delta_y,
-                                                 kfx_sim_state.colours[7][6][7]);
+                                                 resolve_indexed_pixel(kfx_sim_state.colours[7][6][7], RendererGetActivePalette()));
                         }
                         n++;
                     }
@@ -480,7 +485,7 @@ int draw_overlay_possessed_thing(struct PlayerInfo* player, long mapos_x, long m
         return 0;
     if ((get_gameturn() % (8 * kfx_config_state.gui_blink_rate)) >= 4 * kfx_config_state.gui_blink_rate)
     {
-        col = kfx_sim_state.colours[15][15][15];
+        col = resolve_indexed_pixel(kfx_sim_state.colours[15][15][15], RendererGetActivePalette());
     }
     if (isLowRes)
     {
@@ -534,8 +539,8 @@ int draw_overlay_creatures(struct PlayerInfo *player, long units_per_px, long zo
         TbPixel col1;
         TbPixel col2;
         TbPixel col;
-        col1 = 31;
-        col2 = 1;
+        col1 = resolve_indexed_pixel(31, RendererGetActivePalette());
+        col2 = resolve_indexed_pixel(1, RendererGetActivePalette());
         if (!thing_is_picked_up(thing))
         {
             if (thing_revealed(thing, player->id_number))
@@ -558,7 +563,7 @@ int draw_overlay_creatures(struct PlayerInfo *player, long units_per_px, long zo
                         panel_map_draw_creature_dot(pos.x.val - pixels_amount, pos.y.val, basepos, col2, basic_zoom, isLowRes);
                         panel_map_draw_creature_dot(pos.x.val, pos.y.val + pixels_amount, basepos, col2, basic_zoom, isLowRes);
                         panel_map_draw_creature_dot(pos.x.val, pos.y.val - pixels_amount, basepos, col2, basic_zoom, isLowRes);
-                        panel_map_draw_creature_dot(pos.x.val, pos.y.val, basepos, 31, basic_zoom, isLowRes);
+                        panel_map_draw_creature_dot(pos.x.val, pos.y.val, basepos, resolve_indexed_pixel(31, RendererGetActivePalette()), basic_zoom, isLowRes);
                     } else
                     {
                         if ((is_thing_directly_controlled_by_player(thing, my_player_number)) || (is_thing_passenger_controlled_by_player(thing, my_player_number)))
@@ -671,7 +676,7 @@ int draw_line_to_heart(struct PlayerInfo *player, long units_per_px, long zoom)
         draw_x += delta_x;
         draw_y += delta_y;
         short pixel_end = get_pixels_scaled_and_zoomed(zoom * 2);
-        TbPixel col = 15;
+        TbPixel col = resolve_indexed_pixel(15, RendererGetActivePalette());
         for (int p = 0; p < pixel_end; p++)
         {
             panel_map_draw_pixel((draw_x >> 8) + draw_square[p].delta_x, (draw_y >> 8) + draw_square[p].delta_y, col);
@@ -934,17 +939,25 @@ short do_right_map_click(long start_x, long start_y, long curr_mx, long curr_my,
     return 0;
 }
 
+/* Shared by setup_background()'s three independently-sized minimap scratch
+ * arrays, replacing three copies of the same free-then-calloc dance. */
+static void *resize_scratch_array(void *old_ptr, size_t count, size_t elem_size)
+{
+    free(old_ptr);
+    return calloc(count, elem_size);
+}
+
 void setup_background(long units_per_px)
 {
     if (MapDiagonalLength != 2*(PANEL_MAP_RADIUS*units_per_px/16))
     {
         MapDiagonalLength = 2*(PANEL_MAP_RADIUS*units_per_px/16);
-        free(MapBackground);
-        MapBackground = calloc(MapDiagonalLength*MapDiagonalLength, sizeof(TbPixel));
-        free(MapShapeStart);
-        MapShapeStart = (int32_t *)calloc(MapDiagonalLength, sizeof(int32_t));
-        free(MapShapeEnd);
-        MapShapeEnd = (int32_t *)calloc(MapDiagonalLength, sizeof(int32_t));
+        MapBackground = resize_scratch_array(MapBackground,
+            (size_t)MapDiagonalLength*(size_t)MapDiagonalLength, sizeof(*MapBackground));
+        MapShapeStart = (int32_t *)resize_scratch_array(MapShapeStart,
+            (size_t)MapDiagonalLength, sizeof(int32_t));
+        MapShapeEnd = (int32_t *)resize_scratch_array(MapShapeEnd,
+            (size_t)MapDiagonalLength, sizeof(int32_t));
     }
     if ((MapBackground == NULL) || (MapShapeStart == NULL) || (MapShapeEnd == NULL)) {
         MapDiagonalLength = 0;
@@ -965,12 +978,13 @@ void setup_background(long units_per_px)
 
     int num_colours;
     num_colours = 0;
+    TbBool cap_warned = false;
     long out_scanline;
     out_scanline = lbDisplay.GraphicsScreenWidth;
     long bkgnd_pos;
     bkgnd_pos = 0;
     TbPixel *out;
-    out = &lbDisplay.WScreen[PanelMapX + out_scanline * PanelMapY];
+    out = &RendererGetFramebuffer()[PanelMapX + out_scanline * PanelMapY];
     int w;
     int h;
     for (h=0; h < MapDiagonalLength; h++)
@@ -981,18 +995,49 @@ void setup_background(long units_per_px)
 
             TbPixel orig;
             orig = out[w];
-            out[w] = 255;
+            out[w] = resolve_indexed_pixel(255, RendererGetActivePalette());
+            // Legacy code captured the palette index directly off the 8bpp
+            // screen; the framebuffer is true-colour now, so recover the
+            // nearest equivalent index -- MapBackColours[]/MapBackground[]
+            // still feed the still-index-based pixmap.ghost/map_abyss tables.
+            // O(1) quantized lookup instead of LbPaletteFindColour()'s O(256)
+            // linear scan -- see docs/refactor/renderer/02c.
+            unsigned char orig_idx;
+            orig_idx = TbRGBColorTable_Lookup(kfx_sim_state.colours, orig);
             int colour;
             for (colour=0; colour < num_colours; colour++)
             {
-                if (MapBackColours[colour] == orig) {
+                if (MapBackColours[colour] == orig_idx) {
                     break;
                 }
             }
             if (num_colours == colour)
             {
-                MapBackColours[num_colours] = orig;
-                num_colours++;
+                // PanelColours[] only has room for PANEL_MAP_BACKGROUND_COLOURS_MAX
+                // distinct background colour classes. The legacy 8bpp renderer
+                // already quantized every on-screen pixel to a palette index
+                // before it reached the framebuffer, so a decorative background
+                // naturally stayed within that count; true-colour rendering's
+                // smooth shading/ghost blends produce far more distinct nearest-
+                // palette-index results when reverse-mapped here, so without this
+                // cap num_colours can exceed 16 and overflow PanelColours[] --
+                // fold any excess into the last bucket instead.
+                if (num_colours < PANEL_MAP_BACKGROUND_COLOURS_MAX)
+                {
+                    MapBackColours[num_colours] = orig_idx;
+                    num_colours++;
+                }
+                else
+                {
+                    if (!cap_warned)
+                    {
+                        WARNLOG("Minimap background has more than %d distinct colours; "
+                            "approximating the rest with the last colour class",
+                            PANEL_MAP_BACKGROUND_COLOURS_MAX);
+                        cap_warned = true;
+                    }
+                    colour = num_colours - 1;
+                }
             }
             MapBackground[bkgnd_pos+w] = colour;
         }
@@ -1002,42 +1047,62 @@ void setup_background(long units_per_px)
     NumBackColours = num_colours;
 }
 
+/* Shared between setup_panel_colors() and update_panel_colors(): both
+ * derive the "unexplored fog of war" and "tagged valuable tile" background
+ * colours from the same bkcol/frame blink state, identically. What differs
+ * between the two callers is the third (gems) colour's destination slot and
+ * literal offset, so that stays local to each caller instead of being
+ * folded in here. */
+static void resolve_common_background_colours(unsigned char bkcol, int frame, const unsigned char *pal,
+                                               TbPixel *out_unexplored, TbPixel *out_tagged_gold)
+{
+    if (frame != 0)
+    {
+        *out_unexplored = resolve_indexed_pixel(pixmap.ghost[bkcol + 26*256], pal);
+        *out_tagged_gold = resolve_indexed_pixel(pixmap.ghost[bkcol + 140*256], pal);
+    }
+    else
+    {
+        *out_unexplored = resolve_indexed_pixel(bkcol, pal);
+        *out_tagged_gold = resolve_indexed_pixel(bkcol, pal);
+    }
+}
+
 void setup_panel_colors(void)
 {
+    const unsigned char *pal = RendererGetActivePalette();
     int frame;
     frame = (get_gameturn() % (4 * kfx_config_state.gui_blink_rate)) / kfx_config_state.gui_blink_rate;
-    unsigned int frcol;
+    TbPixel frcol;
     frcol = player_room_colours[(get_gameturn() % (4 * kfx_config_state.neutral_flash_rate)) / kfx_config_state.neutral_flash_rate];
     int bkcol_idx;
     int pncol_idx;
     pncol_idx = 0;
     for (bkcol_idx=0; bkcol_idx < NumBackColours; bkcol_idx++)
     {
-        unsigned int bkcol;
+        unsigned char bkcol;
         bkcol = MapBackColours[bkcol_idx];
         int n;
         n = pncol_idx;
+        resolve_common_background_colours(bkcol, frame, pal,
+            &PanelColours[n + PnC_Unexplored], &PanelColours[n + PnC_Tagged_Gold]);
         if (frame != 0)
         {
-            PanelColours[n + PnC_Unexplored] = pixmap.ghost[bkcol + 26*256];
-            PanelColours[n + PnC_Tagged_Gold] = pixmap.ghost[bkcol + 140*256];
-            PanelColours[n + PnC_Gems] = 102 + (pixmap.ghost[bkcol] >> 6);
+            PanelColours[n + PnC_Gems] = resolve_indexed_pixel(102 + (pixmap.ghost[bkcol] >> 6), pal);
         } else //as this is during setup at gameturn 1, the else looks like it is never used.
         {
-            PanelColours[n + PnC_Unexplored] = bkcol;
-            PanelColours[n + PnC_Tagged_Gold] = bkcol;
-            PanelColours[n + PnC_Tagged_Gems] = 104 + (pixmap.ghost[bkcol] >> 6);
+            PanelColours[n + PnC_Tagged_Gems] = resolve_indexed_pixel(104 + (pixmap.ghost[bkcol] >> 6), pal);
         }
-        PanelColours[n + 0] = bkcol;
-        PanelColours[n + PnC_Wall]    = pixmap.ghost[bkcol + 16*256];
-        PanelColours[n + PnC_Rock]      = 0;
-        PanelColours[n + PnC_Gold]      = pixmap.ghost[bkcol + 140*256];
-        PanelColours[n + PnC_Lava]      = 146;
-        PanelColours[n + PnC_Water]     = 85;
-        PanelColours[n + PnC_purplePath]    = 255;
-        PanelColours[n + PnC_Gems]      = 102 + (pixmap.ghost[bkcol] >> 6);
-        PanelColours[n + PnC_RockFloor] = 145;
-        PanelColours[n + PnC_Abyss]     = pixmap.map_abyss[bkcol];
+        PanelColours[n + 0] = resolve_indexed_pixel(bkcol, pal);
+        PanelColours[n + PnC_Wall]    = resolve_indexed_pixel(pixmap.ghost[bkcol + 16*256], pal);
+        PanelColours[n + PnC_Rock]      = resolve_indexed_pixel(0, pal);
+        PanelColours[n + PnC_Gold]      = resolve_indexed_pixel(pixmap.ghost[bkcol + 140*256], pal);
+        PanelColours[n + PnC_Lava]      = resolve_indexed_pixel(146, pal);
+        PanelColours[n + PnC_Water]     = resolve_indexed_pixel(85, pal);
+        PanelColours[n + PnC_purplePath]    = resolve_indexed_pixel(255, pal);
+        PanelColours[n + PnC_Gems]      = resolve_indexed_pixel(102 + (pixmap.ghost[bkcol] >> 6), pal);
+        PanelColours[n + PnC_RockFloor] = resolve_indexed_pixel(145, pal);
+        PanelColours[n + PnC_Abyss]     = resolve_indexed_pixel(pixmap.map_abyss[bkcol], pal);
 
         n = pncol_idx + PnC_RoomsStart;
         int i;
@@ -1073,12 +1138,12 @@ void setup_panel_colors(void)
         {
             for (k=0; k < PLAYERS_COUNT; k++)
             {
-              PanelColours[n + k] = Tbp_OpenDoor;
+              PanelColours[n + k] = resolve_indexed_pixel(Tbp_OpenDoor, pal);
             }
             n += PLAYERS_COUNT;
             for (k=0; k < PLAYERS_COUNT; k++)
             {
-              PanelColours[n + k] = Tbp_LockedDoor;
+              PanelColours[n + k] = resolve_indexed_pixel(Tbp_LockedDoor, pal);
             }
             n += PLAYERS_COUNT;
         }
@@ -1110,29 +1175,28 @@ void update_panel_color_player_color(PlayerNumber plyr_idx, unsigned char color_
 
 void update_panel_colors(void)
 {
+    const unsigned char *pal = RendererGetActivePalette();
     int frame;
     frame = (get_gameturn() % (4 * kfx_config_state.gui_blink_rate)) / kfx_config_state.gui_blink_rate;
-    unsigned int frcol;
+    TbPixel frcol;
     frcol = player_room_colours[(get_gameturn() % (4 * kfx_config_state.neutral_flash_rate)) / kfx_config_state.neutral_flash_rate];
     int bkcol_idx;
     int pncol_idx;
     pncol_idx = 0;
     for (bkcol_idx=0; bkcol_idx < NumBackColours; bkcol_idx++)
     {
-        unsigned int bkcol;
+        unsigned char bkcol;
         bkcol = MapBackColours[bkcol_idx];
         int n;
         n = pncol_idx;
+        resolve_common_background_colours(bkcol, frame, pal,
+            &PanelColours[n + PnC_Unexplored], &PanelColours[n + PnC_Tagged_Gold]);
         if (frame != 0)
         {
-            PanelColours[n + PnC_Unexplored] = pixmap.ghost[bkcol + 26*256];
-            PanelColours[n + PnC_Tagged_Gold] = pixmap.ghost[bkcol + 140*256];
-            PanelColours[n + PnC_Tagged_Gems] = 102 + (pixmap.ghost[bkcol] >> 6);
+            PanelColours[n + PnC_Tagged_Gems] = resolve_indexed_pixel(102 + (pixmap.ghost[bkcol] >> 6), pal);
         } else
         {
-            PanelColours[n + PnC_Unexplored] = bkcol;
-            PanelColours[n + PnC_Tagged_Gold] = bkcol;
-            PanelColours[n + PnC_Tagged_Gems] = 100 + (pixmap.ghost[bkcol] >> 6);
+            PanelColours[n + PnC_Tagged_Gems] = resolve_indexed_pixel(100 + (pixmap.ghost[bkcol] >> 6), pal);
         }
         n = pncol_idx + PnC_RoomsStart;
         int i;
@@ -1178,15 +1242,16 @@ void update_panel_colors(void)
             n = PLAYERS_COUNT * highlight + PnC_RoomsStart;
             for (i=NumBackColours; i > 0; i--)
             {
-                PanelColours[n + 0] = 31;
-                PanelColours[n + 1] = 31;
-                PanelColours[n + 2] = 31;
-                PanelColours[n + 3] = 31;
-                PanelColours[n + 4] = 31;
-                PanelColours[n + 5] = 31;
-                PanelColours[n + 6] = 31;
-                PanelColours[n + 7] = 31;
-                PanelColours[n + 8] = 31;
+                TbPixel hlcol = resolve_indexed_pixel(31, pal);
+                PanelColours[n + 0] = hlcol;
+                PanelColours[n + 1] = hlcol;
+                PanelColours[n + 2] = hlcol;
+                PanelColours[n + 3] = hlcol;
+                PanelColours[n + 4] = hlcol;
+                PanelColours[n + 5] = hlcol;
+                PanelColours[n + 6] = hlcol;
+                PanelColours[n + 7] = hlcol;
+                PanelColours[n + 8] = hlcol;
                 n += PnC_End;
             }
         }
@@ -1209,8 +1274,8 @@ void update_panel_colors(void)
                 int k;
                 for (k=0; k < PLAYERS_COUNT; k+=2)
                 {
-                  PanelColours[n + PnC_DoorsStart       + k] = Tbp_OpenDoor;
-                  PanelColours[n + PnC_DoorsStartLocked + k] = Tbp_LockedDoor;
+                  PanelColours[n + PnC_DoorsStart       + k] = resolve_indexed_pixel(Tbp_OpenDoor, pal);
+                  PanelColours[n + PnC_DoorsStartLocked + k] = resolve_indexed_pixel(Tbp_LockedDoor, pal);
                 }
                 n += PnC_End;
             }
@@ -1225,8 +1290,8 @@ void update_panel_colors(void)
                 int k;
                 for (k=0; k < PLAYERS_COUNT; k+=2)
                 {
-                  PanelColours[n + PnC_DoorsStart       + k] = Tbp_DoorHighlighted;
-                  PanelColours[n + PnC_DoorsStartLocked + k] = Tbp_DoorHighlighted;
+                  PanelColours[n + PnC_DoorsStart       + k] = resolve_indexed_pixel(Tbp_DoorHighlighted, pal);
+                  PanelColours[n + PnC_DoorsStartLocked + k] = resolve_indexed_pixel(Tbp_DoorHighlighted, pal);
                 }
                 n += PnC_End;
             }
@@ -1235,13 +1300,36 @@ void update_panel_colors(void)
     }
 }
 
+/* config_reload_callbacks->reset_panel_map_background_cache(): called once
+ * early during level (re)start (main_game.c, right after the existing
+ * setup_panel_colors() call), well before this level's own map/camera has
+ * rendered a single frame. auto_gen_tables()'s PrevPixelSize gate only
+ * tracks UI scale, not "which level" -- so on any level after the first in
+ * a process, PrevPixelSize is already frozen at the right value and the
+ * lazy rebuild below silently never runs again, leaving PanelColours[]
+ * built from whatever MapBackColours[]/palette happened to be around at
+ * this early, pre-render point in a *previous* level's lifetime as the
+ * permanent (wrong) result for every level after the first. Setting
+ * PrevPixelSize to an impossible value forces the next real
+ * panel_map_draw_slabs() call -- once this level is actually rendering,
+ * with its own correct active palette -- to recapture and rebuild for
+ * real. See docs/refactor/renderer/02b-legacy-bugs-found.md. */
+void reset_panel_map_background_cache(void)
+{
+    PrevPixelSize = -1;
+}
+
 void auto_gen_tables(long units_per_px)
 {
     if (PrevPixelSize != 256 * units_per_px / 16)
     {
+        SYNCDBG(7, "Rebuilding minimap background tables: units_per_px=%ld, PrevPixelSize %ld -> %ld",
+            units_per_px, PrevPixelSize, 256 * units_per_px / 16);
         PrevPixelSize = 256 * units_per_px / 16;
         setup_background(units_per_px);
         setup_panel_colors();
+        SYNCDBG(7, "Minimap background tables rebuilt: NumBackColours=%ld, MapDiagonalLength=%ld",
+            NumBackColours, MapDiagonalLength);
     }
 }
 
@@ -1262,10 +1350,10 @@ void panel_map_draw_slabs(long x, long y, long units_per_px, long zoom)
     int32_t shift_stl_x = (cam->mappos.x.val << 8) - MapDiagonalLength * shift_x / 2 - MapDiagonalLength * shift_y / 2;
     int32_t shift_stl_y = (cam->mappos.y.val << 8) - MapDiagonalLength * shift_y / 2 + MapDiagonalLength * shift_x / 2;
 
-    TbPixel *bkgnd_line;
+    unsigned char *bkgnd_line;
     bkgnd_line = MapBackground;
     TbPixel *out_line;
-    out_line = &lbDisplay.WScreen[PanelMapX + lbDisplay.GraphicsScreenWidth * PanelMapY];
+    out_line = &RendererGetFramebuffer()[PanelMapX + lbDisplay.GraphicsScreenWidth * PanelMapY];
     int h;
     for (h = 0; h < MapDiagonalLength; h++)
     {
@@ -1295,7 +1383,7 @@ void panel_map_draw_slabs(long x, long y, long units_per_px, long zoom)
             subpos_y += shift_y;
             subpos_x -= shift_x;
         }
-        TbPixel *bkgnd;
+        unsigned char *bkgnd;
         bkgnd = &bkgnd_line[start_w];
         TbPixel *out;
         out = &out_line[start_w];
