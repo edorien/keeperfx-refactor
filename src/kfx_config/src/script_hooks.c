@@ -43,6 +43,7 @@ static const struct ScriptHookCallbacks default_script_hooks = {
     &hook_noop_power_cast,
     &hook_noop_plyr_thing,       /* lua_on_special_box_activate */
     &hook_noop_thing,            /* lua_on_creature_death */
+    &hook_noop_thing,            /* lua_on_creature_fell_into_abyss */
     &hook_noop_thing,            /* lua_on_creature_rebirth */
     &hook_noop_thing,            /* lua_on_trap_placed */
     &hook_noop_thing,            /* lua_on_object_destroyed */

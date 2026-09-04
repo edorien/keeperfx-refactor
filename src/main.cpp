@@ -1241,6 +1241,7 @@ short setup_game(void)
   set_config_reload_callbacks(&config_reload_callbacks_impl);
   static const struct ScriptHookCallbacks script_hooks_impl = {
       &lua_on_power_cast, &lua_on_special_box_activate, &lua_on_creature_death,
+      &lua_on_creature_fell_into_abyss,
       &lua_on_creature_rebirth, &lua_on_trap_placed, &lua_on_object_destroyed,
       &lua_on_apply_damage_to_thing, &lua_on_level_up, &lua_on_pick_up, &lua_on_slap,
       &lua_on_slab_kind_change, &lua_on_slab_owner_change, &lua_on_room_owner_change,
@@ -1883,6 +1884,19 @@ static short process_command_line(unsigned short argc, char *argv[])
           {
               LbNetwork_SetServerPort(port);
               narg++;
+          }
+      }
+      else if (strcasecmp(parstr, "nick") == 0)
+      {
+          if (pr2str[0])
+          {
+              snprintf(net_player_name, sizeof(net_player_name), "%s", pr2str);
+              snprintf(tmp_net_player_name, sizeof(net_player_name), "%s", pr2str);
+              narg++;
+          }
+          else
+          {
+              WARNMSG("No player name given after -nick");
           }
       }
       else if (strcasecmp(parstr,"frameskip") == 0)

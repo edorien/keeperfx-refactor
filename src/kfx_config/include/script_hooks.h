@@ -68,6 +68,7 @@ struct ScriptHookCallbacks {
     void (*lua_on_power_cast)(PlayerNumber plyr_idx, PowerKind pwkind, unsigned short splevel, MapSubtlCoord stl_x, MapSubtlCoord stl_y, struct Thing *thing);
     void (*lua_on_special_box_activate)(PlayerNumber plyr_idx, struct Thing *cratetng);
     void (*lua_on_creature_death)(struct Thing *crtng);
+    void (*lua_on_creature_fell_into_abyss)(struct Thing *crtng);
     void (*lua_on_creature_rebirth)(struct Thing *crtng);
     void (*lua_on_trap_placed)(struct Thing *traptng);
     void (*lua_on_object_destroyed)(struct Thing *objtng);
