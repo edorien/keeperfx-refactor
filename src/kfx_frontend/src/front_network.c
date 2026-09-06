@@ -663,16 +663,15 @@ void net_write_config_file(void)
 
 void frontnet_service_setup(void)
 {
+    // Skirmish used to be appended here as an extra "Play one player" row
+    // (behind GSF_AllowOnePlayer) -- moved to its own Main Menu button
+    // (frontend_start_skirmish(), frontend.cpp) so it no longer needs a
+    // network service selected first. net_service[] now only ever lists
+    // real network services.
     net_number_of_services = 0;
     memset(net_service, 0, sizeof(net_service));
     snprintf(net_service[net_number_of_services++], NET_SERVICE_LEN, "%s", get_string(GUIStr_NetOnline));
     snprintf(net_service[net_number_of_services++], NET_SERVICE_LEN, "%s", get_string(GUIStr_NetLan));
-    // Create skirmish option if it should be enabled
-    if ((kfx_sim_state.system_flags & GSF_AllowOnePlayer) != 0)
-    {
-        snprintf(net_service[net_number_of_services], NET_SERVICE_LEN, "%s", get_string(GUIStr_NetServiceSkirmish));
-        net_number_of_services++;
-    }
     net_load_config_file();
 }
 

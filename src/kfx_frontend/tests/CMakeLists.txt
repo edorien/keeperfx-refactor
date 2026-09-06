@@ -24,6 +24,10 @@ target_link_libraries(kfx_frontend_utest PRIVATE
     kfx_bfdebug_std
     kfx_common_opts
     centitoml
+    imgui # same two-levels-of-INTERFACE-indirection object-linking gap as
+          # centitoml above -- kfx_platform (ImGuiContext.cpp) and
+          # kfx_frontend (frontgui_style.cpp/frontgui_widgets.cpp/
+          # frontgui_stylesheet_test.cpp) both need imgui's compiled object.
     Catch2::Catch2WithMain)
 
 include(CTest)

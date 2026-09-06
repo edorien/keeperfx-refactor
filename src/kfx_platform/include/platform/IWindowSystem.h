@@ -99,6 +99,24 @@ public:
      *  Returns 0 when unavailable or not applicable (consoles with fixed rate). */
     virtual int GetDisplayRefreshRate() const { return 0; }
 
+    /** Number of distinct fullscreen resolutions (width x height,
+     *  deduplicated across refresh rates -- callers only want a resolution
+     *  picker, not one entry per refresh rate) the given display supports.
+     *  display <= 0 means the primary display. 0 when unavailable.
+     *  docs/refactor/renderer/04-imgui-gui-foundation.md §6.2/Phase G:
+     *  backs the INGAME_RES settings-screen picker. */
+    virtual int GetFullscreenDisplayModeCount(int /*display*/) const { return 0; }
+    /** Fills out_w/out_h with the index'th distinct resolution (0-based, in
+     *  whatever order the platform reports them -- SDL: largest first) for
+     *  the given display. Returns false (leaving out_w/out_h at 0) if index
+     *  is out of range. */
+    virtual bool GetFullscreenDisplayModeAt(int /*display*/, int /*index*/, int* out_w, int* out_h) const
+    {
+        if (out_w) *out_w = 0;
+        if (out_h) *out_h = 0;
+        return false;
+    }
+
     // ----- Per-frame poll -----
 
     /** Called once per event-poll cycle.  SDL: no-op (input arrives via events). */

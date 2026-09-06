@@ -338,15 +338,24 @@ struct ConfigReloadCallbacks {
     // entries. See docs/refactor/stage-13-enforce-and-document.md.
     void (*set_call_to_arms_graphics)(PlayerNumber plyr_idx, int birth_anim_idx, int alive_anim_idx, int leave_anim_idx);
 
-    // vidmode.h -- config_keeperfx.c sets these from keeperfx.cfg's
-    // VIDEO_MODE/INGAME_RES/POINTER_SENSITIVITY commands; kfx_render owns
-    // the underlying state (TbScreenMode passed as unsigned short since
+    // vidmode.h -- config_keeperfx.c sets this from keeperfx.cfg's
+    // INGAME_RES/POINTER_SENSITIVITY commands; kfx_render owns the
+    // underlying state (TbScreenMode passed as unsigned short since
     // kfx_config sits below kfx_render).
-    void (*set_failsafe_vidmode)(unsigned short nmode);
-    void (*set_movies_vidmode)(unsigned short nmode);
-    void (*set_frontend_vidmode)(unsigned short nmode);
-    void (*set_game_vidmode)(unsigned int i, unsigned short nmode);
+    void (*set_screen_vidmode)(unsigned short nmode);
+    // Getter half, for config_settingschema.c's INGAME_RES row -- reads the
+    // *pending* mode (screen_vidmode itself, kfx_render/vidmode.c), not
+    // LbScreenActiveMode()'s currently-applied one: INGAME_RES is
+    // SApply_NeedsRestart, so right after picking a new resolution the
+    // active mode hasn't changed yet, and the combo needs to show what was
+    // just chosen rather than immediately reverting to the old value.
+    unsigned short (*get_screen_vidmode)(void);
     void (*set_base_mouse_sensitivity)(long val);
+    // Getter half, for config_settingschema.c's POINTER_SENSITIVITY row
+    // (Phase G §6.3) -- same "load-time-only until the settings screen
+    // needed to read the current value back" gap as get_screenshot_format/
+    // get_hand_scale above.
+    long (*get_base_mouse_sensitivity)(void);
 
     // thing_creature.h -- config_creature.c's get_job_for_subtile() queries
     // live thing state while resolving a creature's job preference, same
@@ -386,10 +395,25 @@ struct ConfigReloadCallbacks {
     // scrcapt.h -- config_keeperfx.c sets this from keeperfx.cfg's
     // SCREENSHOT command; kfx_render owns the underlying global.
     void (*set_screenshot_format)(unsigned char val);
+    // Getter half, for config_settingschema.c's SCREENSHOT row (Phase G
+    // §6.3) -- every other ConfigReloadCallbacks entry before this one was
+    // load-time-only (file -> engine), so none needed a matching getter
+    // until the settings screen needed to show the *current* value.
+    unsigned char (*get_screenshot_format)(void);
+
+    // engine_redraw.h -- config_keeperfx.c sets this from keeperfx.cfg's
+    // new VID_SMOOTH command (docs/refactor/renderer/04-imgui-gui-
+    // foundation.md §6.2 finding 2 -- previously only settable via the
+    // "-vidsmooth" launch flag); kfx_render owns smooth_on.
+    void (*set_vid_smooth)(TbBool val);
 
     // power_hand.h -- config_keeperfx.c sets this from keeperfx.cfg's
     // HAND_SIZE command; kfx_sim owns the underlying global.
     void (*set_hand_scale)(float val);
+    // Getter half, for config_settingschema.c's HAND_SIZE row (Phase G
+    // §6.3) -- same "load-time-only until the settings screen needed to
+    // read the current value back" gap as get_screenshot_format above.
+    float (*get_hand_scale)(void);
 
     // room_data.h -- config_creature.c's get_job_for_subtile() needs the
     // RoomKind of the room a creature is standing on (RoK_NONE if none);
@@ -541,6 +565,12 @@ struct ConfigReloadCallbacks {
     // into kfx_game's live script string pool.
     long (*script_strdup)(const char *src);
     const char *(*script_strval)(long offset);
+
+    // game_campaign_progress.h -- config_settingschema.c's Reset Progress
+    // action row (SOptT_Action, docs/refactor/gui/
+    // 05-campaign-progress-and-landview.md §3.5/Phase E) needs
+    // reset_all_campaign_progress(); kfx_game owns save/progress.cfg.
+    void (*reset_campaign_progress)(void);
 };
 void set_config_reload_callbacks(const struct ConfigReloadCallbacks *callbacks);
 extern const struct ConfigReloadCallbacks *config_reload_callbacks;

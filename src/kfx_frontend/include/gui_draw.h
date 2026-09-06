@@ -130,6 +130,13 @@ void draw_button_sprite_rmleft(long x, long y, int units_per_px, long spridx, un
 void draw_frontend_sprite_left(long x, long y, int units_per_px, long spridx);
 
 void draw_frontmenu_background(int rect_x,int rect_y,int rect_w,int rect_h);
+// Had real external linkage but no header declaration at all (same
+// situation as config_settings.c's own setup_default_settings() before it
+// got one) -- added so FeStyleGetMenuBackdropTexture() (frontgui_style.cpp,
+// docs/refactor/renderer/05-imgui-owned-menu-backdrop.md Phase A) can reuse
+// this exact aspect-fit math instead of re-deriving it.
+struct TbRect;
+long get_frontmenu_background_area_rect(int rect_x, int rect_y, int rect_w, int rect_h, struct TbRect *bkgnd_area);
 /******************************************************************************/
 #ifdef __cplusplus
 }

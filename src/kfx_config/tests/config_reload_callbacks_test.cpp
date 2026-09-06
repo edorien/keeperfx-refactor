@@ -5,7 +5,7 @@
 // config_reload_callbacks.c file the way net_callbacks.c/game_callbacks.c/
 // etc. are. Same shape as every other one: every noop_* stub is
 // `static`, only reachable through the default table's function-pointer
-// fields, every body a one-liner ignoring its pointer args. 94 fields,
+// fields, every body a one-liner ignoring its pointer args. 91 fields,
 // the largest *Callbacks table in this library.
 #include <catch2/catch_test_macros.hpp>
 
@@ -35,11 +35,10 @@ TEST_CASE("the default config_reload_callbacks table's every stub is a safe no-o
     CHECK_FALSE(config_reload_callbacks->thing_is_workshop_crate(nullptr));
     CHECK(config_reload_callbacks->get_wealth_size_of_gold_hoard_model(0) == 0);
     config_reload_callbacks->set_call_to_arms_graphics(0, 0, 0, 0);
-    config_reload_callbacks->set_failsafe_vidmode(0);
-    config_reload_callbacks->set_movies_vidmode(0);
-    config_reload_callbacks->set_frontend_vidmode(0);
-    config_reload_callbacks->set_game_vidmode(0, 0);
+    config_reload_callbacks->set_screen_vidmode(0);
+    CHECK(config_reload_callbacks->get_screen_vidmode() == 0);
     config_reload_callbacks->set_base_mouse_sensitivity(0);
+    CHECK(config_reload_callbacks->get_base_mouse_sensitivity() == 0);
     CHECK_FALSE(config_reload_callbacks->thing_is_creature_digger(nullptr));
     CHECK_FALSE(config_reload_callbacks->creature_is_for_dungeon_diggers_list(nullptr));
     CHECK(config_reload_callbacks->get_thing_model(nullptr) == 0);
@@ -54,7 +53,10 @@ TEST_CASE("the default config_reload_callbacks table's every stub is a safe no-o
     CHECK_FALSE(config_reload_callbacks->thing_create_thing(nullptr));
     CHECK_FALSE(config_reload_callbacks->thing_create_thing_adv(nullptr));
     config_reload_callbacks->set_screenshot_format(0);
+    CHECK(config_reload_callbacks->get_screenshot_format() == 0);
+    config_reload_callbacks->set_vid_smooth(false);
     config_reload_callbacks->set_hand_scale(0.0f);
+    CHECK(config_reload_callbacks->get_hand_scale() == 1.0f);
     CHECK(config_reload_callbacks->get_room_kind_thing_is_on(nullptr) == 0);
     CHECK(config_reload_callbacks->get_player_color_idx(0) == 0);
     CHECK(config_reload_callbacks->get_slabset_array() == nullptr);
@@ -117,4 +119,5 @@ TEST_CASE("the default config_reload_callbacks table's every stub is a safe no-o
     config_reload_callbacks->set_speech_queue_limit(0);
     CHECK(config_reload_callbacks->script_strdup(nullptr) == -1);
     CHECK(config_reload_callbacks->script_strval(0) == nullptr);
+    config_reload_callbacks->reset_campaign_progress();
 }

@@ -31,6 +31,7 @@
 #include "bflib_planar.h"
 #include "bflib_sndlib.h"
 #include "bflib_mshandler.hpp"
+#include "gui/ImGuiContext.h"
 #include <SDL3/SDL.h>
 #include "post_inc.h"
 
@@ -526,6 +527,21 @@ TbBool LbPollInputs(void)
     SDL_Event ev;
     //process events until event queue is empty
     while (SDL_PollEvent(&ev)) {
+        // docs/refactor/renderer/04-imgui-gui-foundation.md §3.3: feed every
+        // event to ImGui too, while a context is active. Both systems see
+        // the same event for now (Phase A has no ImGui-owned frontend state
+        // yet to gate legacy input against WantCaptureMouse/Keyboard --
+        // that gating lands with the first migrated screen, Phase C).
+        //
+        // Motion events are the one deliberate exception: the game's own
+        // grab-warp mouse handling (below, "Warp-based relative motion")
+        // makes a raw motion event's absolute x/y meaningless whenever the
+        // cursor nears a window edge -- ImGuiContextNewFrame() feeds ImGui
+        // the game's own tracked position instead (ImGuiMousePositionFn,
+        // ImGuiContext.h), once per frame, so forwarding these here would
+        // just fight that override with stale/warped values.
+        if (ImGuiContextIsActive() && ev.type != SDL_EVENT_MOUSE_MOTION)
+            ImGuiContextProcessEvent(&ev);
         process_event(&ev);
     }
 

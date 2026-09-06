@@ -28,7 +28,9 @@
 #include "bflib_dernc.h"
 
 #include "config.h"
+#include "config_keeperfx.h" // use_classic_menu -- Phase D, docs/refactor/gui/05-campaign-progress-and-landview.md §3.4
 #include "config_campaigns.h"
+#include "game_campaign_progress.h" // Phase D, same doc
 #include "dungeon_stats.h"
 #include "config_creature.h"
 #include "config_crtrmodel.h"
@@ -772,7 +774,10 @@ short save_continue_game(LevelNumber lvnum)
     return result;
 }
 
-static short read_continue_game_progress(char *cmpgn_fname, LevelNumber *lvnum, struct IntralevelData *intralevel)
+// No longer static: game_campaign_progress.c's reconcile_fx1contn_into_progress()
+// (docs/refactor/gui/05-campaign-progress-and-landview.md §3.4) reads the
+// same file this way to absorb old progress into save/progress.cfg.
+short read_continue_game_progress(char *cmpgn_fname, LevelNumber *lvnum, struct IntralevelData *intralevel)
 {
     char* fname = prepare_file_path(FGrp_Save, continue_game_filename);
     int32_t fsize = LbFileLength(fname);
@@ -808,6 +813,20 @@ static short read_continue_game_progress(char *cmpgn_fname, LevelNumber *lvnum, 
  */
 TbBool continue_game_available(void)
 {
+    // Phase D (docs/refactor/gui/05-campaign-progress-and-landview.md §3.4):
+    // under the new menu, "Continue" means "go to Campaign Select" (see
+    // frontend_load_continue_game_resolve() below), which needs no
+    // specific campaign/level pre-loaded -- it's available the moment
+    // *any* campaign has *any* unlocked level, full stop. fx1contn.sav is
+    // never read or written by this branch.
+    if (!use_classic_menu())
+    {
+        if (!load_campaign_progress_file())
+            return false;
+        reconcile_fx1contn_into_progress();
+        return any_campaign_progress_exists();
+    }
+
     LevelNumber lvnum;
     SYNCDBG(6,"Starting");
     char cmpgn_fname[CAMPAIGN_FNAME_LEN];

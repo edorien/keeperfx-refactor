@@ -21,6 +21,9 @@
 
 #include "globals.h"
 #include "bflib_guibtns.h"
+#include "frontmenu_settingctrl.h"
+#include <stddef.h> // size_t
+#include <stdint.h> // uint8_t
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,6 +55,17 @@ extern struct GuiMenu frontend_define_keys_menu;
 #define frontend_define_keys_menu_items_visible  10
 extern struct GuiMenu frontend_option_menu;
 /******************************************************************************/
+// The FrontendSliderCtrl/FrontendCheckboxCtrl bindings behind the sliders/
+// checkbox above, exposed (no longer `static`) so kfx_frontend's ImGui
+// FeSt_FEOPTIONS screen (docs/refactor/renderer/04-imgui-gui-foundation.md
+// Phase C) can bind to the exact same settings.<field> get/set pair rather
+// than duplicating it -- single source of truth for both draw paths.
+extern const struct FrontendSliderCtrl sound_volume_ctrl;
+extern const struct FrontendSliderCtrl music_volume_ctrl;
+extern const struct FrontendSliderCtrl mentor_volume_ctrl;
+extern const struct FrontendSliderCtrl mouse_sensitivity_ctrl;
+extern const struct FrontendCheckboxCtrl mouse_invert_ctrl;
+/******************************************************************************/
 void frontend_define_key_up(struct GuiButton *gbtn);
 void frontend_define_key_down(struct GuiButton *gbtn);
 void frontend_define_key_scroll(struct GuiButton *gbtn);
@@ -61,6 +75,8 @@ void frontend_define_key_down_maintain(struct GuiButton *gbtn);
 void frontend_define_key_maintain(struct GuiButton *gbtn);
 void frontend_draw_define_key_scroll_tab(struct GuiButton *gbtn);
 void frontend_draw_define_key(struct GuiButton *gbtn);
+void frontend_format_key_binding(long key_id, char *text, size_t text_size);
+uint8_t num_definable_keys(void);
 void frontend_set_mouse_sensitivity(struct GuiButton *gbtn);
 void frontend_invert_mouse(struct GuiButton *gbtn);
 void frontend_draw_invert_mouse(struct GuiButton *gbtn);
@@ -70,8 +86,6 @@ void gui_video_rotate_mode(struct GuiButton *gbtn);
 void gui_video_cluedo_mode(struct GuiButton *gbtn);
 void gui_video_gamma_correction(struct GuiButton *gbtn);
 void gui_video_cluedo_maintain(struct GuiButton *gbtn);
-void gui_switch_video_mode(struct GuiButton *gbtn);
-void gui_display_current_resolution(struct GuiButton *gbtn);
 void gui_set_sound_volume(struct GuiButton *gbtn);
 void gui_set_music_volume(struct GuiButton *gbtn);
 void gui_set_mentor_volume(struct GuiButton *gbtn);

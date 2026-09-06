@@ -201,7 +201,16 @@ int WindowSystemSDL::GetClosestDisplayMode(int display, int desired_w, int desir
     if (out_h) *out_h = 0;
     SDL_DisplayID disp_id = (display > 0) ? (SDL_DisplayID)display : SDL_GetPrimaryDisplay();
     SDL_DisplayMode closest = {};
-    if (!SDL_GetClosestFullscreenDisplayMode(disp_id, desired_w, desired_h, 0.0f, false, &closest))
+    // include_high_density_modes must be true here, matching
+    // GetFullscreenDisplayModeAt()/GetFullscreenDisplayModeCount()'s own
+    // SDL_GetFullscreenDisplayModes() call (which doesn't filter by pixel
+    // density at all) -- otherwise a resolution the INGAME_RES picker
+    // legitimately offered (enumerated including high-density modes) could
+    // fail this exact-match check (LbHwCheckIsModeAvailable, bflib_video.c)
+    // simply because it only exists as a high-density mode on this display,
+    // rejecting a mode the user was never told was unavailable and silently
+    // falling back to the 640x480 failsafe.
+    if (!SDL_GetClosestFullscreenDisplayMode(disp_id, desired_w, desired_h, 0.0f, true, &closest))
         return 0;
     if (out_w) *out_w = closest.w;
     if (out_h) *out_h = closest.h;
@@ -214,7 +223,11 @@ int WindowSystemSDL::SetWindowDisplayMode(int w, int h)
         return -1;
     SDL_DisplayID disp_id = SDL_GetDisplayForWindow(lbWindow);
     SDL_DisplayMode dm = {};
-    if (SDL_GetClosestFullscreenDisplayMode(disp_id, w, h, 0.0f, false, &dm))
+    // include_high_density_modes true, same reasoning as GetClosestDisplayMode()
+    // above -- must agree with what LbHwCheckIsModeAvailable() already accepted
+    // as available, or a mode that passed that check could still fail to
+    // actually apply here.
+    if (SDL_GetClosestFullscreenDisplayMode(disp_id, w, h, 0.0f, true, &dm))
         return SDL_SetWindowFullscreenMode(lbWindow, &dm) ? 0 : -1;
     // No matching exclusive mode — fall back to desktop (borderless) fullscreen.
     return SDL_SetWindowFullscreenMode(lbWindow, nullptr) ? 0 : -1;
@@ -324,4 +337,67 @@ int WindowSystemSDL::GetDisplayRefreshRate() const
     if (mode && mode->refresh_rate > 0)
         return (int)(mode->refresh_rate + 0.5f);
     return 0;
+}
+
+// SDL_GetFullscreenDisplayModes() lists one entry per (width, height,
+// refresh rate, pixel density) combination -- a resolution picker only
+// wants distinct (width, height) pairs, so both methods below walk the
+// same list and skip any (w, h) already seen earlier in it. O(n^2) in the
+// mode count, which SDL reports as at most a few dozen even on unusual
+// setups, so this is not worth a cache.
+static bool is_duplicate_resolution(SDL_DisplayMode** modes, int upto, int w, int h)
+{
+    for (int j = 0; j < upto; j++)
+    {
+        if ((modes[j]->w == w) && (modes[j]->h == h))
+            return true;
+    }
+    return false;
+}
+
+int WindowSystemSDL::GetFullscreenDisplayModeCount(int display) const
+{
+    SDL_DisplayID disp_id = (display > 0) ? (SDL_DisplayID)display : SDL_GetPrimaryDisplay();
+    int count = 0;
+    SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(disp_id, &count);
+    if (!modes)
+        return 0;
+    int distinct = 0;
+    for (int i = 0; i < count; i++)
+    {
+        if (!is_duplicate_resolution(modes, i, modes[i]->w, modes[i]->h))
+            distinct++;
+    }
+    SDL_free(modes);
+    return distinct;
+}
+
+bool WindowSystemSDL::GetFullscreenDisplayModeAt(int display, int index, int* out_w, int* out_h) const
+{
+    if (out_w) *out_w = 0;
+    if (out_h) *out_h = 0;
+    if (index < 0)
+        return false;
+    SDL_DisplayID disp_id = (display > 0) ? (SDL_DisplayID)display : SDL_GetPrimaryDisplay();
+    int count = 0;
+    SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(disp_id, &count);
+    if (!modes)
+        return false;
+    int distinct = -1;
+    bool found = false;
+    for (int i = 0; i < count; i++)
+    {
+        if (is_duplicate_resolution(modes, i, modes[i]->w, modes[i]->h))
+            continue;
+        distinct++;
+        if (distinct == index)
+        {
+            if (out_w) *out_w = modes[i]->w;
+            if (out_h) *out_h = modes[i]->h;
+            found = true;
+            break;
+        }
+    }
+    SDL_free(modes);
+    return found;
 }

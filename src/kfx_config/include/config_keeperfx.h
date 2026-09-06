@@ -38,7 +38,7 @@ struct GameCampaign;
 
 // Max length of the command line
 #define CMDLN_MAXLEN 259
-#define CMDLINE_OVERRIDES 4
+#define CMDLINE_OVERRIDES 8
 
 /** Command Line overrides for config settings. Checked after the config file is loaded. */
 enum CmdLineOverrides {
@@ -46,6 +46,17 @@ enum CmdLineOverrides {
     Clo_CDMusic,
     Clo_GameTurns,
     Clo_FramesPerSecond,
+    Clo_ClassicMenu, /**< docs/refactor/renderer/04-imgui-gui-foundation.md §3.5 -- -classicmenu/-noimgui. */
+    // docs/refactor/renderer/04-imgui-gui-foundation.md §6.2 finding 2 --
+    // these three gained keeperfx.cfg keys (EASTER_EGG/VID_SMOOTH/
+    // ALT_INPUT) alongside their pre-existing "-alex"/"-vidsmooth"/
+    // "-altinput" launch flags; the flags are one-directional "force on"
+    // switches (same shape as Clo_ClassicMenu), so process_cmdline_
+    // overrides() only ever pushes their value to true, never restores a
+    // config-file "off".
+    Clo_EasterEgg,
+    Clo_VidSmooth,
+    Clo_AltInput,
 };
 
 // Used by both StartupParameters.mode_flags (below) and struct Game's
@@ -68,6 +79,14 @@ enum DebugFlags {
     DFlg_ShowGameTurns      =  0x04,
     DFlg_FrameStep          =  0x08,
     DFlg_PauseAtGameTurn    =  0x10,
+    // docs/refactor/renderer/04-imgui-gui-foundation.md §7 Phase A exit
+    // criteria: -imguidemo shows imgui_demo.cpp's ShowDemoWindow() as a
+    // proof that the backend wiring works, ahead of any real screen
+    // migrating. Superseded by real screens from Phase C onward.
+    DFlg_ImGuiDemo          =  0x20,
+    // §7 Phase B exit criteria: -imguistyle shows the FeStyleSheetFrame()
+    // proving ground, exercising every frontgui_widgets.h wrapper.
+    DFlg_ImGuiStyleSheet    =  0x40,
 };
 
 #ifdef FUNCTESTING
@@ -148,6 +167,10 @@ enum TbFeature {
     Ft_DeltaTime                    = 0x40000,
     Ft_NoCdMusic                    = 0x80000,
     Ft_RelativeMouseMode            = 0x100000,
+    // docs/refactor/renderer/04-imgui-gui-foundation.md §3.5: forces the
+    // legacy sprite-drawn frontend menus, off by default (ImGui is on by
+    // default while both paths ship side by side).
+    Ft_ClassicMenu                  = 0x200000,
 };
 
 // enum TbLanguage moved to globals.h (stage 13.3) -- see there.
@@ -194,6 +217,10 @@ struct KeeperFxUiConfig {
     unsigned char default_tag_mode;
     int zoom_to_mouse_option;
     int rotate_around_mouse_option;
+    // ImGui-frontend text size as a percentage of FeStylePushFont's own
+    // resolution-derived base size (frontgui_style.cpp) -- no equivalent
+    // option in original DK, KeeperFX-only. 100 = unscaled.
+    int ui_font_scale_pct;
 };
 extern struct KeeperFxUiConfig keeperfx_ui_config;
 
@@ -212,6 +239,12 @@ extern char keeper_runtime_directory[152];
 extern unsigned long features_enabled;
 extern const struct NamedCommand lang_type[];
 extern const struct NamedCommand scrshot_type[];
+// Exposed for config_settingschema.c's SOptT_Enum rows (ATMOS_VOLUME/
+// ATMOS_FREQUENCY/DEFAULT_TAG_MODE) to reuse verbatim -- same tables the
+// parser itself matches keeperfx.cfg values against.
+extern const struct NamedCommand atmos_volume[];
+extern const struct NamedCommand atmos_freq[];
+extern const struct NamedCommand tag_modes[];
 extern char cmd_char;
 extern short api_enabled;
 extern uint16_t api_port;
@@ -224,6 +257,33 @@ short load_configuration(void);
 void process_cmdline_overrides(void);
 int parse_draw_fps_config_val(const char *arg, int32_t *fps_draw_main, int32_t *fps_draw_secondary);
 /******************************************************************************/
+// docs/refactor/renderer/04-imgui-gui-foundation.md §6.2 finding 1: the
+// engine has never had a keeperfx.cfg writer -- save_settings() persists a
+// different, much smaller binary struct. This is the comment- and
+// order-preserving writer the settings screen (Phase G) needs to actually
+// apply config-file-backed options, built first and independent of any
+// ImGui work since it's plain text-file surgery.
+struct KeeperfxCfgEdit {
+    const char *key;   // a conf_commands[] name (config_keeperfx.c), matched case-insensitively
+    const char *value; // raw value text to write after "KEY=", e.g. "50" or "AUTO 30"
+};
+// Rewrites the given keeperfx.cfg-format file in place: each edit's key is
+// found the same way the loader recognizes it (recognize_conf_command's own
+// case-insensitive, whitespace/'='-bounded match) and only that line's value
+// is replaced -- every other line (comments, blank lines, key order, keys
+// this call doesn't mention) is copied through untouched. A key with no
+// existing line is appended at the end. If the same key appears more than
+// once in the file, every occurrence is updated, so no stale duplicate is
+// left behind. Exposed with an explicit path so it's independently testable
+// against a fixture file; keeperfx_cfg_write_values() below is the
+// real-usage wrapper.
+TbBool keeperfx_cfg_write_values_to_file(const char *fname, const struct KeeperfxCfgEdit *edits, int edits_count);
+// Same as keeperfx_cfg_write_values_to_file(), targeting the exact path
+// load_configuration() loaded from (including a "-config <file>" override),
+// remembered at load time so a settings screen writes back to the file the
+// game actually read, not a freshly re-resolved default.
+TbBool keeperfx_cfg_write_values(const struct KeeperfxCfgEdit *edits, int edits_count);
+/******************************************************************************/
 TbBool is_feature_on(unsigned long feature);
 void set_skip_heart_zoom_feature(TbBool enable);
 TbBool get_skip_heart_zoom_feature(void);
@@ -234,6 +294,7 @@ TbBool freeze_game_on_focus_lost(void);
 TbBool unlock_cursor_when_game_paused(void);
 TbBool lock_cursor_in_possession(void);
 TbBool use_relative_mouse_mode(void);
+TbBool use_classic_menu(void);
 TbBool pause_music_when_game_paused(void);
 TbBool mute_audio_on_focus_lost(void);
 // Had real external linkage but no header declaration at all; added

@@ -55,7 +55,7 @@ int highscore_scroll_offset = 0;
 unsigned long scores_count;
 /******************************************************************************/
 
-static void finalize_high_score_entry(TbBool restore_default_name)
+void finalize_high_score_entry(TbBool restore_default_name)
 {
     if ((high_score_entry_input_active < 0) || (high_score_entry_input_active >= campaign.hiscore_count))
     {

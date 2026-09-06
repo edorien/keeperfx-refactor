@@ -82,9 +82,10 @@ static unsigned char config_reload_noop_get_creature_blood_type(const struct Thi
 static char *config_reload_noop_get_creature_name_buffer(const struct Thing *creatng) { return NULL; }
 static int config_reload_noop_get_wealth_size_of_gold_hoard_model(ThingModel objmodel) { return 0; }
 static void config_reload_noop_set_call_to_arms_graphics(PlayerNumber plyr_idx, int birth_anim_idx, int alive_anim_idx, int leave_anim_idx) {}
-static void config_reload_noop_set_vidmode(unsigned short nmode) {}
-static void config_reload_noop_set_game_vidmode(unsigned int i, unsigned short nmode) {}
+static void config_reload_noop_set_screen_vidmode(unsigned short nmode) {}
+static unsigned short config_reload_noop_get_screen_vidmode(void) { return 0; }
 static void config_reload_noop_set_base_mouse_sensitivity(long val) {}
+static long config_reload_noop_get_base_mouse_sensitivity(void) { return 0; }
 static void config_reload_noop_setup_panel_colors(void) {}
 static void config_reload_noop_reset_panel_map_background_cache(void) {}
 static void config_reload_noop_update_creatr_model_activities_list(TbBool forced) {}
@@ -93,7 +94,10 @@ static long config_reload_noop_slabmap_owner(const struct SlabMap *slb) { return
 static TbBool config_reload_noop_thing_create_thing(struct InitThing *itng) { return false; }
 static TbBool config_reload_noop_thing_create_thing_adv(VALUE *init_data) { return false; }
 static void config_reload_noop_set_screenshot_format(unsigned char val) {}
+static unsigned char config_reload_noop_get_screenshot_format(void) { return 0; }
+static void config_reload_noop_set_vid_smooth(TbBool val) {}
 static void config_reload_noop_set_hand_scale(float val) {}
+static float config_reload_noop_get_hand_scale(void) { return 1.0f; }
 static RoomKind config_reload_noop_get_room_kind_thing_is_on(const struct Thing *creatng) { return 0; }
 static unsigned char config_reload_noop_get_player_color_idx(PlayerNumber plyr_idx) { return 0; }
 static struct SlabSet *config_reload_noop_get_slabset_array(void) { return NULL; }
@@ -127,6 +131,7 @@ static TbBool config_reload_noop_bool_door_trap(PlayerNumber plyr_idx, ThingMode
 static void config_reload_noop_set_speech_queue_limit(int limit) {}
 static long config_reload_noop_script_strdup(const char *src) { return -1; }
 static const char *config_reload_noop_script_strval(long offset) { return NULL; }
+static void config_reload_noop_reset_campaign_progress(void) {}
 
 static const struct ConfigReloadCallbacks default_config_reload_callbacks = {
     &config_reload_noop_void, &config_reload_noop_void, &config_reload_noop_void,
@@ -144,11 +149,10 @@ static const struct ConfigReloadCallbacks default_config_reload_callbacks = {
     &config_reload_noop_thing_query,
     &config_reload_noop_get_wealth_size_of_gold_hoard_model,
     &config_reload_noop_set_call_to_arms_graphics,
-    &config_reload_noop_set_vidmode,
-    &config_reload_noop_set_vidmode,
-    &config_reload_noop_set_vidmode,
-    &config_reload_noop_set_game_vidmode,
+    &config_reload_noop_set_screen_vidmode,
+    &config_reload_noop_get_screen_vidmode,
     &config_reload_noop_set_base_mouse_sensitivity,
+    &config_reload_noop_get_base_mouse_sensitivity,
     &config_reload_noop_thing_query,
     &config_reload_noop_thing_query,
     &config_reload_noop_get_thing_model,
@@ -163,7 +167,10 @@ static const struct ConfigReloadCallbacks default_config_reload_callbacks = {
     &config_reload_noop_thing_create_thing,
     &config_reload_noop_thing_create_thing_adv,
     &config_reload_noop_set_screenshot_format,
+    &config_reload_noop_get_screenshot_format,
+    &config_reload_noop_set_vid_smooth,
     &config_reload_noop_set_hand_scale,
+    &config_reload_noop_get_hand_scale,
     &config_reload_noop_get_room_kind_thing_is_on,
     &config_reload_noop_get_player_color_idx,
     &config_reload_noop_get_slabset_array,
@@ -206,6 +213,7 @@ static const struct ConfigReloadCallbacks default_config_reload_callbacks = {
     &config_reload_noop_bool_door_trap, &config_reload_noop_bool_door_trap,
     &config_reload_noop_set_speech_queue_limit,
     &config_reload_noop_script_strdup, &config_reload_noop_script_strval,
+    &config_reload_noop_reset_campaign_progress,
 };
 const struct ConfigReloadCallbacks *config_reload_callbacks = &default_config_reload_callbacks;
 

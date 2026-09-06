@@ -34,7 +34,7 @@ extern "C" {
 // Limits for GUI arrays
 #define ACTIVE_BUTTONS_COUNT        100
 #define MENU_LIST_ITEMS_COUNT       52
-#define FRONTEND_BUTTON_INFO_COUNT 117
+#define FRONTEND_BUTTON_INFO_COUNT 118
 // Symbolic names for frontend_button_info[]'s populated slots (frontend.cpp),
 // each an exact rename of a numeric position -- FEBtn_Foo = N means slot N
 // held that meaning already, nothing renumbered. Only genuine, verified
@@ -117,6 +117,7 @@ enum FrontEndBtnStrIdx {
     FEBtn_MnuReturnToLobby = 114,
     FEBtn_MnuEnterLand = 115,
     FEBtn_MnuPlayLevel = 116,
+    FEBtn_MnuSkirmish = 117,
 };
 #define NET_MESSAGES_COUNT           8
 #define NET_MESSAGE_LEN             64
@@ -476,11 +477,29 @@ void gui_scroll_text_down(struct GuiButton *gbtn);
 void maintain_scroll_up(struct GuiButton *gbtn);
 void maintain_scroll_down(struct GuiButton *gbtn);
 void gui_scroll_text_down(struct GuiButton *gbtn);
+// Main Menu buttons that reach frontend_set_state() by way of real
+// side-effecting work (loading a default campaign, starting a campaign)
+// each have a _resolve() sibling returning the target FrontendMenuState
+// (int, -1 = nothing to do / failed) instead of transitioning -- the
+// ImGui screen (frontgui_screens.cpp) calls these directly and requests
+// the transition itself, since frontend_set_state() is unsafe to call
+// synchronously from inside an active ImGui window; the legacy
+// click_events below keep calling frontend_set_state() directly,
+// unchanged. Load Game/Options/Quit have fixed targets and no other side
+// effects, so the ImGui screen just requests those states directly --
+// no resolve wrapper needed for them.
+int frontend_ldcampaign_change_state_resolve(void);
 void frontend_ldcampaign_change_state(struct GuiButton *gbtn);
+int frontend_netservice_change_state_resolve(void);
 void frontend_netservice_change_state(struct GuiButton *gbtn);
+int frontend_start_skirmish_resolve(void);
+void frontend_start_skirmish(struct GuiButton *gbtn);
+void frontend_main_menu_skirmish_maintain(struct GuiButton *gbtn);
+int frontend_start_new_game_resolve(void);
 void frontend_start_new_game(struct GuiButton *gbtn);
 void frontend_load_mappacks(struct GuiButton *gbtn);
 void frontend_load_mp_mappacks(struct GuiButton *gbtn);
+int frontend_load_continue_game_resolve(void);
 void frontend_load_continue_game(struct GuiButton *gbtn);
 short frontend_save_continue_game(short allow_lvnum_grow);
 void frontend_continue_game_maintain(struct GuiButton *gbtn);

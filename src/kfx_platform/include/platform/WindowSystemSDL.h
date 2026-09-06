@@ -41,6 +41,8 @@ public:
 
     // ----- Display info -----
     int GetDisplayRefreshRate() const override;
+    int GetFullscreenDisplayModeCount(int display) const override;
+    bool GetFullscreenDisplayModeAt(int display, int index, int* out_w, int* out_h) const override;
 
     // PollInput is a no-op: SDL delivers mouse input via events.
 

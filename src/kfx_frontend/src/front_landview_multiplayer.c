@@ -86,7 +86,6 @@ const struct TbSprite * get_map_ensign(long idx);
 void set_all_ensigns_state(unsigned short nstate);
 void unload_map_and_window(void);
 TbBool load_map_and_window(LevelNumber lvnum);
-void frontmap_start_music(void);
 void frontmap_zoom_skip_init(LevelNumber lvnum);
 void frontmap_zoom_in_init(LevelNumber lvnum);
 TbBool frontmap_input_active_ensign(long curr_mx, long curr_my);

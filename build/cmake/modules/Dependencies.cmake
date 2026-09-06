@@ -448,6 +448,33 @@ else()
     target_include_directories(centitoml INTERFACE "${KFX_CENTITOML_SRC}")
 endif()
 
+# --- Dear ImGui (docs/refactor/renderer/04-imgui-gui-foundation.md, Phase A)
+# Vendored at deps/imgui/ (upstream ocornut/imgui v1.92.7, MIT) -- an in-tree
+# source dep like deps/centitoml above, not a fetched binary; see that
+# directory's git history for how it was pulled in. Only the two SDL3
+# backends are compiled (imgui_impl_sdl3 + imgui_impl_sdlrenderer3) since
+# kfx_platform's window/renderer are exactly those types (RendererSoftware.h
+# / WindowSystemSDL.h) -- see §3.1/§3.2 of the plan doc. imgui_demo.cpp is
+# included too (Phase A's imgui_demo proof, §7); it costs nothing in a
+# release build if ImGui::ShowDemoWindow() is never called.
+#
+# One OBJECT library shared between the std/hvlog kfx_platform variants --
+# kfx_common_opts is a single INTERFACE target linked into both (see
+# centitoml just above for the identical reasoning): ImGui doesn't touch
+# BFDEBUG_LEVEL or any bflib header, so nothing differs between the two
+# builds and compiling it twice would be pure waste.
+set(KFX_IMGUI_SRC "${CMAKE_SOURCE_DIR}/deps/imgui")
+add_library(imgui OBJECT
+    "${KFX_IMGUI_SRC}/imgui.cpp"
+    "${KFX_IMGUI_SRC}/imgui_draw.cpp"
+    "${KFX_IMGUI_SRC}/imgui_tables.cpp"
+    "${KFX_IMGUI_SRC}/imgui_widgets.cpp"
+    "${KFX_IMGUI_SRC}/imgui_demo.cpp"
+    "${KFX_IMGUI_SRC}/backends/imgui_impl_sdl3.cpp"
+    "${KFX_IMGUI_SRC}/backends/imgui_impl_sdlrenderer3.cpp")
+target_include_directories(imgui PUBLIC "${KFX_IMGUI_SRC}" "${KFX_IMGUI_SRC}/backends")
+target_link_libraries(imgui PUBLIC kfx_sdl3)
+
 # Link every dependency onto TARGET.
 function(kfx_link_dependencies TARGET)
     if(WIN32)

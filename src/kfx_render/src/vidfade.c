@@ -23,7 +23,6 @@
 #include "globals.h"
 #include "bflib_basics.h"
 #include "bflib_video.h"
-#include "bflib_keybrd.h"
 #include "bflib_datetm.h"
 #include "bflib_video.h"
 #include "bflib_fileio.h"
@@ -31,7 +30,6 @@
 #include "config_settings.h"
 
 #include "vidmode.h"
-#include "sim_feedback.h"
 #include "player_data.h"
 #include "player_instances.h"
 #include "config_keeperfx.h"
@@ -45,21 +43,15 @@ extern "C" {
 static TbBool lbAdvancedFade = true;
 static int lbFadeDelay = 25;
 
-unsigned char fade_palette_in;
 unsigned char frontend_palette[768];
 unsigned char palette_buf[PALETTE_SIZE];
 /******************************************************************************/
-void fade_in(void)
-{
-    ProperFadePalette(frontend_palette, 8, Lb_PALETTE_FADE_OPEN);
-}
-
-void fade_out(void)
-{
-    ProperFadePalette(NULL, 8, Lb_PALETTE_FADE_CLOSED);
-    RendererClearScreen(0);
-}
-
+// fade_in()/fade_out()/ProperFadePalette() removed per
+// docs/refactor/renderer/05-imgui-owned-menu-backdrop.md Phase 0 -- the
+// between-screens fade they drove existed to mask loading time on
+// decades-old hardware and is no longer needed. ProperForcedFadePalette()
+// below is a separate function (still used by front_simple.c for cutscene
+// playback) and is untouched.
 void compute_fade_tables(struct TbColorTables *coltbl,unsigned char *spal,unsigned char *dpal)
 {
     unsigned long i;
@@ -191,37 +183,6 @@ void compute_rgb2idx_table(TbRGBColorTable ctab,unsigned char *spal)
                 ctab[valR][valG][valB] = c;
             }
         }
-    }
-}
-
-void ProperFadePalette(unsigned char *pal, long fade_steps, enum TbPaletteFadeFlag flg)
-{
-/*    if (flg != Lb_PALETTE_FADE_CLOSED)
-    {
-        LbPaletteFade(pal, fade_steps, flg);
-    } else*/
-    if (lbAdvancedFade)
-    {
-        TbClockMSec latest_loop_time = LbTimerClock();
-        while (LbPaletteFade(pal, fade_steps, Lb_PALETTE_FADE_OPEN) < fade_steps)
-        {
-          if (!sim_feedback->is_key_pressed(KC_SPACE,KMod_DONTCARE) &&
-              !sim_feedback->is_key_pressed(KC_ESCAPE,KMod_DONTCARE) &&
-              !sim_feedback->is_key_pressed(KC_RETURN,KMod_DONTCARE) &&
-              !sim_feedback->is_mouse_pressed_lrbutton())
-          {
-            latest_loop_time += lbFadeDelay;
-            LbSleepUntil(latest_loop_time);
-          }
-        }
-    } else
-    if (pal != NULL)
-    {
-        RendererPaletteSet(pal);
-    } else
-    {
-        LbPaletteDataFillBlack(palette_buf);
-        RendererPaletteSet(palette_buf);
     }
 }
 

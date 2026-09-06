@@ -93,6 +93,16 @@ TbBool land_preview_load(struct LandPreviewPanel *panel, LevelNumber target_lvnu
 void land_preview_unload(struct LandPreviewPanel *panel);
 void land_preview_maintain(struct GuiButton *gbtn);
 void land_preview_draw(struct GuiButton *gbtn);
+// Shrinks the ornate corner frame's absolute pixel size by an extra
+// factor of extra_den (2 = half size), on top of its own fixed
+// scale_ui_value_lofi()-based sizing -- see the .c file's own comment on
+// why that sizing doesn't respond to the panel's own dimensions. Applies
+// to every land_preview_draw() call until changed again; callers embedding
+// this panel at a size very different from the legacy screen it was
+// originally tuned for should set this before drawing and reset it to 1
+// afterward, so the legacy screen (which never touches this) is
+// unaffected. extra_den <= 0 is treated as 1 (no change).
+void land_preview_set_frame_extra_scale_den(long extra_den);
 /******************************************************************************/
 #ifdef __cplusplus
 }

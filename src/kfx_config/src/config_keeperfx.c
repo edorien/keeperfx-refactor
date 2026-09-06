@@ -46,13 +46,9 @@ extern "C" {
 /******************************************************************************/
 
 
-// Duplicated from kfx_render's vidmode.h (MAX_GAME_VIDMODE_COUNT) rather
-// than included, to avoid a kfx_config -> kfx_render layering violation
-// for a single stable array-size constant. See
-// docs/refactor/stage-13-enforce-and-document.md.
-#define CONFIG_MAX_GAME_VIDMODE_COUNT 6
-
 static const char keeper_config_file[]="keeperfx.cfg";
+// Set by load_configuration() -- see keeperfx_cfg_write_values()'s own comment.
+static char loaded_keeperfx_cfg_path[DISKPATH_SIZE] = "";
 
 char cmd_char = '!';
 unsigned short AtmosRepeat = 1013;
@@ -71,6 +67,7 @@ struct KeeperFxUiConfig keeperfx_ui_config = {
     .default_tag_mode = 1,
     .zoom_to_mouse_option = 3, // ZoomToMouse_Always
     .rotate_around_mouse_option = 1, // RotateAroundMouse_Never
+    .ui_font_scale_pct = 100,
 };
 static NetworkIsActiveFn g_network_is_active_fn = NULL;
 
@@ -149,7 +146,6 @@ const struct NamedCommand conf_commands[] = {
   {"LANGUAGE",             3},
   {"KEYBOARD",             4},
   {"SCREENSHOT",           5},
-  {"FRONTEND_RES",         6},
   {"INGAME_RES",           7},
   {"CENSORSHIP",           8},
   {"POINTER_SENSITIVITY",  9},
@@ -191,6 +187,11 @@ const struct NamedCommand conf_commands[] = {
   {"RELATIVE_MOUSE_MODE"           , 45},
   {"CAPTURE_CURSOR"                , 46},
   {"MATCHMAKING_SERVER"            , 47},
+  {"CLASSIC_MENU"                  , 48},
+  {"EASTER_EGG"                    , 49},
+  {"VID_SMOOTH"                    , 50},
+  {"ALT_INPUT"                     , 51},
+  {"UI_FONT_SCALE"                 , 52},
   {NULL,                   0},
   };
 
@@ -314,6 +315,15 @@ TbBool lock_cursor_in_possession(void)
 TbBool use_relative_mouse_mode(void)
 {
   return ((features_enabled & Ft_RelativeMouseMode) != 0);
+}
+
+/**
+ * Returns if the legacy sprite-drawn frontend menus should be used instead
+ * of ImGui (docs/refactor/renderer/04-imgui-gui-foundation.md §3.5).
+ */
+TbBool use_classic_menu(void)
+{
+  return ((features_enabled & Ft_ClassicMenu) != 0);
 }
 
 /**
@@ -486,53 +496,19 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           }
           config_reload_callbacks->set_screenshot_format(i);
           break;
-      case 6: // FRONTEND_RES
-          for (i=0; i<3; i++)
-          {
-            if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
-              k = LbRegisterVideoModeString(word_buf);
-            else
-              k = -1;
-            if (k<=0)
-            {
-                CONFWRNLOG("Couldn't recognize video mode %d in \"%s\" command of %s file.",
-                   i+1,COMMAND_TEXT(cmd_num),config_textname);
-               continue;
-            }
-            switch (i)
-            {
-            case 0:
-                config_reload_callbacks->set_failsafe_vidmode((TbScreenMode)k);
-                break;
-            case 1:
-                config_reload_callbacks->set_movies_vidmode((TbScreenMode)k);
-                break;
-            case 2:
-                config_reload_callbacks->set_frontend_vidmode((TbScreenMode)k);
-                break;
-            }
-          }
-          break;
       case 7: // INGAME_RES
-          for (i=0; i<CONFIG_MAX_GAME_VIDMODE_COUNT; i++)
+          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
           {
-            if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
-            {
-              k = LbRegisterVideoModeString(word_buf);
-              if (k > 0)
-                config_reload_callbacks->set_game_vidmode((uint)i,(TbScreenMode)k);
-              else
-                  CONFWRNLOG("Couldn't recognize video mode %d in \"%s\" command of %s file.",
-                    i+1,COMMAND_TEXT(cmd_num),config_textname);
-            } else
-            {
-              if (i > 0)
-                config_reload_callbacks->set_game_vidmode((uint)i,Lb_SCREEN_MODE_INVALID);
-              else
-                  CONFWRNLOG("Video modes list empty in \"%s\" command of %s file.",
-                    COMMAND_TEXT(cmd_num),config_textname);
-              break;
-            }
+            k = LbRegisterVideoModeString(word_buf);
+            if (k > 0)
+                config_reload_callbacks->set_screen_vidmode((TbScreenMode)k);
+            else
+                CONFWRNLOG("Couldn't recognize video mode in \"%s\" command of %s file.",
+                  COMMAND_TEXT(cmd_num),config_textname);
+          } else
+          {
+              CONFWRNLOG("No video mode given in \"%s\" command of %s file.",
+                COMMAND_TEXT(cmd_num),config_textname);
           }
           break;
       case 8: // CENSORSHIP
@@ -1082,6 +1058,75 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               SYNCLOG("Matchmaking server: %s", matchmaking_config->get_ws_url());
           }
           break;
+      case 48: // CLASSIC_MENU
+          if (!start_params.overrides[Clo_ClassicMenu])
+          {
+              i = recognize_conf_parameter(buf,&pos,len,logicval_type);
+              if (i <= 0)
+              {
+                  CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                    COMMAND_TEXT(cmd_num),config_textname);
+                break;
+              }
+              if (i == 1)
+                  features_enabled |= Ft_ClassicMenu;
+              else
+                  features_enabled &= ~Ft_ClassicMenu;
+          }
+          break;
+      case 49: // EASTER_EGG -- docs/refactor/renderer/04-imgui-gui-foundation.md §6.2 finding 2
+          if (!start_params.overrides[Clo_EasterEgg])
+          {
+              i = recognize_conf_parameter(buf,&pos,len,logicval_type);
+              if (i <= 0)
+              {
+                  CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                    COMMAND_TEXT(cmd_num),config_textname);
+                break;
+              }
+              start_params.easter_egg = (i == 1);
+          }
+          break;
+      case 50: // VID_SMOOTH -- §6.2 finding 2
+          if (!start_params.overrides[Clo_VidSmooth])
+          {
+              i = recognize_conf_parameter(buf,&pos,len,logicval_type);
+              if (i <= 0)
+              {
+                  CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                    COMMAND_TEXT(cmd_num),config_textname);
+                break;
+              }
+              config_reload_callbacks->set_vid_smooth(i == 1);
+          }
+          break;
+      case 51: // ALT_INPUT -- §6.2 finding 2
+          if (!start_params.overrides[Clo_AltInput])
+          {
+              i = recognize_conf_parameter(buf,&pos,len,logicval_type);
+              if (i <= 0)
+              {
+                  CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                    COMMAND_TEXT(cmd_num),config_textname);
+                break;
+              }
+              // ALT_INPUT=true disables mouse auto-grab, same as "-altinput".
+              lbMouseGrab = (i != 1);
+          }
+          break;
+      case 52: // UI_FONT_SCALE -- ImGui-frontend text size, a percentage of
+                // FeStylePushFont's own resolution-derived base size
+                // (frontgui_style.cpp); no equivalent in original DK.
+          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
+          {
+            i = atoi(word_buf);
+          }
+          if ((i >= 50) && (i <= 200)) {
+              keeperfx_ui_config.ui_font_scale_pct = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
       case ccr_comment:
           break;
       case ccr_endOfFile:
@@ -1187,6 +1232,11 @@ short load_configuration(void)
   }
 
   const char *config_textname = "Base config";
+  // Remembered so keeperfx_cfg_write_values() writes back to the exact file
+  // we loaded from -- including a "-config <file>" override -- rather than
+  // re-resolving prepare_file_path(FGrp_Main, ...) itself and risking a
+  // divergent path.
+  snprintf(loaded_keeperfx_cfg_path, sizeof(loaded_keeperfx_cfg_path), "%s", fname);
   load_file_configuration(fname, sname, config_textname, 0);
 
   load_configuration_for_mod_all();
@@ -1205,6 +1255,21 @@ void process_cmdline_overrides(void)
   if (start_params.overrides[Clo_CDMusic])
   {
     features_enabled &= ~Ft_NoCdMusic;
+  }
+  // "-alex"/"-vidsmooth"/"-altinput" are one-directional "force on" launch
+  // flags (like Clo_ClassicMenu above), so each override only ever pushes
+  // its value to true here -- never restores a config-file "off".
+  if (start_params.overrides[Clo_EasterEgg])
+  {
+    start_params.easter_egg = true;
+  }
+  if (start_params.overrides[Clo_VidSmooth])
+  {
+    config_reload_callbacks->set_vid_smooth(true);
+  }
+  if (start_params.overrides[Clo_AltInput])
+  {
+    lbMouseGrab = false;
   }
 }
 
@@ -1257,5 +1322,146 @@ int parse_draw_fps_config_val(const char *arg, int32_t *fps_draw_main, int32_t *
   return cnt;
 }
 
+/** Returns true if the line's content (buf[line_start..line_end), which may
+ * include a trailing '\r' but never the '\n' itself) is a config command
+ * line for `key` -- same case-insensitive, whitespace/'='-bounded match
+ * recognize_conf_command() (config.c) uses, so a key that's a prefix of a
+ * longer one (e.g. "INGAME_RES" vs "INGAME_RESX") never false-matches.
+ */
+static TbBool cfg_line_matches_key(const char *buf, long line_start, long line_end, const char *key)
+{
+    long i = line_start;
+    while ((i < line_end) && ((buf[i] == ' ') || (buf[i] == '\t')))
+        i++;
+    size_t klen = strlen(key);
+    if ((long)(i + (long)klen) > line_end)
+        return false;
+    if (strnicmp(&buf[i], key, klen) != 0)
+        return false;
+    long j = i + (long)klen;
+    if (j < line_end)
+    {
+        char next = buf[j];
+        if ((next != ' ') && (next != '\t') && (next != '=') && (next != '\r')
+            && ((unsigned char)next >= 7))
+            return false;
+    }
+    return true;
+}
+
+TbBool keeperfx_cfg_write_values_to_file(const char *fname, const struct KeeperfxCfgEdit *edits, int edits_count)
+{
+    if ((fname == NULL) || (fname[0] == '\0') || (edits == NULL) || (edits_count <= 0))
+        return false;
+
+    long len = LbFileLength(fname);
+    if (len < 0)
+        len = 0; // file doesn't exist yet -- every edit gets appended below
+    char *buf = (char *)KfxCalloc((size_t)len + 1, 1);
+    if (buf == NULL)
+        return false;
+    if (len > 0)
+    {
+        long read_len = LbFileLoadAt(fname, buf);
+        if (read_len != len)
+        {
+            KfxFree(buf);
+            WARNMSG("Couldn't read \"%s\" to rewrite it.", fname);
+            return false;
+        }
+    }
+
+    TbBool *applied = (TbBool *)KfxCalloc((size_t)edits_count, sizeof(TbBool));
+    size_t out_cap = (size_t)len + 64;
+    for (int e = 0; e < edits_count; e++)
+        out_cap += strlen(edits[e].key) + strlen(edits[e].value) + 8;
+    char *out = (char *)KfxCalloc(out_cap, 1);
+    if ((applied == NULL) || (out == NULL))
+    {
+        KfxFree(buf);
+        KfxFree(applied);
+        KfxFree(out);
+        return false;
+    }
+    size_t out_pos = 0;
+
+    long pos = 0;
+    while (pos < len)
+    {
+        long line_start = pos;
+        while ((pos < len) && (buf[pos] != '\n'))
+            pos++;
+        long line_end = pos; // index of '\n', or == len at EOF with no trailing newline
+        TbBool has_nl = (pos < len);
+        if (has_nl)
+            pos++; // consume '\n'
+
+        int matched_edit = -1;
+        for (int e = 0; e < edits_count; e++)
+        {
+            if (cfg_line_matches_key(buf, line_start, line_end, edits[e].key))
+            {
+                matched_edit = e;
+                break;
+            }
+        }
+
+        if (matched_edit >= 0)
+        {
+            applied[matched_edit] = true;
+            int n = snprintf(&out[out_pos], out_cap - out_pos, "%s=%s", edits[matched_edit].key, edits[matched_edit].value);
+            if (n > 0)
+                out_pos += (size_t)n;
+        }
+        else
+        {
+            memcpy(&out[out_pos], &buf[line_start], (size_t)(line_end - line_start));
+            out_pos += (size_t)(line_end - line_start);
+        }
+        if (has_nl)
+            out[out_pos++] = '\n';
+    }
+
+    // Append any keys that had no existing line in the file.
+    for (int e = 0; e < edits_count; e++)
+    {
+        if (applied[e])
+            continue;
+        if ((out_pos > 0) && (out[out_pos - 1] != '\n'))
+            out[out_pos++] = '\n';
+        int n = snprintf(&out[out_pos], out_cap - out_pos, "%s=%s\n", edits[e].key, edits[e].value);
+        if (n > 0)
+            out_pos += (size_t)n;
+    }
+
+    KfxFree(buf);
+    KfxFree(applied);
+
+    TbBool result = false;
+    TbFileHandle handle = LbFileOpen(fname, Lb_FILE_MODE_NEW);
+    if (handle)
+    {
+        result = (LbFileWrite(handle, out, (unsigned long)out_pos) == (long)out_pos);
+        LbFileClose(handle);
+        if (!result)
+            WARNMSG("Couldn't write rewritten config to \"%s\".", fname);
+    }
+    else
+    {
+        WARNMSG("Couldn't open \"%s\" to write rewritten config.", fname);
+    }
+    KfxFree(out);
+    return result;
+}
+
+TbBool keeperfx_cfg_write_values(const struct KeeperfxCfgEdit *edits, int edits_count)
+{
+    if (loaded_keeperfx_cfg_path[0] == '\0')
+    {
+        WARNMSG("keeperfx_cfg_write_values() called before load_configuration() ever ran.");
+        return false;
+    }
+    return keeperfx_cfg_write_values_to_file(loaded_keeperfx_cfg_path, edits, edits_count);
+}
 
 /******************************************************************************/

@@ -63,7 +63,7 @@ char video_view_distance_level;
 #endif
 /******************************************************************************/
 
-static uint8_t num_definable_keys()
+uint8_t num_definable_keys()
 {
     uint8_t num = 0;
 
@@ -132,42 +132,27 @@ void frontend_draw_define_key_scroll_tab(struct GuiButton *gbtn)
     frontend_draw_scroll_tab(gbtn, kfx_frontend_state.define_key_scroll_offset, frontend_define_keys_menu_items_visible-2, num_definable_keys());
 }
 
-void frontend_draw_define_key(struct GuiButton *gbtn)
+// Formats settings.kbkeys[key_id]'s bound key (+ modifiers) as display
+// text, e.g. "Ctrl + F1" or "Mouse Button 3". Split out of
+// frontend_draw_define_key() (the legacy draw_call) so kfx_frontend's
+// ImGui FeSt_FEDEFINE_KEYS screen (docs/refactor/renderer/
+// 04-imgui-gui-foundation.md Phase D) can produce the exact same label
+// rather than duplicating the mods/mouse-button/key-name logic.
+void frontend_format_key_binding(long key_id, char *text, size_t text_size)
 {
-    long content = gbtn->content.lval;
-    long key_id = kfx_frontend_state.define_key_scroll_offset - content - 1;
-    if (key_id >= num_definable_keys()) {
-        return;
-    }
-    if (frontend_mouse_over_button == content) {
-        LbTextSetFont(frontend_font[2]);
-    } else if (defined_keys_that_have_been_swapped[key_id]) {
-        LbTextSetFont(frontend_font[3]);
-    } else {
-        LbTextSetFont(frontend_font[1]);
-    }
-    RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
-    // This text is a bit condensed - button size is smaller than text height
-    int tx_units_per_px = ((MyScreenHeight < 400) && (dbc_initialized && dbc_enabled)) ? scale_value_menu(32) : scale_value_menu(16);
-    LbTextSetWindow(gbtn->scr_pos_x, gbtn->scr_pos_y, gbtn->width, gbtn->height);
-    int height = LbTextLineHeight() * tx_units_per_px / 14;
-    LbTextDrawResized(0, (gbtn->height - height) / 2, tx_units_per_px, get_string(game_key_settings[key_id].string_id));
     unsigned char mods = settings.kbkeys[key_id].mods;
-    RendererSetDrawFlags(Lb_TEXT_HALIGN_RIGHT);
-
-    char text[255];
     text[0] = '\0';
     if (mods & KMod_CONTROL)
     {
-        str_appendf(text, sizeof(text), "%s + ", get_string(GUIStr_KeyControl));
+        str_appendf(text, text_size, "%s + ", get_string(GUIStr_KeyControl));
     }
     if (mods & KMod_ALT)
     {
-        str_appendf(text, sizeof(text), "%s + ", get_string(GUIStr_KeyAlt));
+        str_appendf(text, text_size, "%s + ", get_string(GUIStr_KeyAlt));
     }
     if (mods & KMod_SHIFT)
     {
-        str_appendf(text, sizeof(text), "%s + ", get_string(GUIStr_KeyShift));
+        str_appendf(text, text_size, "%s + ", get_string(GUIStr_KeyShift));
     }
 
     unsigned char code = settings.kbkeys[key_id].code;
@@ -223,7 +208,33 @@ void frontend_draw_define_key(struct GuiButton *gbtn)
         break;
       }
     }
-    str_append(text, sizeof(text), keytext);
+    str_append(text, text_size, keytext);
+}
+
+void frontend_draw_define_key(struct GuiButton *gbtn)
+{
+    long content = gbtn->content.lval;
+    long key_id = kfx_frontend_state.define_key_scroll_offset - content - 1;
+    if (key_id >= num_definable_keys()) {
+        return;
+    }
+    if (frontend_mouse_over_button == content) {
+        LbTextSetFont(frontend_font[2]);
+    } else if (defined_keys_that_have_been_swapped[key_id]) {
+        LbTextSetFont(frontend_font[3]);
+    } else {
+        LbTextSetFont(frontend_font[1]);
+    }
+    RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
+    // This text is a bit condensed - button size is smaller than text height
+    int tx_units_per_px = ((MyScreenHeight < 400) && (dbc_initialized && dbc_enabled)) ? scale_value_menu(32) : scale_value_menu(16);
+    LbTextSetWindow(gbtn->scr_pos_x, gbtn->scr_pos_y, gbtn->width, gbtn->height);
+    int height = LbTextLineHeight() * tx_units_per_px / 14;
+    LbTextDrawResized(0, (gbtn->height - height) / 2, tx_units_per_px, get_string(game_key_settings[key_id].string_id));
+    RendererSetDrawFlags(Lb_TEXT_HALIGN_RIGHT);
+
+    char text[255];
+    frontend_format_key_binding(key_id, text, sizeof(text));
     height = LbTextLineHeight() * tx_units_per_px / 14;
     LbTextDrawResized(0, (gbtn->height - height) / 2, tx_units_per_px, text);
 }
@@ -287,7 +298,7 @@ static void sound_volume_set(long value)
     SetSoundMasterVolume(value);
 }
 
-static const struct FrontendSliderCtrl sound_volume_ctrl = { sound_volume_get, sound_volume_set, true };
+const struct FrontendSliderCtrl sound_volume_ctrl = { sound_volume_get, sound_volume_set, true };
 
 void gui_set_sound_volume(struct GuiButton *gbtn)
 {
@@ -306,7 +317,7 @@ static void music_volume_set(long value)
     set_music_volume(value);
 }
 
-static const struct FrontendSliderCtrl music_volume_ctrl = { music_volume_get, music_volume_set, true };
+const struct FrontendSliderCtrl music_volume_ctrl = { music_volume_get, music_volume_set, true };
 
 void gui_set_music_volume(struct GuiButton *gbtn)
 {
@@ -324,7 +335,7 @@ static void mentor_volume_set(long value)
     save_settings();
 }
 
-static const struct FrontendSliderCtrl mentor_volume_ctrl = { mentor_volume_get, mentor_volume_set, true };
+const struct FrontendSliderCtrl mentor_volume_ctrl = { mentor_volume_get, mentor_volume_set, true };
 
 void gui_set_mentor_volume(struct GuiButton *gbtn)
 {
@@ -345,18 +356,6 @@ void gui_video_cluedo_maintain(struct GuiButton *gbtn)
     }
 }
 
-void gui_switch_video_mode(struct GuiButton *gbtn)
-{
-    struct PlayerInfo* player = get_my_player();
-    set_players_packet_action(player, PckA_SwitchScrnRes, 0, 0, 0, 0);
-}
-
-void gui_display_current_resolution(struct GuiButton *gbtn)
-{
-    char* mode = get_vidmode_name(LbScreenActiveMode());
-    show_onscreen_msg(40, "%s", mode);
-}
-
 static long mouse_sensitivity_get(void)
 {
     return settings.first_person_move_sensitivity;
@@ -368,7 +367,7 @@ static void mouse_sensitivity_set(long value)
     save_settings();
 }
 
-static const struct FrontendSliderCtrl mouse_sensitivity_ctrl = { mouse_sensitivity_get, mouse_sensitivity_set, false };
+const struct FrontendSliderCtrl mouse_sensitivity_ctrl = { mouse_sensitivity_get, mouse_sensitivity_set, false };
 
 void frontend_set_mouse_sensitivity(struct GuiButton *gbtn)
 {
@@ -386,7 +385,7 @@ static void mouse_invert_toggle(void)
     save_settings();
 }
 
-static const struct FrontendCheckboxCtrl mouse_invert_ctrl = { mouse_invert_get, mouse_invert_toggle };
+const struct FrontendCheckboxCtrl mouse_invert_ctrl = { mouse_invert_get, mouse_invert_toggle };
 
 void frontend_invert_mouse(struct GuiButton *gbtn)
 {

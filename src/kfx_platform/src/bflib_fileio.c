@@ -175,6 +175,16 @@ TbFileHandle LbFileOpen(const char *fname, const unsigned char accmode)
 
 #if !defined(_WIN32)
   int file_exists = (access_rc == 0) || (open_fname != fname);
+  // fopen() on Linux/macOS happily opens a directory for reading, which
+  // then misbehaves in bizarre ways downstream (e.g. ftell() after
+  // seek-to-end returns LONG_MAX instead of failing). A directory is
+  // never a valid target here, so reject it up front.
+  if (file_exists) {
+    struct stat st;
+    if (stat(open_fname, &st) == 0 && S_ISDIR(st.st_mode)) {
+      return NULL;
+    }
+  }
 #else
   int file_exists = LbFileExists(fname);
 #endif

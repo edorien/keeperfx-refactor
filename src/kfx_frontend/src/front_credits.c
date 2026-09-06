@@ -78,6 +78,11 @@ void frontstory_unload(void)
     free_font(&frontstory_font);
 }
 
+long frontstory_get_text_no(void)
+{
+    return frontstory_text_no;
+}
+
 void frontstory_draw(void)
 {
     frontend_copy_background();

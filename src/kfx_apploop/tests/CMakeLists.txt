@@ -29,6 +29,10 @@ target_link_libraries(kfx_apploop_utest PRIVATE
     kfx_common_opts
     kfx_luajit
     centitoml
+    imgui # kfx_platform's ImGuiContext.cpp (and, transitively for some
+          # *_utest targets, kfx_frontend's frontgui_*.cpp) reference imgui
+          # symbols -- same two-levels-of-INTERFACE-indirection object-linking
+          # gap as centitoml above.
     Catch2::Catch2WithMain)
 
 include(CTest)

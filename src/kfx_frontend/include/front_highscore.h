@@ -34,6 +34,13 @@ extern int fe_high_score_table_from_main_menu;
 /******************************************************************************/
 void frontend_draw_high_score_table(struct GuiButton *gbtn);
 void frontend_quit_high_score_table(struct GuiButton *gbtn);
+// Writes high_score_entry (or the localized default name) into the pending
+// entry and saves the table -- split out (no longer `static`) so
+// kfx_frontend's ImGui FeSt_HIGH_SCORES screen (docs/refactor/renderer/
+// 04-imgui-gui-foundation.md Phase D) can finalize an ImGui InputText the
+// same way the legacy Enter/Escape handling in
+// frontend_high_score_table_input() does.
+void finalize_high_score_entry(TbBool restore_default_name);
 void frontend_maintain_high_score_ok_button(struct GuiButton *gbtn);
 TbBool frontend_high_score_table_input(void);
 void frontend_maintain_high_score_ok_button(struct GuiButton *gbtn);

@@ -496,6 +496,14 @@ static void LbRegisterModernVideoModes(void)
     LbRegisterVideoMode("ALL",          0, 0, 32, Lb_VF_RGBCOLOR|Lb_VF_FILLALL); // span all displays with a borderless window
 }
 
+void LbRegisterDefaultVideoModesIfNeeded(void)
+{
+    if (lbScreenModeInfoNum == 0) {
+        LbRegisterStandardVideoModes();
+        LbRegisterModernVideoModes(); // register modern and flexible custom modes
+    }
+}
+
 TbResult LbScreenInitialize(void)
 {
     // Clear global variables
@@ -504,10 +512,7 @@ TbResult LbScreenInitialize(void)
     lbDoubleBufferingRequested = false;
     LbMouseChangeMoveRatio(256, 256);
     // Register default video modes
-    if (lbScreenModeInfoNum == 0) {
-        LbRegisterStandardVideoModes();
-        LbRegisterModernVideoModes(); // register modern and flexible custom modes
-    }
+    LbRegisterDefaultVideoModesIfNeeded();
     // Initialize SDL library (SDL_Init + atexit owned by the window system)
     if (!PlatformManager_InitVideo()) {
         ERRORLOG("SDL init: %s",SDL_GetError());

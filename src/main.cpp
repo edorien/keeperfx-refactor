@@ -16,6 +16,9 @@
 #include "kfxmain.h"
 #include "platform/PlatformManager.h"
 #include "renderer/RendererManager.h"
+#include "frontgui_stylesheet_test.h"
+#include "frontgui_screens.h"
+#include "frontgui_style.h"
 #include "globals.h"
 #include "bflib_sprite.h"
 #include "thing_data.h"
@@ -104,6 +107,7 @@
 #include "player_computer.h"
 #include "game_heap.h"
 #include "game_saves.h"
+#include "game_campaign_progress.h" // reset_all_campaign_progress -- Phase E, docs/refactor/gui/05-campaign-progress-and-landview.md §3.5
 #include "engine_render.h"
 #include "cursor_tag.h"
 #include "engine_lenses.h"
@@ -475,11 +479,38 @@ static void set_screenshot_format(unsigned char val)
     screenshot_format = val;
 }
 
+static unsigned char get_screenshot_format(void)
+{
+    return screenshot_format;
+}
+
+// Wrapper registered with config.h's ConfigReloadCallbacks; engine_redraw.h's
+// smooth_on is a kfx_render-owned global. Also forced on unconditionally by
+// process_cmdline_overrides() when the "-vidsmooth" launch flag was given
+// (Clo_VidSmooth) -- see that flag's own comment.
+static void set_vid_smooth(TbBool val)
+{
+    smooth_on = val;
+}
+
 // Wrapper registered with config.h's ConfigReloadCallbacks; power_hand.h's
 // global_hand_scale is a kfx_sim-owned global.
 static void set_hand_scale(float val)
 {
     global_hand_scale = val;
+}
+
+static float get_hand_scale(void)
+{
+    return global_hand_scale;
+}
+
+// Wrapper registered with config.h's ConfigReloadCallbacks; vidmode.h's
+// base_mouse_sensitivity is a kfx_render-owned global with an existing free
+// setter (set_base_mouse_sensitivity) but no getter to pair it with.
+static long get_base_mouse_sensitivity(void)
+{
+    return base_mouse_sensitivity;
 }
 
 // Wrapper registered with config.h's ConfigReloadCallbacks; struct Room is
@@ -1121,64 +1152,31 @@ short setup_game(void)
   features_enabled |= Ft_DeltaTime; // enable delta time
   features_enabled |= Ft_NoCdMusic; // use music files (OGG) rather than CD music
 
-  // Configuration file
-  if ( !load_configuration() )
-  {
-      ERRORLOG("Configuration load error.");
-      return 0;
-  }
+  // Reserve the video-mode table's index 0 as the INVALID sentinel before any
+  // config parsing can call LbRegisterVideoModeString() (INGAME_RES, case 7)
+  // -- LbScreenInitialize() itself doesn't run until setup_screen_mode_zero()
+  // much later, and without this, a config-parsed custom resolution would be
+  // the table's actual first entry, landing on index 0 itself and being
+  // silently rejected by every "mode > 0" caller (screen_vidmode would then
+  // stay stuck at its compiled default across every restart).
+  LbRegisterDefaultVideoModesIfNeeded();
 
-  #ifdef FUNCTESTING
-    start_params.startup_flags &= ~SFlg_Legal;
-    start_params.startup_flags &= ~SFlg_FX;
-    features_enabled |= Ft_SkipHeartZoom;
-  #endif
-
-  // Process CmdLine overrides
-  process_cmdline_overrides();
-
-  // Push resolved config/cmdline state down into bflib_* (see
-  // docs/refactor/stage-02-decouple-bflib.md).
-  bf_sprfnt_set_language_lwrstr(get_language_lwrstr(install_info.lang_id));
-  bf_sprfnt_set_fxdata_dir(prepare_file_path(FGrp_FxData, ""));
-  bf_sndlib_set_audio_config(get_language_lwrstr(install_info.lang_id), is_feature_on(Ft_NoCdMusic));
-  bf_sound_set_atmos_config(AtmosStart, AtmosEnd, AtmosRepeat, atmos_sounds_enabled());
-  static const struct InputFocusPredicates input_focus_predicates = {
-      &freeze_game_on_focus_lost, &mute_audio_on_focus_lost,
-      &unlock_cursor_when_game_paused, &lock_cursor_in_possession,
-      &is_game_paused, &is_possession_mode_active, &is_packet_load_enabled,
-      &use_relative_mouse_mode,
-  };
-  set_input_focus_predicates(&input_focus_predicates);
-  static const struct SoundStateCallbacks sound_state_callback_table = {
-      &get_music_track, &get_music_fname, &get_frame_skip,
-      &get_easter_eggs_enabled, &get_last_level,
-      &get_creature_model_count, &get_creature_sounds,
-      &get_mods_after_map, &get_mods_after_map_count,
-      &get_mods_after_campaign, &get_mods_after_campaign_count,
-      &get_mods_after_base, &get_mods_after_base_count,
-      &get_sound_random_seed, &get_unsync_random_seed,
-      &init_sound, &mute_audio,
-      &play_creature_sound,
-      &prepare_file_path, &prepare_file_path_mod,
-      &prepare_file_path_buf, &prepare_file_fmtpath,
-      &creature_code_name, &get_creature_desc,
-      &thing_is_invalid,
-  };
-  set_sound_state_callbacks(&sound_state_callback_table);
-  static const struct VideoScaleCallbacks video_scale_callback_table = {
-      &get_video_scale_values,
-  };
-  set_video_scale_callbacks(&video_scale_callback_table);
-  set_emulate_integer_overflow_provider(&emulate_integer_overflow);
-  set_get_gameturn_provider(&game_legacy_get_gameturn);
-  static const struct MapZipCallbacks map_zip_callback_table = {
-      &prepare_map_zip_path,
-  };
-  set_map_zip_callbacks(&map_zip_callback_table);
-  bf_sprfnt_set_font_role_resolver(resolve_font_role);
-  set_config_network_is_active_check(network_is_active);
-  set_power_grant_revoke_callbacks(add_power_to_player, remove_power_from_player);
+  // ConfigReloadCallbacks must be wired up before load_configuration() runs,
+  // not after: config_keeperfx.c's own switch-case parser (INGAME_RES/
+  // POINTER_SENSITIVITY/VID_SMOOTHING/... -- every case that reaches through
+  // config_reload_callbacks->X() to apply what it just parsed) calls it
+  // *during* load_configuration() itself. Wiring this up later than that
+  // point (as it used to be, far below in this same function) meant every
+  // one of those setters silently invoked the do-nothing default/noop
+  // implementation the whole time load_configuration() ran -- confirmed
+  // live for INGAME_RES specifically: keeperfx.cfg correctly held
+  // INGAME_RES=1920x1080x32, case 7 parsed it with no warning logged, but
+  // set_screen_vidmode() never actually reached vidmode.c's real
+  // implementation, so screen_vidmode stayed at its compiled 640x480
+  // default across every single restart, no matter what was saved. This
+  // struct is a pure function-pointer table (every entry a plain
+  // already-declared free function, no captured local state), so moving
+  // its wiring earlier changes nothing about what it does -- only when.
   static const struct ConfigReloadCallbacks config_reload_callbacks_impl = {
       &update_room_tab_to_config, &update_trap_tab_to_config, &update_powers_tab_to_config,
       &update_creatr_model_activities_list,
@@ -1192,8 +1190,7 @@ short setup_game(void)
       &thing_is_workshop_crate,
       &get_wealth_size_of_gold_hoard_model,
       &set_call_to_arms_graphics,
-      &set_failsafe_vidmode, &set_movies_vidmode, &set_frontend_vidmode,
-      &set_game_vidmode, &set_base_mouse_sensitivity,
+      &set_screen_vidmode, &get_screen_vidmode, &set_base_mouse_sensitivity, &get_base_mouse_sensitivity,
       &thing_is_creature_digger, &creature_is_for_dungeon_diggers_list,
       &config_reload_get_thing_model, &config_reload_get_thing_class_id, &config_reload_get_thing_owner,
       &config_reload_get_thing_creation_turn, &config_reload_get_thing_index,
@@ -1201,7 +1198,10 @@ short setup_game(void)
       &get_slabmap_for_subtile, &slabmap_owner,
       &thing_create_thing, &thing_create_thing_adv,
       &set_screenshot_format,
+      &get_screenshot_format,
+      &set_vid_smooth,
       &set_hand_scale,
+      &get_hand_scale,
       &get_room_kind_thing_is_on,
       &get_player_color_idx_wrapper,
       &get_slabset_array,
@@ -1243,8 +1243,106 @@ short setup_game(void)
       &set_door_buildable_and_add_to_amount, &set_trap_buildable_and_add_to_amount,
       &set_speech_queue_limit,
       &script_strdup, &script_strval,
+      &reset_all_campaign_progress,
   };
   set_config_reload_callbacks(&config_reload_callbacks_impl);
+
+  // Configuration file
+  if ( !load_configuration() )
+  {
+      ERRORLOG("Configuration load error.");
+      return 0;
+  }
+
+  #ifdef FUNCTESTING
+    start_params.startup_flags &= ~SFlg_Legal;
+    start_params.startup_flags &= ~SFlg_FX;
+    features_enabled |= Ft_SkipHeartZoom;
+  #endif
+
+  // Process CmdLine overrides
+  process_cmdline_overrides();
+
+  // Push resolved config/cmdline state down into bflib_* (see
+  // docs/refactor/stage-02-decouple-bflib.md).
+  bf_sprfnt_set_language_lwrstr(get_language_lwrstr(install_info.lang_id));
+  bf_sprfnt_set_fxdata_dir(prepare_file_path(FGrp_FxData, ""));
+  bf_sndlib_set_audio_config(get_language_lwrstr(install_info.lang_id), is_feature_on(Ft_NoCdMusic));
+  bf_sound_set_atmos_config(AtmosStart, AtmosEnd, AtmosRepeat, atmos_sounds_enabled());
+  // docs/refactor/renderer/04-imgui-gui-foundation.md §3.5/§7 Phase A --
+  // kfx_platform can't call use_classic_menu()/is_feature_on() itself
+  // (kfx_config ranks above kfx_platform), so push the resolved flags down
+  // through RendererManager's setters instead.
+  RendererSetImGuiEnabled(!use_classic_menu());
+  RendererSetImGuiDemoVisible((start_params.debug_flags & DFlg_ImGuiDemo) != 0);
+  // Phase C (§7): FrontendImGuiFrame dispatches to the active migrated
+  // screen (and still runs the Phase B style-sheet debug overlay),
+  // registered once as the RendererImGuiFrameFn callback so kfx_platform's
+  // PresentFrame can submit it without calling up into kfx_frontend
+  // directly.
+  RendererSetImGuiFrameCallback(&FrontendImGuiFrame);
+  FeStyleSheetSetVisible((start_params.debug_flags & DFlg_ImGuiStyleSheet) != 0);
+  // Found live during Phase D testing: raw SDL motion events snap ImGui's
+  // cursor to the window centre whenever the game's own grab-warp mouse
+  // handling recentres the OS cursor near an edge (RendererManager.h's own
+  // comment has the full story) -- feed it GetMouseX()/GetMouseY() (the
+  // same tracked position the legacy cursor sprite already draws at)
+  // instead. A non-capturing lambda converts to the plain function pointer
+  // RendererMousePositionFn needs.
+  RendererSetMousePositionCallback([](long *x, long *y) {
+      *x = GetMouseX();
+      *y = GetMouseY();
+  });
+  // Also found live: ImGui's own built-in cursor is a generic arrow,
+  // visibly mismatched against the game's actual cursor sprite everywhere
+  // else -- FeStyleGetCursorImage() (frontgui_style.cpp) renders
+  // GFS_cursor_horny into an RGBA buffer for ImGui to draw instead.
+  RendererSetCursorImageCallback(&FeStyleGetCursorImage);
+  // docs/refactor/renderer/05-imgui-owned-menu-backdrop.md Phase C: tells
+  // RendererSoftware::PresentFrame() (and the cursor code) whether the
+  // *current* frontend screen is one of the 15 states fully migrated to
+  // ImGui -- frontend_imgui_screen_active() itself needs the state to
+  // check, so a plain non-capturing lambda (same idiom as the mouse
+  // position callback above) reads the live frontend_menu_state global.
+  RendererSetScreenOwnedCallback([]() -> TbBool {
+      return frontend_imgui_screen_active(frontend_menu_state);
+  });
+  static const struct InputFocusPredicates input_focus_predicates = {
+      &freeze_game_on_focus_lost, &mute_audio_on_focus_lost,
+      &unlock_cursor_when_game_paused, &lock_cursor_in_possession,
+      &is_game_paused, &is_possession_mode_active, &is_packet_load_enabled,
+      &use_relative_mouse_mode,
+  };
+  set_input_focus_predicates(&input_focus_predicates);
+  static const struct SoundStateCallbacks sound_state_callback_table = {
+      &get_music_track, &get_music_fname, &get_frame_skip,
+      &get_easter_eggs_enabled, &get_last_level,
+      &get_creature_model_count, &get_creature_sounds,
+      &get_mods_after_map, &get_mods_after_map_count,
+      &get_mods_after_campaign, &get_mods_after_campaign_count,
+      &get_mods_after_base, &get_mods_after_base_count,
+      &get_sound_random_seed, &get_unsync_random_seed,
+      &init_sound, &mute_audio,
+      &play_creature_sound,
+      &prepare_file_path, &prepare_file_path_mod,
+      &prepare_file_path_buf, &prepare_file_fmtpath,
+      &creature_code_name, &get_creature_desc,
+      &thing_is_invalid,
+  };
+  set_sound_state_callbacks(&sound_state_callback_table);
+  static const struct VideoScaleCallbacks video_scale_callback_table = {
+      &get_video_scale_values,
+  };
+  set_video_scale_callbacks(&video_scale_callback_table);
+  set_emulate_integer_overflow_provider(&emulate_integer_overflow);
+  set_get_gameturn_provider(&game_legacy_get_gameturn);
+  static const struct MapZipCallbacks map_zip_callback_table = {
+      &prepare_map_zip_path,
+  };
+  set_map_zip_callbacks(&map_zip_callback_table);
+  bf_sprfnt_set_font_role_resolver(resolve_font_role);
+  set_config_network_is_active_check(network_is_active);
+  set_power_grant_revoke_callbacks(add_power_to_player, remove_power_from_player);
   static const struct ScriptHookCallbacks script_hooks_impl = {
       &lua_on_power_cast, &lua_on_special_box_activate, &lua_on_creature_death,
       &lua_on_creature_fell_into_abyss,
@@ -1513,7 +1611,7 @@ short setup_game(void)
   setup_bflib_render();
 
   // View the legal screen
-  if (!setup_screen_mode_zero(get_frontend_vidmode()))
+  if (!setup_screen_mode_zero(get_screen_vidmode()))
   {
       ERRORLOG("Unable to set display mode for legal screen");
       return 0;
@@ -1579,7 +1677,7 @@ short setup_game(void)
   // Setup the intro video mode
   if (result && (!start_params.no_intro) )
   {
-      if (!setup_screen_mode_zero(get_movies_vidmode()))
+      if (!setup_screen_mode_zero(get_screen_vidmode()))
       {
         ERRORLOG("Can't enter movies screen mode to play intro");
         result=0;
@@ -1775,6 +1873,7 @@ static short process_command_line(unsigned short argc, char *argv[])
       if (strcasecmp(parstr, "vidsmooth") == 0)
       {
           smooth_on = true;
+          start_params.overrides[Clo_VidSmooth] = true;
       } else
       if ( strcasecmp(parstr,"level") == 0 )
       {
@@ -1793,6 +1892,7 @@ static short process_command_line(unsigned short argc, char *argv[])
       {
           SYNCLOG("Mouse auto reset disabled");
           lbMouseGrab = false;
+          start_params.overrides[Clo_AltInput] = true;
       }
       else if (strcasecmp(parstr,"packetload") == 0)
       {
@@ -1835,6 +1935,28 @@ static short process_command_line(unsigned short argc, char *argv[])
       {
           set_flag(start_params.debug_flags, DFlg_CreatrPaths);
       } else
+      if (strcasecmp(parstr, "imguidemo") == 0)
+      {
+          // docs/refactor/renderer/04-imgui-gui-foundation.md §7 Phase A
+          // exit criteria: prove the ImGui backend wiring with imgui_demo
+          // ahead of any real screen migrating.
+          set_flag(start_params.debug_flags, DFlg_ImGuiDemo);
+      } else
+      if (strcasecmp(parstr, "imguistyle") == 0)
+      {
+          // §7 Phase B exit criteria: the style-sheet test screen
+          // exercising every frontgui_widgets.h wrapper.
+          set_flag(start_params.debug_flags, DFlg_ImGuiStyleSheet);
+      } else
+      if ((strcasecmp(parstr, "classicmenu") == 0) || (strcasecmp(parstr, "noimgui") == 0))
+      {
+          // docs/refactor/renderer/04-imgui-gui-foundation.md §3.5: forces
+          // the legacy sprite-drawn frontend menus. Command line beats
+          // config, same overrides[] mechanism as Clo_CDMusic/Clo_GameTurns/
+          // Clo_FramesPerSecond above.
+          features_enabled |= Ft_ClassicMenu;
+          start_params.overrides[Clo_ClassicMenu] = true;
+      } else
       if (strcasecmp(parstr, "show_game_turns") == 0)
       {
           set_flag(start_params.debug_flags, DFlg_ShowGameTurns);
@@ -1869,6 +1991,7 @@ static short process_command_line(unsigned short argc, char *argv[])
       if (strcasecmp(parstr,"alex") == 0)
       {
          start_params.easter_egg = true;
+         start_params.overrides[Clo_EasterEgg] = true;
       }
       else if (strcasecmp(parstr,"connect") == 0)
       {

@@ -201,15 +201,27 @@ void frontnet_draw_session_selected(struct GuiButton *gbtn)
     }
 }
 
-void frontnet_session_select(struct GuiButton *gbtn)
+/** Highlights the session at list index i -- no frontend_set_state() call
+ * anywhere in this one, so unlike most of this phase's other extractions
+ * it's already directly safe to call from an active ImGui window. Shared
+ * by the legacy click_event (frontnet_session_select, below) and the
+ * ImGui screen (frontgui_screens.cpp), which iterates net_session[]
+ * directly and already has a real index.
+ */
+void frontnet_session_select_by_index(long i)
 {
-    long i;
-    i = frontend_selectlist_row_to_item_index(&net_session_list, gbtn);
     if (net_number_of_sessions > i)
     {
         net_session_index_active = i;
         net_session_index_active_id = net_session[i]->id;
     }
+}
+
+void frontnet_session_select(struct GuiButton *gbtn)
+{
+    long i;
+    i = frontend_selectlist_row_to_item_index(&net_session_list, gbtn);
+    frontnet_session_select_by_index(i);
 }
 
 void frontnet_draw_session_button(struct GuiButton *gbtn)
@@ -231,7 +243,12 @@ void frontnet_draw_session_button(struct GuiButton *gbtn)
     LbTextDrawResized(0, 0, tx_units_per_px, net_session[sessionIndex]->text);
 }
 
-void frontnet_session_create(struct GuiButton *gbtn)
+/** frontnet_session_create's actual work, minus the state-transition call
+ * itself -- see frontnet_session_join_resolve's comment (frontmenu_net.c)
+ * for why. process_network_error() only pops the (legacy GuiMenu-based,
+ * not ImGui) error box, so it's safe to call here regardless.
+ */
+int frontnet_session_create_resolve(void)
 {
     // Create a new session using the player name as the session name.
     // Append a number to the session name if it already exists.
@@ -261,10 +278,17 @@ void frontnet_session_create(struct GuiButton *gbtn)
     if (LbNetwork_Create(text, net_player_name, &plyr_num, nullptr))
     {
         process_network_error(-801);
-        return;
+        return -1;
     }
     frontend_set_player_number(plyr_num);
     fe_computer_players = 0;
-    frontend_set_state(FeSt_NET_START);
+    return FeSt_NET_START;
+}
+
+void frontnet_session_create(struct GuiButton *gbtn)
+{
+    int next_state = frontnet_session_create_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
 }
 /******************************************************************************/

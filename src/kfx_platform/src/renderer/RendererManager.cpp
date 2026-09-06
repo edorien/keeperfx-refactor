@@ -7,12 +7,15 @@
 #include "renderer/ITextRenderer.h"
 #include "renderer/IUIRenderer.h"
 #include "bflib_vidraw.h"   // LbSpriteDraw*Immediate
+#include "gui/ImGuiContext.h"
 #include "post_inc.h"
 
 static IRenderer*   s_active_renderer = nullptr;
 static RendererType s_active_type     = RENDERER_INVALID;
 static unsigned char s_draw_colour = 0;
 static unsigned short s_draw_flags = 0;
+static TbBool s_imgui_enabled = 0;
+static RendererImGuiFrameFn s_imgui_frame_fn = nullptr;
 
 static void noop_draw_slab_background_immediate(long pos_x, long pos_y, long width, long height) {}
 static const struct RendererDrawCallbacks default_renderer_draw_callbacks = {
@@ -150,9 +153,14 @@ TbPixel* RendererGetFramebuffer(void)
     return lbDisplay.WScreen;
 }
 
+static long s_saved_screen_width = 0;
+static long s_saved_screen_height = 0;
+
 TbPixel* RendererSwapFramebufferTarget(TbPixel *target, uint32_t width, uint32_t height)
 {
     TbPixel *previous = lbDisplay.WScreen;
+    s_saved_screen_width = lbDisplay.GraphicsScreenWidth;
+    s_saved_screen_height = lbDisplay.GraphicsScreenHeight;
     lbDisplay.WScreen = target;
     lbDisplay.GraphicsScreenWidth = width;
     lbDisplay.GraphicsScreenHeight = height;
@@ -162,11 +170,77 @@ TbPixel* RendererSwapFramebufferTarget(TbPixel *target, uint32_t width, uint32_t
 void RendererRestoreFramebufferTarget(TbPixel *previous_target)
 {
     lbDisplay.WScreen = previous_target;
+    lbDisplay.GraphicsScreenWidth = s_saved_screen_width;
+    lbDisplay.GraphicsScreenHeight = s_saved_screen_height;
 }
 
 TbBool RendererScheduleScreenshot(const char* path, int fmt)
 {
     return (s_active_renderer != nullptr) ? s_active_renderer->ScheduleScreenshot(path, fmt) : 0;
+}
+
+TbBool RendererImGuiEnabled(void)
+{
+    return s_imgui_enabled;
+}
+
+void RendererSetImGuiEnabled(TbBool enabled)
+{
+    s_imgui_enabled = enabled;
+}
+
+void RendererSetImGuiDemoVisible(TbBool visible)
+{
+    ImGuiContextSetDemoVisible(visible);
+}
+
+void RendererSetImGuiFrameCallback(RendererImGuiFrameFn fn)
+{
+    s_imgui_frame_fn = fn;
+}
+
+void RendererRunImGuiFrameCallback(void)
+{
+    if (s_imgui_frame_fn != nullptr)
+        s_imgui_frame_fn();
+}
+
+void RendererSetMousePositionCallback(RendererMousePositionFn fn)
+{
+    ImGuiContextSetMousePositionCallback(fn);
+}
+
+void RendererSetCursorImageCallback(ImGuiCursorImageFn fn)
+{
+    ImGuiContextSetCursorImageCallback(fn);
+}
+
+void RendererSetScreenOwnedCallback(RendererScreenOwnedFn fn)
+{
+    // ImGuiScreenOwnedFn and RendererScreenOwnedFn are the same shape
+    // (TbBool(void)) by design -- this facade just forwards the pointer,
+    // same as every other Renderer*Callback in this file.
+    ImGuiContextSetScreenOwnedCallback(fn);
+}
+
+TbBool RendererScreenOwned(void)
+{
+    return ImGuiContextScreenOwned();
+}
+
+void* RendererCreateDynamicTexture(int width, int height)
+{
+    return ImGuiContextCreateTexture(width, height);
+}
+
+void RendererUpdateDynamicTexture(void *texture, const void *rgba_data, int width, int height)
+{
+    ImGuiContextUpdateTexture(texture, rgba_data, width, height);
+}
+
+void RendererDestroyDynamicTexture(void *texture)
+{
+    ImGuiContextDestroyTexture(texture);
 }
 
 TbResult RendererSetupScreen(TbScreenMode mode, TbScreenCoord width, TbScreenCoord height,

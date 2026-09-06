@@ -947,7 +947,6 @@ static inline void LbSpriteDrawLineFastCpy(const char **sp, TbPixel **r, short *
             if (drawOut > (*remaining_width))
               drawOut = (*remaining_width);
             LbDrawBufferSolid(r, (*sp)+(lpos+1), drawOut, false);
-            (*r) += drawOut;
             (*sp) += (*(*sp)) + 1;
         }
         (*remaining_width) -= drawOut;
@@ -971,9 +970,8 @@ static inline void LbSpriteDrawLineFastCpy(const char **sp, TbPixel **r, short *
             drawOut = schr;
             if (drawOut >= (*remaining_width))
                 drawOut = (*remaining_width);
-            memcpy((*r), (*sp)+1, drawOut);
+            LbDrawBufferSolid(r, (*sp)+1, drawOut, false);
             (*remaining_width) -= schr;
-            (*r) += schr;
             (*sp) += (*(*sp)) + 1;
         }
     } //end while

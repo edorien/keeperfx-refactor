@@ -44,6 +44,10 @@
 #include "kfx_sim_state.h"
 #include "kjm_input.h"
 #include "highscores.h"
+#include "bflib_sndlib.h" // StopAllSamples, stop_music, set_music_volume
+#include "bflib_sound.h"  // play_sample, get_emitter_id, S3DGetSoundEmitter, Non3DEmitter, NORMAL_PITCH
+#include "config_settings.h" // settings.music_volume
+#include "config_keeperfx.h" // features_enabled, Ft_AdvAmbSound
 #include "post_inc.h"
 
 /******************************************************************************/
@@ -74,7 +78,11 @@ static struct FrontendSelectList mp_mappack_select_list =
 // frontend_campaign_list_load/frontend_campaign_select first sets it.
 // land_preview.highlighted_lvnum (frontmenu_landpreview.h) tracks the
 // finer-grained "which level's ensign was clicked" on top of this.
-static struct GameCampaign *land_selection_highlighted_campaign = NULL;
+// static dropped (frontmenu_select.h) -- the ImGui screen (frontgui_screens.cpp)
+// reads this directly to render the list's selection state and the detail
+// panel's name/description, the same single-source-of-truth reasoning
+// Phase D used for e.g. sound_volume_ctrl.
+struct GameCampaign *land_selection_highlighted_campaign = NULL;
 
 // Merged Free play screen (mappack list + level list + land preview):
 // which mappack the list is currently highlighting, and which level
@@ -84,9 +92,10 @@ static struct GameCampaign *land_selection_highlighted_campaign = NULL;
 // that field tracks an ensign clicked *inside* the preview panel, and
 // this screen's preview never shows ensigns (see
 // LandPreviewPanel.show_ensigns) -- level highlight comes from the level
-// list instead.
-static struct GameCampaign *freeplay_highlighted_mappack = NULL;
-static LevelNumber freeplay_highlighted_level = 0;
+// list instead. static dropped -- see land_selection_highlighted_campaign's
+// comment above.
+struct GameCampaign *freeplay_highlighted_mappack = NULL;
+LevelNumber freeplay_highlighted_level = 0;
 
 static long frontend_level_select_count(void)
 {
@@ -106,6 +115,36 @@ static long frontend_mappack_select_count(void)
 static long frontend_mp_mappack_select_count(void)
 {
     return mp_mappacks_list.items_num;
+}
+
+/** Starts previewing the currently-loaded campaign's theme (SOUNDTRACK
+ * music + LAND_AMBIENT good/bad loops from its .cfg) -- found live: since
+ * the highlight/commit split landed (change_campaign() on every row
+ * click, actually entering Land View only on commit), highlighting a
+ * campaign/mappack in the list no longer triggers either, because both
+ * were only ever wired into frontmap_load() (front_landview.c), which now
+ * only runs once the user commits. Same start sequence frontmap_load()
+ * itself uses; same stop sequence frontmap_unload() uses, called first so
+ * repeated highlighting (browsing the list) replaces the previous
+ * campaign's theme instead of layering on top of it. Shared by both
+ * Land selection (frontend_campaign_select_by_index) and Free play
+ * (freeplay_highlight_mappack) -- deliberately NOT called from Free
+ * play's per-level highlight (frontend_level_select_by_index): the theme
+ * is a mappack-level property, restarting it on every level click within
+ * the same mappack would be disruptive rather than helpful.
+ */
+static void frontend_play_campaign_preview_audio(void)
+{
+    StopAllSamples();
+    stop_music(false);
+    set_music_volume(settings.music_volume);
+    frontmap_start_music();
+    if ((features_enabled & Ft_AdvAmbSound) != 0)
+    {
+        SoundEmitterID emit_id = get_emitter_id(S3DGetSoundEmitter(Non3DEmitter));
+        play_sample(emit_id, campaign.ambient_good, 0, 0x40, NORMAL_PITCH, -1, 2);
+        play_sample(emit_id, campaign.ambient_bad, 0, 0x40, NORMAL_PITCH, -1, 2);
+    }
 }
 /******************************************************************************/
 void frontend_level_select_up(struct GuiButton *gbtn)
@@ -142,9 +181,11 @@ void frontend_draw_level_select_button(struct GuiButton *gbtn)
 {
     long btn_idx = gbtn->content.lval;
     long i = btn_idx + level_select_list.scroll_offset - level_select_list.row_base;
+    unsigned long levels_count;
+    LevelNumber *levels = frontend_freeplay_active_levels(&levels_count);
     long lvnum = 0;
-    if ((i >= 0) && (i < campaign.freeplay_levels_count))
-      lvnum = campaign.freeplay_levels[i];
+    if ((i >= 0) && (i < (long)levels_count))
+      lvnum = levels[i];
     struct LevelInformation* lvinfo = get_level_info(lvnum);
     if (lvinfo == NULL)
       return;
@@ -186,21 +227,29 @@ void frontend_draw_levels_scroll_tab(struct GuiButton *gbtn)
     frontend_selectlist_draw_scroll_tab(&level_select_list, gbtn);
 }
 
-// Highlights a level under a clicked row: loads its own land preview
-// (no ensigns -- see LandPreviewPanel.show_ensigns). Committing is
-// frontend_freeplay_enter's job -- see the header.
-void frontend_level_select(struct GuiButton *gbtn)
+// Highlights the level at freeplay_levels index i: loads its own land
+// preview (no ensigns -- see LandPreviewPanel.show_ensigns). Committing is
+// frontend_freeplay_enter's job -- see the header. Shared the same way
+// frontend_campaign_select_by_index is -- see its comment.
+void frontend_level_select_by_index(long i)
 {
-    long i = frontend_selectlist_row_to_item_index(&level_select_list, gbtn);
+    unsigned long levels_count;
+    LevelNumber *levels = frontend_freeplay_active_levels(&levels_count);
     long lvnum = 0;
-    if ((i >= 0) && (i < campaign.freeplay_levels_count))
-      lvnum = campaign.freeplay_levels[i];
+    if ((i >= 0) && (i < (long)levels_count))
+      lvnum = levels[i];
     if (lvnum <= 0)
         return;
     if (lvnum == freeplay_highlighted_level)
         return;
     freeplay_highlighted_level = lvnum;
     land_preview_load(&land_preview, lvnum, false);
+}
+
+void frontend_level_select(struct GuiButton *gbtn)
+{
+    long i = frontend_selectlist_row_to_item_index(&level_select_list, gbtn);
+    frontend_level_select_by_index(i);
 }
 
 void frontend_level_list_unload(void)
@@ -211,7 +260,9 @@ void frontend_level_list_unload(void)
 
 void frontend_level_list_load(void)
 {
-    number_of_freeplay_levels = campaign.freeplay_levels_count;
+    unsigned long levels_count;
+    frontend_freeplay_active_levels(&levels_count);
+    number_of_freeplay_levels = levels_count;
     frontend_selectlist_set_visible(&level_select_list);
 }
 
@@ -292,15 +343,16 @@ void frontend_draw_campaign_select_button(struct GuiButton *gbtn)
     LbTextDrawResized(0, 0, tx_units_per_px, campgn->display_name);
 }
 
-/** Highlights a campaign under a clicked list row: loads its land preview
- * and resets the detail panel to the campaign's own description.
- * Committing is frontend_land_selection_enter's job -- see the header.
+/** Highlights the campaign at list index i: loads its land preview and
+ * resets the detail panel to the campaign's own description. Committing
+ * is frontend_land_selection_enter's job -- see the header. Shared by the
+ * legacy row click_event (frontend_campaign_select, below -- decodes i
+ * from a row button's content.lval) and the ImGui screen
+ * (frontgui_screens.cpp), which iterates campaigns_list directly and
+ * already has a real index, with no row button to decode one from.
  */
-void frontend_campaign_select(struct GuiButton *gbtn)
+void frontend_campaign_select_by_index(long i)
 {
-    if (gbtn == NULL)
-        return;
-    long i = frontend_selectlist_row_to_item_index(&campaign_select_list, gbtn);
     struct GameCampaign* campgn = NULL;
     if ((i >= 0) && (i < campaigns_list.items_num))
         campgn = &campaigns_list.items[i];
@@ -320,6 +372,15 @@ void frontend_campaign_select(struct GuiButton *gbtn)
     // comment), which running on every campaign click would be wasteful
     // and risk the crash-after-several-switches class of bug.
     land_preview_load(&land_preview, SINGLEPLAYER_NOTSTARTED, true);
+    frontend_play_campaign_preview_audio();
+}
+
+void frontend_campaign_select(struct GuiButton *gbtn)
+{
+    if (gbtn == NULL)
+        return;
+    long i = frontend_selectlist_row_to_item_index(&campaign_select_list, gbtn);
+    frontend_campaign_select_by_index(i);
 }
 
 /** "Enter this land": commits whichever the detail panel is currently
@@ -333,14 +394,23 @@ void frontend_campaign_select(struct GuiButton *gbtn)
 // FeSt_CAMPAIGN_SELECT (these two buttons, but also e.g. an ESC handler
 // added later), the same way FeSt_LAND_VIEW's frontmap_unload() already
 // works.
-void frontend_land_selection_enter(struct GuiButton *gbtn)
+/** frontend_land_selection_enter's actual work, minus the state-transition
+ * call itself: returns the FrontendMenuState to transition to, or -1 if
+ * there's nothing highlighted / starting the campaign failed. Split out
+ * so the ImGui "Enter this land" button can request the transition itself
+ * (frontend_set_state() is unsafe to call synchronously from inside an
+ * active ImGui window -- see frontgui_screens.cpp's request_frontend_state
+ * comment) while the legacy click_event below keeps calling
+ * frontend_set_state() directly, unchanged.
+ */
+int frontend_land_selection_enter_resolve(void)
 {
     if (land_selection_highlighted_campaign == NULL)
-        return;
+        return -1;
     if (!frontend_start_new_campaign(land_selection_highlighted_campaign->fname))
     {
         ERRORLOG("Unable to start new campaign");
-        return;
+        return -1;
     }
     // FeSt_CAMPAIGN_INTRO immediately redirects to FeSt_LAND_VIEW
     // (frontend_setup_state's redirect table) -- the old full-screen
@@ -353,7 +423,14 @@ void frontend_land_selection_enter(struct GuiButton *gbtn)
     LevelNumber lvnum = (land_preview.highlighted_lvnum != SINGLEPLAYER_NOTSTARTED)
         ? land_preview.highlighted_lvnum : first_singleplayer_level();
     set_selected_level_number(lvnum);
-    frontend_set_state(FeSt_START_KPRLEVEL);
+    return FeSt_START_KPRLEVEL;
+}
+
+void frontend_land_selection_enter(struct GuiButton *gbtn)
+{
+    int next_state = frontend_land_selection_enter_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
 }
 
 void frontend_land_selection_return_to_main(struct GuiButton *gbtn)
@@ -462,15 +539,32 @@ void frontend_land_selection_return_to_main_maintain(struct GuiButton *gbtn)
 // centrally (mirrors FeSt_CAMPAIGN_SELECT's), not this function.
 void frontend_freeplay_enter(struct GuiButton *gbtn)
 {
-    if (freeplay_highlighted_level <= 0)
-        return;
-    kfx_sim_state.selected_level_number = freeplay_highlighted_level;
-    frontend_set_state(FeSt_START_KPRLEVEL);
+    int next_state = frontend_freeplay_enter_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
 }
 
 void frontend_freeplay_return_to_main(struct GuiButton *gbtn)
 {
     frontend_set_state(FeSt_MAIN_MENU);
+}
+
+/** frontend_freeplay_enter's actual work, minus the state-transition call
+ * itself -- see frontend_land_selection_enter_resolve's comment for why.
+ */
+int frontend_freeplay_enter_resolve(void)
+{
+    if (freeplay_highlighted_level <= 0)
+        return -1;
+    kfx_sim_state.selected_level_number = freeplay_highlighted_level;
+    // Mirrors front_landview_multiplayer.c's own frontnetmap_update()
+    // (`if (!fe_network_active) fe_computer_players = 1;`), the level-pick
+    // commit Skirmish used to go through before it was routed directly
+    // into this screen -- without it a skirmish level would start with no
+    // computer opponents at all.
+    if (frontend_freeplay_is_skirmish())
+        fe_computer_players = 1;
+    return FeSt_START_KPRLEVEL;
 }
 
 // Auto-fit to caption + left-anchored pair, same pattern as Land
@@ -561,21 +655,62 @@ void frontend_draw_campaign_scroll_tab(struct GuiButton *gbtn)
  */
 static void freeplay_highlight_mappack(struct GameCampaign *campgn)
 {
-    if (!change_campaign(CampgnT_Mappack, campgn->fname))
+    enum CampaignTypes cmpgn_type = frontend_freeplay_is_skirmish() ? CampgnT_MultiplayerMappack : CampgnT_Mappack;
+    if (!change_campaign(cmpgn_type, campgn->fname))
         return;
     freeplay_highlighted_mappack = campgn;
     level_select_list.scroll_offset = 0;
     frontend_level_list_load();
     freeplay_highlighted_level = 0;
-    if (campaign.freeplay_levels_count > 0)
+    unsigned long levels_count;
+    LevelNumber *levels = frontend_freeplay_active_levels(&levels_count);
+    if (levels_count > 0)
     {
-        LevelNumber lvnum = campaign.freeplay_levels[0];
+        LevelNumber lvnum = levels[0];
         freeplay_highlighted_level = lvnum;
         land_preview_load(&land_preview, lvnum, false);
     } else
     {
         land_preview_unload(&land_preview);
     }
+    frontend_play_campaign_preview_audio();
+}
+
+// FeSt_MAPPACK_SELECT is shared by two entry points: the normal Free play
+// button (Main Menu) and Skirmish (frontend_start_skirmish_resolve(),
+// frontend.cpp) -- Skirmish sets net_service_index_selected before
+// transitioning here the same way it already flags itself for the rest
+// of the (now largely dead, see frontend_mp_mappack_select_resolve's own
+// comment) old multiplayer-mappack-select codepath, so this screen reuses
+// that same check to pick which campaign list/type to source from,
+// rather than inventing a second flag for the same distinction.
+TbBool frontend_freeplay_is_skirmish(void)
+{
+    return net_service_index_selected == FrontendNetSvc_Skirmish;
+}
+
+struct CampaignsList *frontend_freeplay_active_mappacks_list(void)
+{
+    return frontend_freeplay_is_skirmish() ? &mp_mappacks_list : &mappacks_list;
+}
+
+// The level list's own equivalent of frontend_freeplay_active_mappacks_list():
+// Skirmish mappacks register their levels as LvKind_IsMulti (.lof KIND=MULTI),
+// landing in campaign.multi_levels, not campaign.freeplay_levels (.lif files,
+// and .lof KIND=FREE, only) -- found live, the merged screen's level list was
+// hardcoded to freeplay_levels and came up empty for every Skirmish mappack.
+// The old NETLAND_VIEW screen (front_landview_multiplayer.c's
+// update_net_ensigns_visibility, via first_multiplayer_level()/
+// next_multiplayer_level()) always read multi_levels for this reason.
+LevelNumber *frontend_freeplay_active_levels(unsigned long *out_count)
+{
+    if (frontend_freeplay_is_skirmish())
+    {
+        *out_count = campaign.multi_levels_count;
+        return campaign.multi_levels;
+    }
+    *out_count = campaign.freeplay_levels_count;
+    return campaign.freeplay_levels;
 }
 
 // Runs on every entry into FeSt_MAPPACK_SELECT (frontend_setup_state calls
@@ -587,8 +722,9 @@ void frontend_mappack_list_load(void)
     freeplay_highlighted_mappack = NULL;
     freeplay_highlighted_level = 0;
     land_preview.loaded = false;
-    if (mappacks_list.items_num > 0)
-        freeplay_highlight_mappack(&mappacks_list.items[0]);
+    struct CampaignsList *list = frontend_freeplay_active_mappacks_list();
+    if (list->items_num > 0)
+        freeplay_highlight_mappack(&list->items[0]);
 }
 
 void frontend_mappack_select_up(struct GuiButton *gbtn)
@@ -621,22 +757,29 @@ void frontend_mappack_select_maintain(struct GuiButton *gbtn)
     frontend_selectlist_row_maintain(&mappack_select_list, gbtn);
 }
 
-// Highlights a mappack under a clicked row (see freeplay_highlight_mappack)
+// Highlights the mappack at list index i (see freeplay_highlight_mappack)
 // rather than committing/transitioning screens -- the merged Free play
-// screen shows both lists together.
-void frontend_mappack_select(struct GuiButton *gbtn)
+// screen shows both lists together. Shared the same way
+// frontend_campaign_select_by_index is -- see its comment.
+void frontend_mappack_select_by_index(long i)
 {
-    if (gbtn == NULL)
-        return;
-    long i = frontend_selectlist_row_to_item_index(&mappack_select_list, gbtn);
+    struct CampaignsList *list = frontend_freeplay_active_mappacks_list();
     struct GameCampaign *campgn = NULL;
-    if ((i >= 0) && (i < mappacks_list.items_num))
-        campgn = &mappacks_list.items[i];
+    if ((i >= 0) && (i < list->items_num))
+        campgn = &list->items[i];
     if (campgn == NULL)
         return;
     if (campgn == freeplay_highlighted_mappack)
         return; // already highlighted, nothing to reload
     freeplay_highlight_mappack(campgn);
+}
+
+void frontend_mappack_select(struct GuiButton *gbtn)
+{
+    if (gbtn == NULL)
+        return;
+    long i = frontend_selectlist_row_to_item_index(&mappack_select_list, gbtn);
+    frontend_mappack_select_by_index(i);
 }
 
 
@@ -679,43 +822,51 @@ void frontend_mp_mappack_select_maintain(struct GuiButton *gbtn)
     frontend_selectlist_row_maintain(&mp_mappack_select_list, gbtn);
 }
 
-void frontend_mp_mappack_select(struct GuiButton *gbtn)
+// frontend_mp_mappack_select's actual work, minus the state-transition
+// call itself -- see frontend_land_selection_enter_resolve's comment for
+// why. Unlike Land selection/Free play, MP mappack select has no
+// highlight/commit split (never did -- see frontmenu_select.h's own note
+// on frontend_mp_mappack_select), so this is keyed by list index directly
+// like the others but still commits immediately on call, same as the
+// legacy click_event. Used only for real multiplayer sessions now --
+// Skirmish (still identified the same way, net_service_index_selected ==
+// FrontendNetSvc_Skirmish) no longer reaches FeSt_MP_MAPPACK_SELECT at
+// all; it routes straight into the merged Free play screen instead (see
+// frontend_start_skirmish_resolve(), frontend.cpp, and
+// frontend_mappack_list_load()'s own comment below).
+int frontend_mp_mappack_select_resolve(long i)
 {
-    long i;
-    struct GameCampaign *campgn;
-    if (gbtn == NULL)
-        return;
-    i = frontend_selectlist_row_to_item_index(&mp_mappack_select_list, gbtn);
-    campgn = NULL;
+    struct GameCampaign *campgn = NULL;
     if ((i >= 0) && (i < mp_mappacks_list.items_num))
         campgn = &mp_mappacks_list.items[i];
     if (campgn == NULL)
-        return;
+        return -1;
 
     frontnet_send_campaign_change_message(campgn->fname);
 
     if (!change_campaign(CampgnT_MultiplayerMappack, campgn->fname))
+        return -1;
+    return FeSt_NET_START;
+}
+
+void frontend_mp_mappack_select(struct GuiButton *gbtn)
+{
+    if (gbtn == NULL)
         return;
-    if (net_service_index_selected == FrontendNetSvc_Skirmish)
-    {
-        frontend_set_state(FeSt_NETLAND_VIEW);
-    }
-    else
-    {
-        frontend_set_state(FeSt_NET_START);
-    }
+    long i = frontend_selectlist_row_to_item_index(&mp_mappack_select_list, gbtn);
+    int next_state = frontend_mp_mappack_select_resolve(i);
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
+}
+
+int frontend_back_from_mp_mappack_list_target(void)
+{
+    return FeSt_NET_START;
 }
 
 void frontend_back_from_mp_mappack_list(struct GuiButton *gbtn)
 {
-    if (net_service_index_selected == FrontendNetSvc_Skirmish)
-    {
-        frontend_set_state(FeSt_NET_SERVICE);
-    }
-    else
-    {
-        frontend_set_state(FeSt_NET_START);
-    }
+    frontend_set_state(frontend_back_from_mp_mappack_list_target());
 }
 
 void frontend_draw_mp_mappack_select_button(struct GuiButton *gbtn)
@@ -803,21 +954,17 @@ void frontend_campaign_list_load(void)
 {
     frontend_selectlist_set_visible(&campaign_select_list);
     // Highlight the first campaign so the land preview/detail panel isn't
-    // empty on entry, same as an implicit first row click. This runs on
+    // empty on entry, same as an implicit first row click -- delegating to
+    // frontend_campaign_select_by_index() itself (rather than duplicating
+    // its body here) also means the first campaign's theme preview starts
+    // automatically on entry, the same as clicking it would. This runs on
     // every entry into FeSt_CAMPAIGN_SELECT (frontend_setup_state calls it
     // unconditionally), not just the menu's first-ever creation, so it's
     // the right place for this rather than the GuiMenu's create_cb.
     land_selection_highlighted_campaign = NULL;
     land_preview.loaded = false;
     if (campaigns_list.items_num > 0)
-    {
-        struct GameCampaign *campgn = &campaigns_list.items[0];
-        if (change_campaign(CampgnT_Campaign, campgn->fname))
-        {
-            land_selection_highlighted_campaign = campgn;
-            land_preview_load(&land_preview, SINGLEPLAYER_NOTSTARTED, true);
-        }
-    }
+        frontend_campaign_select_by_index(0);
 }
 
 void frontend_draw_variable_mappack_exit_button(struct GuiButton *gbtn)

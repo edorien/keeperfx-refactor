@@ -106,7 +106,6 @@ struct GuiButtonInit video_menu_buttons[] = {
   { .gbtype = LbBtnT_ToggleBtn, .click_event = gui_video_rotate_mode, .scr_pos_x = 124, .scr_pos_y = 38, .pos_x = 126, .pos_y = 38, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_grph_pers_rot, .tooltip_stridx = GUIStr_OptionViewTypeDesc, .content = { .ptr = &settings.video_rotate_mode }, .maxval = 2 },
   { .gbtype = LbBtnT_ToggleBtn, .click_event = gui_video_cluedo_mode, .scr_pos_x = 28, .scr_pos_y = 100, .pos_x = 30, .pos_y = 100, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_grph_wall_hi, .tooltip_stridx = GUIStr_OptionWallHeightDesc, .content = { .ptr = &video_cluedo_mode }, .maxval = 1, .maintain_call = gui_video_cluedo_maintain },
   { .gbtype = LbBtnT_NormalBtn, .click_event = gui_video_gamma_correction, .scr_pos_x = 76, .scr_pos_y = 100, .pos_x = 78, .pos_y = 100, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_options_button_grph_gamma, .tooltip_stridx = GUIStr_OptionGammaCorrectionDesc, .content = { .ptr = &video_gamma_correction } },
-  { .gbtype = LbBtnT_NormalBtn, .click_event = gui_switch_video_mode, .rclick_event = gui_display_current_resolution, .scr_pos_x = 124, .scr_pos_y = 100, .pos_x = 126, .pos_y = 100, .width = 46, .height = 64, .draw_call = gui_area_no_anim_button, .sprite_idx = GBS_optionsbutton_resolution, .tooltip_stridx = GUIStr_DisplayResolution },
   { .gbtype = -1 },
 };
 

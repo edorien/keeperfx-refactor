@@ -1584,7 +1584,6 @@ enum GameKeys {
     Gkey_ToggleTooltips,
     Gkey_ExitGame,
     Gkey_DisablePacketMode,
-    Gkey_SwitchScreenRes,
     Gkey_ToggleConsole,
     Gkey_FinishLevel,
     Gkey_ToggleHeroHealthFlowers,

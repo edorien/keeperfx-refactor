@@ -306,7 +306,21 @@ void LbI_PointerHandler::NewMousePos(void)
 bool LbI_PointerHandler::OnMove(void)
 {
     std::lock_guard<std::mutex> guard(lock);
-    if (lbPointerAdvancedDraw && lbInteruptMouse)
+    // Same reasoning as OnBeginSwap() below: while ImGui wants the mouse,
+    // it's already drawing this cursor itself, so the immediate-redraw path
+    // must be skipped entirely here too -- not just to avoid a second visible
+    // cursor, but because Undraw() restores whatever Backup() last saved,
+    // and OnBeginSwap() no longer calls Backup()/Draw() in that case, so an
+    // Undraw() here would paste back a stale backup instead of leaving the
+    // (ImGui-drawn) frame alone. Position tracking (NewMousePos()) still
+    // needs to happen regardless. RendererScreenOwned() (docs/refactor/
+    // renderer/05-imgui-owned-menu-backdrop.md Phase C) is the same
+    // "nothing legacy is composited at all for this screen" check
+    // RendererSoftware::PresentFrame() uses to skip its own framebuffer
+    // blit -- drawing the legacy cursor here when that's true would just be
+    // wasted work, since ImGui now draws its own cursor unconditionally
+    // (not just on WantCaptureMouse) for exactly these screens.
+    if (lbPointerAdvancedDraw && lbInteruptMouse && !ImGuiContextWantCaptureMouse() && !RendererScreenOwned())
     {
         Undraw(true);
         NewMousePos();
@@ -321,6 +335,22 @@ bool LbI_PointerHandler::OnMove(void)
 
 void LbI_PointerHandler::OnBeginSwap(void)
 {
+    // Whenever ImGui wants the mouse, ImGuiContext.cpp already draws this
+    // exact sprite itself, every frame, via the foreground draw list (see
+    // its own comment on why it needs a stand-in there at all). Drawing it
+    // here too baked a second cursor directly into the framebuffer, visibly
+    // doubled up on screen -- found live once real resolutions started
+    // rendering menus/options through ImGui routinely enough to notice.
+    // RendererScreenOwned() (docs/refactor/renderer/
+    // 05-imgui-owned-menu-backdrop.md Phase C) covers the rest of the
+    // screen for the 15 fully-ImGui-owned states: WantCaptureMouse alone is
+    // only true over the actual menu panel, not the surrounding backdrop
+    // area, but nothing legacy is composited there any more either (the
+    // framebuffer blit itself is skipped for these screens), so drawing
+    // the legacy cursor into it would be pure wasted work -- ImGui already
+    // draws its own cursor unconditionally there instead.
+    if (ImGuiContextWantCaptureMouse() || RendererScreenOwned())
+        return;
     std::lock_guard<std::mutex> guard(lock);
     if ( lbPointerAdvancedDraw )
     {

@@ -26,11 +26,21 @@
 // prepare_diskpath() had real external linkage but no header declaration
 // at all; added (same situation as config_settings.c's
 // setup_default_settings()).
+// keeperfx_cfg_write_values_to_file() (docs/refactor/renderer/04-imgui-gui-
+// foundation.md §6.2 finding 1, Phase G's cfg-writer prerequisite) is
+// covered separately below, via the explicit-path variant rather than
+// keeperfx_cfg_write_values() -- same reason load_configuration() isn't
+// attempted above, plus bflib_fileio_test.cpp's own documented
+// LbFileOpen(..., Lb_FILE_MODE_NEW) gotcha for absolute paths: a bare
+// relative filename in the test binary's CWD, same ScratchFile pattern.
 #include <catch2/catch_test_macros.hpp>
 
 #include "config_keeperfx.h"
 
+#include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 
 namespace {
 struct ResetFeaturesEnabled {
@@ -208,4 +218,121 @@ TEST_CASE("prepare_diskpath strips trailing path separators, whitespace, and a t
 TEST_CASE("prepare_diskpath returns false for an empty string", "[kfx_config][config_keeperfx]") {
     char buf[64] = "";
     CHECK_FALSE(prepare_diskpath(buf, sizeof(buf)));
+}
+
+namespace {
+const char *kCfgWriterTestFile = "kfx_config_utest_keeperfx_cfg_writer.cfg";
+
+struct ScratchCfgFile {
+    ScratchCfgFile() { std::remove(kCfgWriterTestFile); }
+    ~ScratchCfgFile() { std::remove(kCfgWriterTestFile); }
+
+    void write(const char *content)
+    {
+        std::ofstream f(kCfgWriterTestFile, std::ios::binary | std::ios::trunc);
+        f << content;
+    }
+    std::string read()
+    {
+        std::ifstream f(kCfgWriterTestFile, std::ios::binary);
+        std::ostringstream ss;
+        ss << f.rdbuf();
+        return ss.str();
+    }
+};
+}
+
+TEST_CASE_METHOD(ScratchCfgFile, "keeperfx_cfg_write_values_to_file replaces one key's value, leaving comments/order/other keys untouched", "[kfx_config][config_keeperfx]") {
+    write(
+        "; a leading comment\n"
+        "LANGUAGE=ENG\n"
+        "DISPLAY_NUMBER=1\n"
+        "; a trailing comment\n"
+    );
+
+    struct KeeperfxCfgEdit edits[] = { { "DISPLAY_NUMBER", "2" } };
+    CHECK(keeperfx_cfg_write_values_to_file(kCfgWriterTestFile, edits, 1));
+
+    CHECK(read() ==
+        "; a leading comment\n"
+        "LANGUAGE=ENG\n"
+        "DISPLAY_NUMBER=2\n"
+        "; a trailing comment\n");
+}
+
+TEST_CASE_METHOD(ScratchCfgFile, "keeperfx_cfg_write_values_to_file applies several edits in one pass", "[kfx_config][config_keeperfx]") {
+    write(
+        "LANGUAGE=ENG\n"
+        "DISPLAY_NUMBER=1\n"
+        "INGAME_RES=DESKTOP\n"
+    );
+
+    struct KeeperfxCfgEdit edits[] = {
+        { "DISPLAY_NUMBER", "2" },
+        { "INGAME_RES", "1920x1080x32" },
+    };
+    CHECK(keeperfx_cfg_write_values_to_file(kCfgWriterTestFile, edits, 2));
+
+    CHECK(read() ==
+        "LANGUAGE=ENG\n"
+        "DISPLAY_NUMBER=2\n"
+        "INGAME_RES=1920x1080x32\n");
+}
+
+TEST_CASE_METHOD(ScratchCfgFile, "keeperfx_cfg_write_values_to_file appends a key that has no existing line", "[kfx_config][config_keeperfx]") {
+    write("LANGUAGE=ENG\n");
+
+    struct KeeperfxCfgEdit edits[] = { { "DISPLAY_NUMBER", "3" } };
+    CHECK(keeperfx_cfg_write_values_to_file(kCfgWriterTestFile, edits, 1));
+
+    CHECK(read() == "LANGUAGE=ENG\nDISPLAY_NUMBER=3\n");
+}
+
+TEST_CASE_METHOD(ScratchCfgFile, "keeperfx_cfg_write_values_to_file updates every occurrence of a duplicated key", "[kfx_config][config_keeperfx]") {
+    write(
+        "DISPLAY_NUMBER=1\n"
+        "LANGUAGE=ENG\n"
+        "DISPLAY_NUMBER=1\n"
+    );
+
+    struct KeeperfxCfgEdit edits[] = { { "DISPLAY_NUMBER", "2" } };
+    CHECK(keeperfx_cfg_write_values_to_file(kCfgWriterTestFile, edits, 1));
+
+    CHECK(read() ==
+        "DISPLAY_NUMBER=2\n"
+        "LANGUAGE=ENG\n"
+        "DISPLAY_NUMBER=2\n");
+}
+
+TEST_CASE_METHOD(ScratchCfgFile, "keeperfx_cfg_write_values_to_file does not false-match a key that is a prefix of a longer one", "[kfx_config][config_keeperfx]") {
+    write("INGAME_RES=DESKTOP\n");
+
+    struct KeeperfxCfgEdit edits[] = { { "INGAME_RE", "bogus" } };
+    CHECK(keeperfx_cfg_write_values_to_file(kCfgWriterTestFile, edits, 1));
+
+    // INGAME_RE has no real line of its own -- it must be appended, not
+    // matched against (and corrupt) INGAME_RES's line.
+    CHECK(read() == "INGAME_RES=DESKTOP\nINGAME_RE=bogus\n");
+}
+
+TEST_CASE_METHOD(ScratchCfgFile, "keeperfx_cfg_write_values_to_file creates a new file when none exists yet", "[kfx_config][config_keeperfx]") {
+    struct KeeperfxCfgEdit edits[] = { { "LANGUAGE", "ENG" } };
+    CHECK(keeperfx_cfg_write_values_to_file(kCfgWriterTestFile, edits, 1));
+
+    CHECK(read() == "LANGUAGE=ENG\n");
+}
+
+TEST_CASE_METHOD(ScratchCfgFile, "keeperfx_cfg_write_values_to_file rejects a null/empty filename or a non-positive edit count", "[kfx_config][config_keeperfx]") {
+    struct KeeperfxCfgEdit edits[] = { { "LANGUAGE", "ENG" } };
+    CHECK_FALSE(keeperfx_cfg_write_values_to_file(nullptr, edits, 1));
+    CHECK_FALSE(keeperfx_cfg_write_values_to_file("", edits, 1));
+    CHECK_FALSE(keeperfx_cfg_write_values_to_file(kCfgWriterTestFile, edits, 0));
+}
+
+TEST_CASE("keeperfx_cfg_write_values fails before load_configuration() has ever run", "[kfx_config][config_keeperfx]") {
+    // No fixture reset available for the remembered path (it's set once by
+    // load_configuration(), never cleared) -- this only holds true so long
+    // as no other test in this binary calls load_configuration() first.
+    struct KeeperfxCfgEdit edits[] = { { "LANGUAGE", "ENG" } };
+    CHECK_FALSE(keeperfx_cfg_write_values(edits, 1));
 }

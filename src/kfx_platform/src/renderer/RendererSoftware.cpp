@@ -1,8 +1,10 @@
 #include "pre_inc.h"
 #include "renderer/RendererSoftware.h"
+#include "renderer/RendererManager.h" // RendererImGuiEnabled
 #include "bflib_video.h"       // PALETTE_COLORS, lbWindow, SDL, vsync_enabled
 #include "bflib_vidsurface.h"  // lbDrawSurface
 #include "bflib_mouse.h"       // LbMouseOnBeginSwap/EndSwap (software cursor around present)
+#include "gui/ImGuiContext.h"
 #include <SDL3_image/SDL_image.h> // IMG_SavePNG (screenshots)
 #include "post_inc.h"
 
@@ -80,6 +82,9 @@ bool RendererSoftware::ensure_present_target()
 
 void RendererSoftware::destroy_present_target()
 {
+    // Must happen before m_renderer is destroyed below -- the ImGui
+    // SDLRenderer3 backend holds references into it.
+    ImGuiContextShutdown();
     if (m_texture != nullptr) { SDL_DestroyTexture(m_texture); m_texture = nullptr; }
     if (m_renderer != nullptr) { SDL_DestroyRenderer(m_renderer); m_renderer = nullptr; }
     m_tex_w = 0;
@@ -132,8 +137,56 @@ void RendererSoftware::PresentFrame()
         LbMouseOnEndSwap();
         return;
     }
-    SDL_RenderClear(m_renderer);
-    SDL_RenderTexture(m_renderer, m_texture, NULL, NULL);
+    // docs/refactor/renderer/05-imgui-owned-menu-backdrop.md Phase C: skip
+    // the legacy framebuffer blit entirely for screens ImGui fully owns
+    // (its own backdrop image, drawn from draw_menu_backdrop() below,
+    // replaces it) -- otherwise it painted over whatever the legacy cursor
+    // draw (bflib_mspointer.cpp) had just put into lbDrawSurface for the
+    // area outside the small centred menu panel, since that backdrop image
+    // is drawn *after* this blit, every frame. Still cleared to black first
+    // so there's no stale content visible for even one frame before ImGui's
+    // own background draw list runs.
+    if (RendererScreenOwned())
+    {
+        SDL_RenderClear(m_renderer);
+    }
+    else
+    {
+        SDL_RenderClear(m_renderer);
+        SDL_RenderTexture(m_renderer, m_texture, NULL, NULL);
+    }
+
+    // docs/refactor/renderer/04-imgui-gui-foundation.md §3.3/§3.4: the
+    // software framebuffer above is the backdrop layer; ImGui composites as
+    // a true overlay on top of it, between the backdrop blit and present.
+    //
+    // Reentrancy guard: found live (real SIGABRT, real backtrace) that
+    // frontend_set_state() -- called from RendererRunImGuiFrameCallback()'s
+    // own deferred-pending-state application, itself already inside this
+    // function's ImGuiContextNewFrame()/Render() pair -- used to trigger
+    // fade_out()/fade_in() (ProperFadePalette -> LbPaletteFade ->
+    // LbPaletteFadeStep), whose own multi-step animation loop called
+    // RendererPresentFrame() again per step to actually show the palette
+    // dimming/brightening. Without this guard, that nested call re-entered
+    // the ImGui block below and tried to start a second ImGui frame before
+    // the outer one had reached Render(), tripping ImGui's own
+    // ErrorCheckNewFrameSanityChecks() ("Forgot to call Render() or
+    // EndFrame()..."). fade_out()/fade_in() themselves are gone now
+    // (docs/refactor/renderer/05-imgui-owned-menu-backdrop.md Phase 0) --
+    // this was their only known trigger, so the guard is provably dead as
+    // of that change, but left in place as a harmless defensive no-op
+    // rather than removed sight unseen; revisit once live testing confirms
+    // nothing else re-enters this function the same way.
+    static bool s_presenting_imgui_frame = false;
+    if (!s_presenting_imgui_frame && RendererImGuiEnabled() && ImGuiContextEnsure(lbWindow, m_renderer))
+    {
+        s_presenting_imgui_frame = true;
+        ImGuiContextNewFrame();
+        RendererRunImGuiFrameCallback(); // kfx_frontend's §5 wrappers / Phase B style-sheet test screen
+        ImGuiContextRender();
+        s_presenting_imgui_frame = false;
+    }
+
     SDL_RenderPresent(m_renderer);
     LbMouseOnEndSwap();
 }

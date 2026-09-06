@@ -102,7 +102,6 @@ const struct GamekeySettings game_key_settings[GAME_KEYS_COUNT] = {
     {"ToggleTooltips",        GUIStr_ToggleTooltips,          KC_F8, KMod_NONE,              CBtn_NONE,                BMV_Visible,        },       // Gkey_ToggleTooltips,
     {"ExitGame",              GUIStr_ExitGame,                KC_X,   KMod_ALT,              CBtn_START|CBtn_BACK,     BMV_Visible,        },       // Gkey_ExitGame,
     {"DisablePacketMode",     GUIStr_DisablePacketMode,       KC_T,   KMod_ALT,              CBtn_NONE,                BMV_Visible,        },       // Gkey_DisablePacketMode,
-    {"SwitchScreenRes",       GUIStr_SwitchScreenRes,         KC_R,   KMod_ALT,              CBtn_NONE,                BMV_Visible,        },       // Gkey_SwitchScreenRes,
     {"ToggleConsole",         GUIStr_ToggleConsole,           KC_GRAVE, KMod_NONE,           CBtn_NONE,                BMV_Visible,        },       // Gkey_ToggleConsole,
     {"FinishLevel",           GUIStr_FinishLevel,             KC_SPACE, KMod_NONE,           CBtn_BACK,                BMV_Visible,        },       // Gkey_FinishLevel,
     {"ToggleHeroHealthFlower",GUIStr_ToggleHeroHealthFlowers, KC_F, KMod_ALT,                CBtn_NONE,                BMV_Visible,        },       // Gkey_ToggleHeroHealthFlowers,
@@ -141,12 +140,6 @@ const struct GamekeySettings game_key_settings[GAME_KEYS_COUNT] = {
 #define CAMERA_TILT_DEFAULT -266
 #define CAMERA_TILT_MIN -350
 #define CAMERA_TILT_MAX -200
-
-// Duplicated from kfx_render's vidmode.h (MAX_GAME_VIDMODE_COUNT) rather
-// than included, to avoid a kfx_config -> kfx_render layering violation
-// for a single stable array-size constant. See
-// docs/refactor/stage-13-enforce-and-document.md.
-#define CONFIG_MAX_GAME_VIDMODE_COUNT 6
 
 unsigned char i_can_see_levels[] = {30, 45, 60, 254,};
 struct GameSettings settings;
@@ -481,7 +474,6 @@ void setup_default_settings(void)
     settings.music_volume                  = 90;
     settings.roomflags_on                  = 1;
     settings.gamma_correction              = 0;
-    settings.switching_vidmodes_index      = Lb_SCREEN_MODE_INVALID;
     settings.tooltips_on                   = true;
     settings.first_person_move_invert      = 0;
     settings.first_person_move_sensitivity = 6;
@@ -537,8 +529,6 @@ TbBool load_settings(void)
         if (val && value_type(val) == VALUE_INT32) settings.gamma_correction = (unsigned short)value_int32(val);
         val = value_dict_get(vsec, "roomflags_on");
         if (val && value_type(val) == VALUE_INT32) settings.roomflags_on = (unsigned char)value_int32(val);
-        val = value_dict_get(vsec, "switching_vidmodes_index");
-        if (val && value_type(val) == VALUE_INT32) settings.switching_vidmodes_index = value_int32(val);
     }
 
     /* [audio] */
@@ -620,7 +610,6 @@ TbBool load_settings(void)
     settings.music_volume = clamp(settings.music_volume, 0, FULL_LOUDNESS);
     settings.mentor_volume = clamp(settings.mentor_volume, 0, FULL_LOUDNESS);
     settings.gamma_correction = clamp(settings.gamma_correction, 0, GAMMA_LEVELS_COUNT);
-    settings.switching_vidmodes_index = clamp(settings.switching_vidmodes_index, 0, CONFIG_MAX_GAME_VIDMODE_COUNT);
     settings.first_person_move_sensitivity = clamp(settings.first_person_move_sensitivity, 0, 1000);
     settings.minimap_zoom = clamp(settings.minimap_zoom, 256, 2048);
     settings.isometric_view_zoom_level = clamp(settings.isometric_view_zoom_level, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX);
@@ -657,7 +646,6 @@ short save_settings(void)
     TOSAVE("cluedo_mode = %d\n", (int)settings.video_cluedo_mode);
     TOSAVE("gamma_correction = %d\n", (int)settings.gamma_correction);
     TOSAVE("roomflags_on = %d\n", (int)settings.roomflags_on);
-    TOSAVE("switching_vidmodes_index = %d\n", settings.switching_vidmodes_index);
     TOSAVE("\n[audio]\n");
     TOSAVE("sound_volume = %d\n", (int)settings.sound_volume);
     TOSAVE("music_volume = %d\n", (int)settings.music_volume);

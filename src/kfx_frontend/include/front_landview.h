@@ -93,6 +93,14 @@ void frontmap_input(void);
 void frontmap_draw(void);
 TbBool frontmap_load(void);
 void frontmap_unload(void);
+// Plays campaign.soundtrack_fname (a track number, or a filename under
+// FGrp_CmpgMedia) -- previously only ever forward-declared ad-hoc at each
+// call site (front_landview.c/front_landview_multiplayer.c); declared
+// here now that frontmenu_select.c also needs it, to preview the
+// highlighted campaign/mappack's theme on the merged select screens
+// (Land selection, Free play) rather than only once Land View is
+// actually entered.
+void frontmap_start_music(void);
 long frontmap_update(void);
 void frontzoom_to_point(long a1, long a2, long a3);
 void compressed_window_draw(void);

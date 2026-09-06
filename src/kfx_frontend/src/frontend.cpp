@@ -54,10 +54,12 @@
 #include "front_input.h"
 #include "front_fmvids.h"
 #include "game_saves.h"
+#include "game_campaign_progress.h" // Phase A: save/progress.cfg, new-menu only
 #include "engine_render.h"
 #include "engine_redraw.h"
 #include "front_landview.h"
 #include "front_credits.h"
+#include "frontgui_screens.h"
 #include "front_torture.h"
 #include "front_highscore.h"
 #include "front_lvlstats.h"
@@ -137,10 +139,11 @@ TbBool right_click_tag_mode_toggle = false;
 struct GuiButtonInit frontend_main_menu_buttons[] = {
   { .gbtype = LbBtnT_NormalBtn, .id_num = BID_MENU_TITLE, .scr_pos_x = 999, .scr_pos_y = 26, .pos_x = 999, .pos_y = 26, .width = 371, .height = 46, .draw_call = frontend_draw_large_menu_button, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuMainMenu } },
   { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_start_new_game, .ptover_event = frontend_over_button, .btype_value = 3, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 0), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 0), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuStartNewGame }, .maintain_call = frontend_main_menu_start_game_maintain },
-  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_continue_game, .ptover_event = frontend_over_button, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 1), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 1), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuContinueGame }, .maintain_call = frontend_continue_game_maintain },
-  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_mappacks, .ptover_event = frontend_over_button, .btype_value = 34, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 2), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 2), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuFreePlayLevels }, .maintain_call = frontend_mappacks_maintain },
-  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_change_state, .ptover_event = frontend_over_button, .btype_value = 2, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 3), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 3), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuLoadGame }, .maintain_call = frontend_main_menu_load_game_maintain },
-  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_netservice_change_state, .ptover_event = frontend_over_button, .btype_value = 4, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 4), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 4), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuMultiplayer }, .maintain_call = frontend_main_menu_netservice_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_mappacks, .ptover_event = frontend_over_button, .btype_value = 34, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 1), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 1), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuFreePlayLevels }, .maintain_call = frontend_mappacks_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_start_skirmish, .ptover_event = frontend_over_button, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 2), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 2), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuSkirmish }, .maintain_call = frontend_main_menu_skirmish_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_load_continue_game, .ptover_event = frontend_over_button, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 3), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 3), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuContinueGame }, .maintain_call = frontend_continue_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_change_state, .ptover_event = frontend_over_button, .btype_value = 2, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 4), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 4), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuLoadGame }, .maintain_call = frontend_main_menu_load_game_maintain },
+  { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_netservice_change_state, .ptover_event = frontend_over_button, .btype_value = 4, .scr_pos_x = FE_MAINMENU_COL_X, .scr_pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 5), .pos_x = FE_MAINMENU_COL_X, .pos_y = FE_ROW_Y(FE_MAINMENU_ROW_Y0, FE_MAINMENU_ROW_STEP, 5), .width = FE_MAINMENU_COL_W, .height = FE_MAINMENU_ROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuMultiplayer }, .maintain_call = frontend_main_menu_netservice_maintain },
   { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_change_state, .ptover_event = frontend_over_button, .btype_value = 27, .scr_pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 0), .scr_pos_y = FE_MAINMENU_SUBROW_Y, .pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 0), .pos_y = FE_MAINMENU_SUBROW_Y, .width = FE_MAINMENU_SUBROW_W, .height = FE_MAINMENU_SUBROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuOptions_97 }, .maintain_call = frontend_main_menu_options_maintain },
   { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_ldcampaign_change_state, .ptover_event = frontend_over_button, .btype_value = 18, .scr_pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 1), .scr_pos_y = FE_MAINMENU_SUBROW_Y, .pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 1), .pos_y = FE_MAINMENU_SUBROW_Y, .width = FE_MAINMENU_SUBROW_W, .height = FE_MAINMENU_SUBROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuHighScoreTable_104 }, .maintain_call = frontend_main_menu_highscores_maintain },
   { .gbtype = LbBtnT_NormalBtn, .click_event = frontend_change_state, .ptover_event = frontend_over_button, .btype_value = 9, .scr_pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 2), .scr_pos_y = FE_MAINMENU_SUBROW_Y, .pos_x = FE_ROW_Y(FE_MAINMENU_COL_X, FE_MAINMENU_SUBROW_STEP, 2), .pos_y = FE_MAINMENU_SUBROW_Y, .width = FE_MAINMENU_SUBROW_W, .height = FE_MAINMENU_SUBROW_H, .draw_call = frontend_draw_button_icon, .tooltip_stridx = GUIStr_Empty, .content = { FEBtn_MnuQuit }, .maintain_call = frontend_main_menu_quit_maintain },
@@ -365,6 +368,10 @@ struct FrontEndButtonData frontend_button_info[FRONTEND_BUTTON_INFO_COUNT] = {
     [FEBtn_MnuReturnToLobby] = { GUIStr_MnuReturnToLobby, 1 },
     [FEBtn_MnuEnterLand] = { GUIStr_MnuEnterLand, 1 },
     [FEBtn_MnuPlayLevel] = { GUIStr_MnuPlayLevel, 1 },
+    // Reuses the net-service list's own "Play one player" string -- no new
+    // translation needed, and it's the same feature the button used to be
+    // labelled with when it lived in that list.
+    [FEBtn_MnuSkirmish] = { GUIStr_NetServiceSkirmish, 1 },
 };
 
 // bttn_sprite, tooltip_stridx, msg_stridx, lifespan_turns, turns_between_events, replace_event_kind_button;
@@ -756,13 +763,13 @@ long frontend_menu_button_natural_width(unsigned int febtn_idx, int units_per_px
 }
 
 // Uniform width for the main column (Start New Game/Continue/Free Play/
-// Load/Multiplayer): sized to the longest of the five captions so they
-// stay a consistent column width instead of each hugging its own text.
+// Skirmish/Load/Multiplayer): sized to the longest of the six captions so
+// they stay a consistent column width instead of each hugging its own text.
 static long frontend_main_menu_column_width(struct GuiButton *gbtn)
 {
     static const unsigned int captions[] = {
         FEBtn_MnuStartNewGame, FEBtn_MnuContinueGame, FEBtn_MnuFreePlayLevels,
-        FEBtn_MnuLoadGame, FEBtn_MnuMultiplayer,
+        FEBtn_MnuSkirmish, FEBtn_MnuLoadGame, FEBtn_MnuMultiplayer,
     };
     int units_per_px = simple_frontend_sprite_height_units_per_px(gbtn, GFS_hugebutton_a05l, 100);
     long max_w = 0;
@@ -810,6 +817,15 @@ void frontend_main_menu_netservice_maintain(struct GuiButton *gbtn)
 {
     gbtn->width = frontend_main_menu_column_width(gbtn);
     gbtn->flags |= LbBtnF_Enabled;
+}
+
+void frontend_main_menu_skirmish_maintain(struct GuiButton *gbtn)
+{
+    gbtn->width = frontend_main_menu_column_width(gbtn);
+    if (mp_mappacks_list.items_num > 0)
+        gbtn->flags |= LbBtnF_Enabled;
+    else
+        gbtn->flags &= ~LbBtnF_Enabled;
 }
 
 // Options/High score table/Quit row: each sized to its own caption (they
@@ -1628,26 +1644,38 @@ void gui_scroll_text_down(struct GuiButton *gbtn)
     scroll_window->action = 2;
 }
 
+/** frontend_ldcampaign_change_state's actual work for the Main Menu's
+ * High Score Table button (its only caller, always targeting
+ * FeSt_HIGH_SCORES) minus the state-transition call itself -- see
+ * frontend_start_new_game_resolve's comment for why.
+ */
+int frontend_ldcampaign_change_state_resolve(void)
+{
+  if (!is_campaign_loaded())
+  {
+    if (!change_campaign(CampgnT_Default,""))
+      return -1;
+  }
+  return FeSt_HIGH_SCORES;
+}
+
 /**
  * Changes state based on a parameter inside GuiButton.
  * But first, loads the default campaign if no campaign is loaded yet.
  */
 void frontend_ldcampaign_change_state(struct GuiButton *gbtn)
 {
-  if (!is_campaign_loaded())
-  {
-    if (!change_campaign(CampgnT_Default,""))
-      return;
-  }
-  frontend_change_state(gbtn);
+  int next_state = frontend_ldcampaign_change_state_resolve();
+  if (next_state >= 0)
+      frontend_set_state((FrontendMenuState)next_state);
 }
 
-/**
- * Changes state based on a parameter inside GuiButton.
- * But first, loads the default campaign if no campaign is loaded,
- * or the loaded one has no MP maps.
+/** frontend_netservice_change_state's actual work for the Main Menu's
+ * Multiplayer button (its only caller, always targeting FeSt_NET_SERVICE)
+ * minus the state-transition call itself -- see
+ * frontend_start_new_game_resolve's comment for why.
  */
-void frontend_netservice_change_state(struct GuiButton *gbtn)
+int frontend_netservice_change_state_resolve(void)
 {
     TbBool set_cmpg;
     set_cmpg = false;
@@ -1662,9 +1690,50 @@ void frontend_netservice_change_state(struct GuiButton *gbtn)
     if (set_cmpg)
     {
         if (!change_campaign(CampgnT_MultiplayerMappack,""))
-          return;
+          return -1;
     }
-    frontend_change_state(gbtn);
+    return FeSt_NET_SERVICE;
+}
+
+/**
+ * Changes state based on a parameter inside GuiButton.
+ * But first, loads the default campaign if no campaign is loaded,
+ * or the loaded one has no MP maps.
+ */
+void frontend_netservice_change_state(struct GuiButton *gbtn)
+{
+    int next_state = frontend_netservice_change_state_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
+}
+
+/** Moves Skirmish out of the network-service list onto its own Main Menu
+ * button -- previously reached via Multiplayer -> Net Service -> "Play
+ * one player", the last row frontnet_service_setup() (front_network.c)
+ * used to append to net_service[] when GSF_AllowOnePlayer is set (removed
+ * now that this button covers it directly). Replicates exactly what that
+ * row's own special case in frontnet_service_select_by_index()
+ * (frontmenu_net.c) used to do, minus the state transition itself -- see
+ * frontend_start_new_game_resolve's comment for the convention. Routes
+ * straight into the same merged mappack+level+preview screen Free play
+ * uses (FeSt_MAPPACK_SELECT) instead of the old plain-mappack-list ->
+ * NETLAND_VIEW flow -- see frontend_mappack_list_load's own comment
+ * (frontmenu_select.c) for how that screen now tells skirmish and normal
+ * free play apart.
+ */
+int frontend_start_skirmish_resolve(void)
+{
+    frontend_set_player_number(default_loc_player);
+    fe_network_active = 0;
+    net_service_index_selected = FrontendNetSvc_Skirmish;
+    return FeSt_MAPPACK_SELECT;
+}
+
+void frontend_start_skirmish(struct GuiButton *gbtn)
+{
+    int next_state = frontend_start_skirmish_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
 }
 
 TbBool frontend_start_new_campaign(const char *cmpgn_fname)
@@ -1689,7 +1758,15 @@ TbBool frontend_start_new_campaign(const char *cmpgn_fname)
     return true;
 }
 
-void frontend_start_new_game(struct GuiButton *gbtn)
+/** frontend_start_new_game's actual work, minus the state-transition call
+ * itself: returns the FrontendMenuState to transition to (as int, -1 =
+ * starting the campaign failed). Split out so the ImGui Main Menu screen
+ * can request the transition itself (frontend_set_state() is unsafe to
+ * call synchronously from inside an active ImGui window -- see
+ * frontgui_screens.cpp's request_frontend_state comment) while the legacy
+ * click_event below keeps calling frontend_set_state() directly, unchanged.
+ */
+int frontend_start_new_game_resolve(void)
 {
     const char *cmpgn_fname;
     SYNCDBG(6,"Clicked");
@@ -1706,13 +1783,20 @@ void frontend_start_new_game(struct GuiButton *gbtn)
       if (!frontend_start_new_campaign(cmpgn_fname))
       {
         ERRORLOG("Unable to start new campaign");
-        return;
+        return -1;
       }
-      frontend_set_state(FeSt_CAMPAIGN_INTRO);
+      return FeSt_CAMPAIGN_INTRO;
     } else
     { // If there's more campaigns, go to selection screen
-      frontend_set_state(FeSt_CAMPAIGN_SELECT);
+      return FeSt_CAMPAIGN_SELECT;
     }
+}
+
+void frontend_start_new_game(struct GuiButton *gbtn)
+{
+    int next_state = frontend_start_new_game_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
 }
 
 void frontend_load_mappacks(struct GuiButton *gbtn)
@@ -1724,6 +1808,14 @@ void frontend_load_mappacks(struct GuiButton *gbtn)
     // need to pre-select a mappack and skip to a levels-only screen here,
     // frontend_mappack_list_load already auto-highlights the first (or
     // only) mappack and its first level on entry.
+    //
+    // FeSt_MAPPACK_SELECT also serves Skirmish now (frontend_start_skirmish_resolve()),
+    // which flags itself via net_service_index_selected == FrontendNetSvc_Skirmish
+    // before transitioning here -- reset it explicitly on the normal Free
+    // play entry point too, so a prior Skirmish visit this session can't
+    // leak into a later normal Free play one (frontend_mappack_list_load()
+    // would otherwise source the wrong campaign list).
+    net_service_index_selected = FrontendNetSvc_Online;
     frontend_set_state(FeSt_MAPPACK_SELECT);
 }
 
@@ -1780,17 +1872,45 @@ short frontend_save_continue_game(short allow_lvnum_grow)
         SYNCDBG(7,"No change in campaign position, victory state %d",(int)player->victory_state);
         lvnum = get_continue_level_number();
     }
-    return save_continue_game(lvnum);
+    // docs/refactor/gui/05-campaign-progress-and-landview.md §3.4: mutually
+    // exclusive as of Phase D -- fx1contn.sav is never written by the new
+    // menu (continue_game_available()/frontend_load_continue_game_resolve()
+    // no longer read it either, so writing it would just be dead weight),
+    // and save/progress.cfg is never touched under `-classicmenu`, which
+    // keeps its own original save_continue_game() call untouched. (Phase A
+    // called both, additively, before Phase D made this split possible.)
+    if (use_classic_menu())
+        return save_continue_game(lvnum);
+    return campaign_progress_record_level_completed(lvnum);
+}
+
+/** frontend_load_continue_game's actual work, minus the state-transition
+ * call itself -- see frontend_start_new_game_resolve's comment for why.
+ */
+int frontend_load_continue_game_resolve(void)
+{
+  // Phase D (docs/refactor/gui/05-campaign-progress-and-landview.md §3.4):
+  // under the new menu, Continue Game routes to Campaign Select instead
+  // of loading one specific saved level -- mirrors frontend_start_new_game_resolve()'s
+  // own "more than one campaign -> go to selection screen" case exactly,
+  // needing no pre-selected campaign/level state: entering FeSt_CAMPAIGN_SELECT
+  // (frontend_campaign_list_load()) already builds its own list fresh.
+  if (!use_classic_menu())
+      return FeSt_CAMPAIGN_SELECT;
+
+  if (!load_continue_game())
+  {
+    kfx_frontend_state.continue_game_option_available = 0;
+    return -1;
+  }
+  return FeSt_LAND_VIEW;
 }
 
 void frontend_load_continue_game(struct GuiButton *gbtn)
 {
-  if (!load_continue_game())
-  {
-    kfx_frontend_state.continue_game_option_available = 0;
-    return;
-  }
-  frontend_set_state(FeSt_LAND_VIEW);
+    int next_state = frontend_load_continue_game_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
 }
 
 void frontend_load_game_maintain(struct GuiButton *gbtn)
@@ -2728,6 +2848,13 @@ void frontend_shutdown_state(FrontendMenuState pstate)
         // FeSt_CAMPAIGN_SELECT's below -- unload centrally here so every
         // way of leaving releases it.
         land_preview_unload(&land_preview);
+        // Stops the mappack theme preview (frontend_play_campaign_preview_audio,
+        // frontmenu_select.c) started on highlight -- without this, committing
+        // ("Play"/"Enter this land" -> FeSt_START_KPRLEVEL) never passes through
+        // FeSt_LAND_VIEW's own frontmap_unload() (which normally stops it), so
+        // it would otherwise keep playing into actual gameplay.
+        StopAllSamples();
+        stop_music(false);
         break;
     case FeSt_CAMPAIGN_SELECT:
         turn_off_menu(GMnu_FECAMPAIGN_SELECT);
@@ -2737,6 +2864,9 @@ void frontend_shutdown_state(FrontendMenuState pstate)
         // frontmap_unload() elsewhere, so every way of leaving this
         // screen releases it.
         land_preview_unload(&land_preview);
+        // See FeSt_MAPPACK_SELECT's own comment just above.
+        StopAllSamples();
+        stop_music(false);
         break;
     case FeSt_MP_MAPPACK_SELECT:
         turn_off_menu(GMnu_MP_MAPPACK_SELECT);
@@ -2831,6 +2961,10 @@ FrontendMenuState frontend_setup_state(FrontendMenuState nstate)
           set_flag(kfx_sim_state.system_flags, GSF_NetworkActive);
           set_pointer_graphic_menu();
           break;
+      // fade_palette_in cancellation removed here (and at every other write
+      // site) per docs/refactor/renderer/05-imgui-owned-menu-backdrop.md
+      // Phase 0 -- the mechanism it guarded is gone, so these states need
+      // no special handling for it any more.
       case FeSt_START_KPRLEVEL:
       case FeSt_QUIT_GAME:
       case FeSt_LOAD_GAME:
@@ -2840,10 +2974,7 @@ FrontendMenuState frontend_setup_state(FrontendMenuState nstate)
       case FeSt_DEMO:
       case FeSt_OUTRO:
       case FeSt_PACKET_DEMO:
-          fade_palette_in = 0;
-          break;
       case FeSt_START_MPLEVEL:
-          fade_palette_in = 0;
           break;
       case FeSt_STORY_POEM:
       case FeSt_STORY_BIRTHDAY:
@@ -2913,7 +3044,6 @@ FrontendMenuState frontend_setup_state(FrontendMenuState nstate)
         break;
   #if (BFDEBUG_LEVEL > 0)
     case FeSt_FONT_TEST:
-        fade_palette_in = 0;
         load_testfont_fonts();
         set_pointer_graphic_menu();
         break;
@@ -2973,9 +3103,10 @@ FrontendMenuState frontend_set_state(FrontendMenuState nstate)
 {
     SYNCDBG(8,"State %d will be switched to %d",(int)frontend_menu_state,(int)nstate);
     frontend_shutdown_state(frontend_menu_state);
-    if ( frontend_menu_state )
-      fade_out();
-    fade_palette_in = 1;
+    // fade_out()/fade_palette_in's fade_in() trigger (game_session_loop.cpp)
+    // removed per docs/refactor/renderer/05-imgui-owned-menu-backdrop.md
+    // Phase 0 -- the effect existed to mask loading time on decades-old
+    // hardware and is no longer needed; dropped rather than replaced.
     SYNCMSG("Frontend state change from %d (%s) into %d (%s)",
         frontend_menu_state, menu_state_str(frontend_menu_state),
         nstate, menu_state_str(nstate));
@@ -3095,7 +3226,12 @@ void frontend_input(void)
     switch (frontend_menu_state)
     {
     case FeSt_MAIN_MENU:
-        get_gui_inputs(0);
+        // frontmainmnu_input() is pure idle-timer/secret-key-combo state,
+        // no GuiButton involved (see its own body) -- runs unconditionally,
+        // same as define_key_input()'s own always-runs reasoning
+        // (FeSt_FEDEFINE_KEYS below).
+        if (!frontend_imgui_screen_active(FeSt_MAIN_MENU))
+            get_gui_inputs(0);
         input_consumed = frontscreen_end_input(false);
         if (input_consumed) {
             break;
@@ -3105,12 +3241,27 @@ void frontend_input(void)
     case FeSt_LAND_VIEW:
         frontmap_input();
         break;
+    case FeSt_NET_SERVICE:
+        if (!frontend_imgui_screen_active(FeSt_NET_SERVICE))
+            get_gui_inputs(0);
+        input_consumed = frontscreen_end_input(false);
+        break;
     case FeSt_NET_SESSION:
-        get_gui_inputs(0);
+        if (!frontend_imgui_screen_active(FeSt_NET_SESSION))
+            get_gui_inputs(0);
         break;
     case FeSt_NET_START:
-        get_gui_inputs(0);
-        frontnet_start_input();
+        // frontnet_start_input() edits player->mp_message_text directly
+        // (backspace/UTF-8 splice, Enter-to-send) -- while ImGui owns this
+        // screen, FeTextInput (frontgui_screens.cpp) owns that same buffer
+        // instead, so both must not run together (§8: "a given
+        // FrontendMenuState belongs entirely to one system"), same
+        // reasoning as FeSt_HIGH_SCORES' own high_score_entry gating below.
+        if (!frontend_imgui_screen_active(FeSt_NET_START))
+        {
+            get_gui_inputs(0);
+            frontnet_start_input();
+        }
         break;
     case FeSt_STORY_POEM:
     case FeSt_STORY_BIRTHDAY:
@@ -3128,14 +3279,66 @@ void frontend_input(void)
         frontcredits_input();
         break;
     case FeSt_HIGH_SCORES:
-        get_gui_inputs(0);
-        if (high_score_entry_input_active < 0) {
-            input_consumed = frontscreen_end_input(false);
+        // §8: belongs entirely to one system while migrated -- ImGui's
+        // InputText (frontgui_screens.cpp) owns the name-entry buffer
+        // directly, so frontend_high_score_table_input()'s manual UTF-8
+        // splice logic must not also run against the same high_score_entry
+        // (it would fight ImGui's own cursor/edit state over the same
+        // buffer).
+        if (!frontend_imgui_screen_active(FeSt_HIGH_SCORES))
+        {
+            get_gui_inputs(0);
+            if (high_score_entry_input_active < 0) {
+                input_consumed = frontscreen_end_input(false);
+            }
+            if (input_consumed) {
+                break;
+            }
+            input_consumed = frontend_high_score_table_input();
         }
-        if (input_consumed) {
-            break;
-        }
-        input_consumed = frontend_high_score_table_input();
+        break;
+    case FeSt_FEOPTIONS:
+        // §3.3 point 1 / §8: "a given FrontendMenuState belongs entirely to
+        // one system" -- when ImGui owns this screen, the legacy
+        // frontend_option_buttons[] GuiButtons are invisible (draw_gui()
+        // skipped above) but would otherwise still be live hit-test
+        // targets; skip get_gui_inputs(0) entirely rather than only
+        // WantCaptureMouse-gating it, since nothing here needs the legacy
+        // widgets interactive at the same time as their ImGui replacement.
+        if (!frontend_imgui_screen_active(FeSt_FEOPTIONS))
+            get_gui_inputs(0);
+        input_consumed = frontscreen_end_input(false);
+        break;
+    case FeSt_FELOAD_GAME:
+        if (!frontend_imgui_screen_active(FeSt_FELOAD_GAME))
+            get_gui_inputs(0);
+        input_consumed = frontscreen_end_input(false);
+        break;
+    case FeSt_CAMPAIGN_SELECT:
+        // FrontendImGuiLandPreviewInput must run before
+        // frontscreen_end_input -- see its own comment (frontgui_screens.cpp)
+        // for why the ordering matters (a right-click meant to clear the
+        // preview's ensign highlight must not also trigger "go back").
+        FrontendImGuiLandPreviewInput(FeSt_CAMPAIGN_SELECT);
+        if (!frontend_imgui_screen_active(FeSt_CAMPAIGN_SELECT))
+            get_gui_inputs(0);
+        input_consumed = frontscreen_end_input(false);
+        break;
+    case FeSt_MAPPACK_SELECT:
+        FrontendImGuiLandPreviewInput(FeSt_MAPPACK_SELECT);
+        if (!frontend_imgui_screen_active(FeSt_MAPPACK_SELECT))
+            get_gui_inputs(0);
+        input_consumed = frontscreen_end_input(false);
+        break;
+    case FeSt_MP_MAPPACK_SELECT:
+        if (!frontend_imgui_screen_active(FeSt_MP_MAPPACK_SELECT))
+            get_gui_inputs(0);
+        input_consumed = frontscreen_end_input(false);
+        break;
+    case FeSt_LEVEL_STATS:
+        if (!frontend_imgui_screen_active(FeSt_LEVEL_STATS))
+            get_gui_inputs(0);
+        input_consumed = frontscreen_end_input(false);
         break;
     case FeSt_TORTURE:
         fronttorture_input();
@@ -3144,8 +3347,14 @@ void frontend_input(void)
         frontnetmap_input();
         break;
     case FeSt_FEDEFINE_KEYS:
+        // define_key_input() always runs while capturing -- it's pure
+        // lbInkey/defining_a_key* global state, no GuiButton involved, so
+        // both draw paths share it unchanged. Only the row-list interaction
+        // (get_gui_inputs(0), the legacy frontend_define_keys_buttons[]
+        // hit-testing) needs the migration gate.
         if (!defining_a_key) {
-            get_gui_inputs(0);
+            if (!frontend_imgui_screen_active(FeSt_FEDEFINE_KEYS))
+                get_gui_inputs(0);
             input_consumed = frontscreen_end_input(false);
         } else {
             define_key_input();
@@ -3449,30 +3658,54 @@ short frontend_draw(void)
     result = 1;
     switch ( frontend_menu_state )
     {
-    case FeSt_MAIN_MENU:
-    case FeSt_FELOAD_GAME:
-    case FeSt_NET_SERVICE:
-    case FeSt_NET_SESSION:
-    case FeSt_NET_START:
-    case FeSt_LEVEL_STATS:
-    case FeSt_HIGH_SCORES:
     case FeSt_UNUSED_STATE1:
+    case FeSt_LEVEL_SELECT: // dead (frontmenu_select.h) -- unreachable, left in this group harmlessly
+        frontend_copy_background();
+        draw_gui();
+        break;
     case FeSt_FEOPTIONS:
-    case FeSt_LEVEL_SELECT:
+    case FeSt_FELOAD_GAME:
+    case FeSt_HIGH_SCORES:
     case FeSt_MAPPACK_SELECT:
     case FeSt_CAMPAIGN_SELECT:
     case FeSt_MP_MAPPACK_SELECT:
-        frontend_copy_background();
-        draw_gui();
+    case FeSt_MAIN_MENU:
+    case FeSt_LEVEL_STATS:
+    case FeSt_NET_SERVICE:
+    case FeSt_NET_SESSION:
+    case FeSt_NET_START:
+        // docs/refactor/renderer/05-imgui-owned-menu-backdrop.md Phase D:
+        // the backdrop used to stay on the software path even when
+        // migrated (§3.3 point 2/§3.4 of the other doc) -- only draw_gui()
+        // (the legacy widgets) was replaced, by FrontendImGuiFrame's
+        // per-screen submission. Once RendererSoftware::PresentFrame()
+        // stops blitting the legacy framebuffer for these screens (Phase
+        // C), drawing frontend_copy_background() into it here is pure
+        // wasted work -- draw_menu_backdrop() (frontgui_screens.cpp) draws
+        // the same image via ImGui instead. Phase E's master-detail
+        // screens additionally render their land preview panel through the
+        // software path too, but off-screen and from inside that later
+        // ImGui submission (not from here) -- see draw_land_preview_panel's
+        // own comment (frontgui_screens.cpp).
+        if (!frontend_imgui_screen_active(frontend_menu_state))
+        {
+            frontend_copy_background();
+            draw_gui();
+        }
         break;
     case FeSt_LAND_VIEW:
         frontmap_draw();
         break;
     case FeSt_STORY_POEM:
-        frontstory_draw();
+        // Phase D: was frontend_copy_background() when migrated -- no
+        // longer needed once the framebuffer blit itself is skipped
+        // (Phase C) for this screen; draw_menu_backdrop() covers it.
+        if (!frontend_imgui_screen_active(FeSt_STORY_POEM))
+            frontstory_draw(); // calls frontend_copy_background() itself
         break;
     case FeSt_CREDITS:
-        frontcredits_draw();
+        if (!frontend_imgui_screen_active(FeSt_CREDITS))
+            frontcredits_draw(); // calls frontend_copy_background() itself
         break;
     case FeSt_TORTURE:
         fronttorture_draw();
@@ -3481,13 +3714,22 @@ short frontend_draw(void)
         frontnetmap_draw();
         break;
     case FeSt_FEDEFINE_KEYS:
-        frontend_copy_background();
-        draw_gui();
-        if ( defining_a_key )
-            draw_defining_a_key_box();
+        // Phase D: was an unconditional frontend_copy_background() -- see
+        // the migrated-group comment above for why that's gone now.
+        if (!frontend_imgui_screen_active(FeSt_FEDEFINE_KEYS))
+        {
+            frontend_copy_background();
+            draw_gui();
+            if ( defining_a_key )
+                draw_defining_a_key_box();
+        }
+        // migrated: frontgui_definekeys_frame() draws both the row list and
+        // its own "press a key" modal (§7 Phase D: "deletes the twelve-row
+        // pattern, and brings draw_defining_a_key_box with it").
         break;
     case FeSt_STORY_BIRTHDAY:
-        frontbirthday_draw();
+        if (!frontend_imgui_screen_active(FeSt_STORY_BIRTHDAY))
+            frontbirthday_draw(); // calls frontend_copy_background() itself
         break;
 #if (BFDEBUG_LEVEL > 0)
     case FeSt_FONT_TEST:
@@ -3709,11 +3951,13 @@ void frontend_update(short *finish_menu)
         frontend_mappack_select_update();
         break;
     case FeSt_MP_MAPPACK_SELECT:
+        // Used only for real multiplayer sessions now -- Skirmish no
+        // longer reaches this state (see frontend_mp_mappack_select_resolve's
+        // own comment, frontmenu_select.c), so frontnet_start_update()
+        // (keeps the lobby's matchmaking/session polling alive while
+        // picking a mappack) always applies here.
         frontend_mp_mappack_select_update();
-        if (net_service_index_selected != FrontendNetSvc_Skirmish)
-        {
-            frontnet_start_update();
-        }
+        frontnet_start_update();
         break;
     case FeSt_HIGH_SCORES:
         frontend_high_scores_update();
@@ -3735,6 +3979,15 @@ FrontendMenuState get_menu_state_based_on_last_level(LevelNumber lvnum)
     } else
     if (is_multiplayer_level(lvnum))
     {
+        // Skirmish maps are LvKind_IsMulti too (.lof KIND=MULTI, same as a
+        // real network mappack -- frontend_freeplay_active_levels()'s own
+        // comment, frontmenu_select.c), and frontend_start_skirmish_resolve()
+        // enters via FeSt_MAPPACK_SELECT (the merged Free Play/Skirmish
+        // screen), not FeSt_NET_SERVICE -- so a finished or quit skirmish
+        // game must return there too, or it bounces to the Multiplayer
+        // screen instead of back to Skirmish (found live).
+        if (frontend_freeplay_is_skirmish())
+            return FeSt_MAPPACK_SELECT;
         return FeSt_NET_SERVICE;
     } else
     if (is_freeplay_level(lvnum))
@@ -3770,14 +4023,9 @@ FrontendMenuState get_menu_state_when_back_from_substate(FrontendMenuState subst
     case FeSt_NET_START:
         return FeSt_NET_SESSION;
     case FeSt_MP_MAPPACK_SELECT:
-        if (net_service_index_selected == FrontendNetSvc_Skirmish)
-        {
-            return FeSt_NET_SERVICE;
-        }
-        else
-        {
-            return FeSt_NET_START;
-        }
+        // Used only for real multiplayer sessions now -- see
+        // frontend_mp_mappack_select_resolve's own comment (frontmenu_select.c).
+        return FeSt_NET_START;
     case FeSt_LEVEL_SELECT:
          return FeSt_MAPPACK_SELECT;
     case FeSt_NET_SESSION:

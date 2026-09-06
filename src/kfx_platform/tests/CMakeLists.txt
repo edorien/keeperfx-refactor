@@ -18,6 +18,9 @@ target_link_libraries(kfx_platform_utest PRIVATE
     kfx_platform
     kfx_bfdebug_std
     kfx_common_opts
+    imgui # same two-levels-of-INTERFACE-indirection object-linking gap as
+          # centitoml elsewhere (root CMakeLists.txt) -- kfx_platform now
+          # links ImGuiContext.cpp, which needs imgui's compiled object.
     Catch2::Catch2WithMain)
 
 include(CTest)

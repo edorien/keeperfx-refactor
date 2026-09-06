@@ -153,6 +153,15 @@ else()
         kfx_miniupnpc kfx_natpmp)
 endif()
 target_link_libraries(kfx_common_opts INTERFACE centitoml)
+# imgui (Dependencies.cmake, Phase A of docs/refactor/renderer/
+# 04-imgui-gui-foundation.md) -- same OBJECT-library INTERFACE-propagation
+# story as centitoml above: kfx_platform's ImGuiContext.cpp #includes
+# imgui.h/imgui_impl_sdl3.h/imgui_impl_sdlrenderer3.h directly, so its
+# include dirs need to reach that compilation via this same INTERFACE
+# chain. The compiled object itself is linked directly onto the final
+# executables below, for the same reason centitoml's is (see that
+# target_link_libraries(keeperfx PRIVATE centitoml) comment).
+target_link_libraries(kfx_common_opts INTERFACE imgui)
 # kfx_platform (stage 3) physically moved out of directly under src/ into
 # its own include/ directory; every other kfx_* component and both
 # executables still need to find its headers (e.g. #include
@@ -508,6 +517,12 @@ kfx_link_dependencies(keeperfx_hvlog)
 # directly here too, the same way the pre-Stage-1 CMakeLists.txt always did.
 target_link_libraries(keeperfx PRIVATE centitoml)
 target_link_libraries(keeperfx_hvlog PRIVATE centitoml)
+
+# imgui: same two-levels-of-INTERFACE-indirection object-linking gap as
+# centitoml just above -- link its compiled object directly onto the final
+# executables too.
+target_link_libraries(keeperfx PRIVATE imgui)
+target_link_libraries(keeperfx_hvlog PRIVATE imgui)
 
 if(WIN32)
     target_sources(keeperfx PRIVATE "res/keeperfx_stdres.rc")

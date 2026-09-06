@@ -71,7 +71,7 @@ enum TbPacketAction {
         PckA_UnusedSlot018,
         PckA_UnusedSlot019,
         PckA_ToggleLights,//20
-        PckA_SwitchScrnRes,
+        PckA_UnusedSlot021,
         PckA_TogglePause,
         PckA_UnusedSlot023,
         PckA_SetCluedo,

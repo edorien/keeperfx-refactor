@@ -22,6 +22,7 @@
 #include "globals.h"
 #include "bflib_basics.h"
 #include "bflib_guibtns.h"
+#include "dungeon_stats.h" // struct LevelStats
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +41,13 @@ struct StatsData { // sizeof = 12
 
 #pragma pack()
 /******************************************************************************/
+// Backing data for the two stat blocks (front_lvlstats_data.cpp) -- already
+// external linkage there, just never declared here; the ImGui screen
+// (frontgui_screens.cpp) iterates these directly the same way the legacy
+// draw_calls do, rather than duplicating the stat list.
+extern struct LevelStats frontstats_data;
+extern struct StatsData main_stats_data[];
+extern struct StatsData scrolling_stats_data[];
 void frontstats_draw_main_stats(struct GuiButton *gbtn);
 void frontstats_draw_scrolling_stats(struct GuiButton *gbtn);
 void frontstats_leave(struct GuiButton *gbtn);

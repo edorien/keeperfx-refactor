@@ -746,7 +746,7 @@ static TbBool wait_at_frontend(void)
       return true;
     }
 
-    if ( !setup_screen_mode_minimal(get_frontend_vidmode()) )
+    if ( !setup_screen_mode_minimal(get_screen_vidmode()) )
     {
       FatalError = 1;
       exit_keeper = 1;
@@ -817,19 +817,17 @@ static TbBool wait_at_frontend(void)
         MonitorStreamedSoundTrack();
       }
 
-      if (fade_palette_in)
-      {
-        fade_in();
-        fade_palette_in = 0;
+      // fade_palette_in's fade_in() trigger removed per
+      // docs/refactor/renderer/05-imgui-owned-menu-backdrop.md Phase 0 --
+      // the between-screens fade existed to mask loading time on
+      // decades-old hardware and is no longer needed.
+      if (is_feature_on(Ft_DeltaTime) == true && should_use_delta_time_on_menu()) {
+        update_frontend_delta_time();
       } else {
-        if (is_feature_on(Ft_DeltaTime) == true && should_use_delta_time_on_menu()) {
-          update_frontend_delta_time();
-        } else {
-          int32_t frame_time;
-          frame_time = max(1, 1000 / kfx_sim_state.turns_per_second);
-          kfx_render_state.delta_time = 1;
-          LbSleepUntil(fe_last_loop_time + frame_time);
-        }
+        int32_t frame_time;
+        frame_time = max(1, 1000 / kfx_sim_state.turns_per_second);
+        kfx_render_state.delta_time = 1;
+        LbSleepUntil(fe_last_loop_time + frame_time);
       }
       fe_last_loop_time = LbTimerClock();
 

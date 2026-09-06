@@ -64,12 +64,12 @@ extern "C" {
 // wrapping a whole GuiMenu -- at full size its dragon-head corners
 // overflow a small panel's neighbours (list box, detail box).
 // FRAME_SCALE_NUM/DEN shrinks every offset/sprite-size in the copy;
-// FRAME_INSET shrinks the actual land content rect inward from the
-// button's own rect so the frame has room to draw its corners without
-// reaching past the button's edges.
+// FRAME_INSET (now land_preview_frame_inset(), see below) shrinks the
+// actual land content rect inward from the button's own rect so the
+// frame has room to draw its corners without reaching past the button's
+// edges.
 #define LAND_PREVIEW_FRAME_SCALE_NUM 1
 #define LAND_PREVIEW_FRAME_SCALE_DEN 2
-#define LAND_PREVIEW_FRAME_INSET scale_ui_value_lofi(26)
 
 struct LandPreviewPanel land_preview;
 
@@ -126,9 +126,45 @@ TbBool land_preview_point_over_ensign_box(long map_x, long map_y, long ensign_x,
         && (map_y > ensign_y-spr_h) && (map_y < ensign_y-(spr_h/3));
 }
 
+// Extra divisor on top of FRAME_SCALE_NUM/DEN, 1 (no change) by default.
+// scale_ui_value_lofi() (used throughout land_preview_draw_ornate_frame,
+// including this) scales off a value cached at actual window-resolution
+// -change time, not off gbtn->width/height -- so the frame's absolute
+// pixel size is fixed regardless of how big or small a panel it's drawn
+// into. That's correct for the legacy fixed ~368x230 screen this was
+// originally sized for, but Phase E's ImGui screens draw this same panel
+// into their own, differently-proportioned off-screen texture (found
+// live: at a size that otherwise looked right, the frame corners still
+// read as oversized) -- land_preview_set_frame_extra_scale_den() lets
+// that caller ask for a smaller frame without changing the legacy
+// screen's own appearance (which never touches this setter, so it always
+// sees the default of 1).
+static long land_preview_frame_extra_scale_den = 1;
+
+void land_preview_set_frame_extra_scale_den(long extra_den)
+{
+    land_preview_frame_extra_scale_den = (extra_den > 0) ? extra_den : 1;
+}
+
 static long land_preview_frame_scale(long base_value)
 {
-    return scale_ui_value_lofi(base_value) * LAND_PREVIEW_FRAME_SCALE_NUM / LAND_PREVIEW_FRAME_SCALE_DEN;
+    return scale_ui_value_lofi(base_value) * LAND_PREVIEW_FRAME_SCALE_NUM
+        / (LAND_PREVIEW_FRAME_SCALE_DEN * land_preview_frame_extra_scale_den);
+}
+
+// How far the content rect is inset from gbtn's own rect (see the struct's
+// field comment). Was a plain scale_ui_value_lofi(26) #define; also
+// divided by land_preview_frame_extra_scale_den now -- found live, after
+// halving the frame sprites above: this inset is a fixed real-resolution
+// -relative pixel amount too (not the frame_scale-shrunk 26 the sprites
+// themselves use, but the same underlying scale_ui_value_lofi), so it was
+// left unshrunk while the frame itself got smaller, opening up a large
+// empty margin between the outer panel edge and the (now smaller)
+// frame+content. Shrinking it by the same factor keeps the frame hugging
+// the panel's actual edges as before.
+static long land_preview_frame_inset(void)
+{
+    return scale_ui_value_lofi(26) / land_preview_frame_extra_scale_den;
 }
 
 /** Scaled-down copy of gui_draw.c's draw_ornate_slab_outline64k -- see the
@@ -465,11 +501,12 @@ void land_preview_maintain(struct GuiButton *gbtn)
         return;
     // Inset from gbtn's own rect: land_preview_draw_ornate_frame's corners
     // are drawn around this smaller rect, in the margin the inset frees up
-    // between it and gbtn's actual edges (see LAND_PREVIEW_FRAME_INSET).
-    long rect_x = gbtn->scr_pos_x + LAND_PREVIEW_FRAME_INSET;
-    long rect_y = gbtn->scr_pos_y + LAND_PREVIEW_FRAME_INSET;
-    long rect_w = gbtn->width - 2*LAND_PREVIEW_FRAME_INSET;
-    long rect_h = gbtn->height - 2*LAND_PREVIEW_FRAME_INSET;
+    // between it and gbtn's actual edges (see land_preview_frame_inset()).
+    long frame_inset = land_preview_frame_inset();
+    long rect_x = gbtn->scr_pos_x + frame_inset;
+    long rect_y = gbtn->scr_pos_y + frame_inset;
+    long rect_w = gbtn->width - 2*frame_inset;
+    long rect_h = gbtn->height - 2*frame_inset;
 
     if (panel->minimap_mode)
     {
@@ -555,10 +592,11 @@ void land_preview_draw(struct GuiButton *gbtn)
     struct LandPreviewPanel *panel = &land_preview;
     if (!panel->loaded)
         return;
-    long rect_x = gbtn->scr_pos_x + LAND_PREVIEW_FRAME_INSET;
-    long rect_y = gbtn->scr_pos_y + LAND_PREVIEW_FRAME_INSET;
-    long rect_w = gbtn->width - 2*LAND_PREVIEW_FRAME_INSET;
-    long rect_h = gbtn->height - 2*LAND_PREVIEW_FRAME_INSET;
+    long frame_inset = land_preview_frame_inset();
+    long rect_x = gbtn->scr_pos_x + frame_inset;
+    long rect_y = gbtn->scr_pos_y + frame_inset;
+    long rect_w = gbtn->width - 2*frame_inset;
+    long rect_h = gbtn->height - 2*frame_inset;
     int upp = panel->units_per_px;
     long pan_x = -((panel->screen_shift_x * upp + 8) / 16);
     long pan_y = -((panel->screen_shift_y * upp + 8) / 16);

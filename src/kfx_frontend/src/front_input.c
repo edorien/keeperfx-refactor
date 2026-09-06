@@ -632,24 +632,6 @@ static short get_minimap_control_inputs(void)
     return false;
 }
 
-/**
- * Handles screen control inputs.
- * @return Returns true if packet was created, false otherwise.
- */
-static short get_screen_control_inputs(void)
-{
-    struct PlayerInfo* player = get_my_player();
-    short packet_made = false;
-    if (is_game_key_pressed(Gkey_SwitchScreenRes, true, false))
-    {
-        set_players_packet_action(player, PckA_SwitchScrnRes, 0, 0, 0, 0);
-        packet_made = true;
-        if (packet_made)
-            return true;
-  }
-  return false;
-}
-
 static short get_global_inputs(void)
 {
   if (game_is_busy_doing_gui_string_input())
@@ -757,8 +739,6 @@ static short get_global_inputs(void)
       return true;
   if (get_minimap_control_inputs())
       return true;
-  if (get_screen_control_inputs())
-      return true;
   if (get_screen_capture_inputs())
       return true;
   if (player->victory_state != VicS_Undecided && is_game_key_pressed(Gkey_FinishLevel, true, false))
@@ -809,8 +789,6 @@ static TbBool get_level_lost_inputs(void)
     if (get_speed_control_inputs())
         return true;
     if (get_minimap_control_inputs())
-        return true;
-    if (get_screen_control_inputs())
         return true;
     if (get_screen_capture_inputs())
         return true;
@@ -2531,8 +2509,6 @@ static short get_packet_load_game_inputs(void)
     kfx_net_state.pckt_gameturn++;
     get_packet_load_game_control_inputs();
     if (get_speed_control_inputs())
-        return false;
-    if (get_screen_control_inputs())
         return false;
     if (get_screen_capture_inputs())
         return false;

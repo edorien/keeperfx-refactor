@@ -41,6 +41,12 @@ void frontstory_load(void);
 void frontstory_unload(void);
 void frontstory_draw(void);
 short frontstory_input(void);
+// The story text id frontstory_load() picked (frontstory_text_no is
+// file-local) -- exposed so kfx_frontend's ImGui FeSt_STORY_POEM screen
+// (docs/refactor/renderer/04-imgui-gui-foundation.md Phase C) shows the
+// exact same string frontstory_draw() would have, rather than picking its
+// own separately.
+long frontstory_get_text_no(void);
 
 void frontcredits_draw(void);
 TbBool frontcredits_input(void);

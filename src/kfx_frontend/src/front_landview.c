@@ -41,6 +41,7 @@
 #include "config_keeperfx.h"
 #include "config_settings.h"
 #include "game_merge.h"
+#include "game_campaign_progress.h" // Phase B: unlocked_levels, new menu only
 #include "light_data.h"
 #include "lvl_filesdk1.h"
 #include "room_list.h"
@@ -172,6 +173,20 @@ void set_all_ensigns_state(unsigned short nstate)
     }
 }
 
+// docs/refactor/gui/05-campaign-progress-and-landview.md §3.2 (Phase B):
+// under the new menu, every level the player has actually completed stays
+// visible/replayable, not just the single "continue" level -- a deliberate
+// KeeperFX-only departure from original DK's strictly-linear design, which
+// only ever showed the one next level (see this doc's own §2 for the
+// as-shipped behaviour this replaces). `-classicmenu` keeps that original
+// behaviour completely unchanged (§3.4's own gating rule).
+static void mark_ensign_visible_if_present(LevelNumber lvnum)
+{
+    struct LevelInformation *lvinfo = get_level_info(lvnum);
+    if (lvinfo != NULL)
+        lvinfo->state = LvSt_Visible;
+}
+
 void update_ensigns_visibility(void)
 {
   struct LevelInformation *lvinfo;
@@ -180,15 +195,36 @@ void update_ensigns_visibility(void)
   struct PlayerInfo* player = get_my_player();
   short show_all_sp = false;
   long lvnum = get_continue_level_number();
-  if (lvnum > 0)
+  if (use_classic_menu())
   {
-    lvinfo = get_level_info(lvnum);
-    if (lvinfo != NULL)
-      lvinfo->state = LvSt_Visible;
-  } else
-  if (lvnum == SINGLEPLAYER_FINISHED)
+      if (lvnum > 0)
+      {
+          mark_ensign_visible_if_present(lvnum);
+      } else
+      if (lvnum == SINGLEPLAYER_FINISHED)
+      {
+          show_all_sp = true;
+      }
+  }
+  else
   {
-    show_all_sp = true;
+      struct CampaignProgressEntry *progress = get_campaign_progress(campaign.fname, false);
+      if (progress != NULL)
+      {
+          for (unsigned long i = 0; i < progress->unlocked_levels_count; i++)
+              mark_ensign_visible_if_present(progress->unlocked_levels[i]);
+          if (progress->intralvl.next_level == SINGLEPLAYER_FINISHED)
+              show_all_sp = true;
+          else if (progress->intralvl.next_level > 0)
+              mark_ensign_visible_if_present((LevelNumber)progress->intralvl.next_level);
+      }
+      else if (lvnum == SINGLEPLAYER_FINISHED)
+      {
+          // No progress.cfg entry yet for this campaign (e.g. reconciliation
+          // hasn't run this session) but fx1contn.sav/get_continue_level_number()
+          // already says finished -- fall back rather than showing nothing.
+          show_all_sp = true;
+      }
   }
   lvnum = first_singleplayer_level();
   while (lvnum > 0)
@@ -1107,7 +1143,6 @@ TbBool frontmap_load(void)
     frontend_load_data_reset();
     struct PlayerInfo* player = get_my_player();
     lvnum = get_continue_level_number();
-    fade_palette_in = 0;
     if ((player->display_flags & PlaF6_PlyrHasQuit) != 0)
     {
         lvnum = get_loaded_level_number();
@@ -1116,8 +1151,9 @@ TbBool frontmap_load(void)
     if ((lvnum == first_singleplayer_level()) || (player->victory_state == VicS_LostLevel) || (player->victory_state == VicS_State3))
     {
         frontmap_zoom_skip_init(lvnum);
-        // Fading will be controlled by main frontend loop
-        fade_palette_in = 1;
+        // fade_palette_in's "fading controlled by main frontend loop" cue
+        // removed per docs/refactor/renderer/05-imgui-owned-menu-backdrop.md
+        // Phase 0 -- that loop no longer acts on it.
         play_desc_speech_time = LbTimerClock() + 1000;
     } else
     {

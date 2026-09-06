@@ -477,6 +477,103 @@ enum GUIStrings {
     GUIStr_NetLobbyConnectionLost,
     GUIStr_MnuEnterLand,
     GUIStr_MnuPlayLevel,
+    // docs/refactor/renderer/04-imgui-gui-foundation.md §6.3 -- Phase G
+    // option schema labels (config_settingschema.c). English-first per
+    // §6.3's own decision; translations land incrementally afterwards.
+    GUIStr_SetFreezeOnFocusLost,
+    GUIStr_SetPauseMusicOnPause,
+    GUIStr_SetMuteAudioOnFocusLost,
+    GUIStr_SetAltInput,
+    GUIStr_SetUnlockCursorOnPause,
+    GUIStr_SetLockCursorInPossession,
+    GUIStr_SetGuiBlinkRate,
+    GUIStr_SetCreatureStatusSize,
+    GUIStr_SetDisplayNumber,
+    GUIStr_SetEasterEgg,
+    GUIStr_SetCensorship,
+    GUIStr_SetFleeButtonDefault,
+    GUIStr_SetImprisonButtonDefault,
+    GUIStr_SetLineBoxSize,
+    GUIStr_SetNeutralFlashRate,
+    GUIStr_SetAtmosphericSounds,
+    GUIStr_SetUseCdMusic,
+    GUIStr_SetCursorEdgeCameraPanning,
+    GUIStr_SetTagModeToggling,
+    GUIStr_SetAtmosVolume,
+    GUIStr_SetAtmosFrequency,
+    GUIStr_SetDefaultTagMode,
+    GUIStr_SetLanguage,
+    GUIStr_SetDeltaTime,
+    GUIStr_SetZoomToMouse,
+    GUIStr_SetRotateAroundMouse,
+    GUIStr_SetScreenshotFormat,
+    GUIStr_SetHandSize,
+    GUIStr_SetResizeMovies,
+    GUIStr_SetPointerSensitivity,
+    GUIStr_SetStartupSplash,
+    GUIStr_SetStartupIntro,
+    GUIStr_SetFpsAuto,
+    GUIStr_SetFpsLimit,
+    // Phase G §6.3 help strings, one per label above (label_stridx's
+    // help_stridx sibling, config_settingschema.h) -- same order as the
+    // table in config_settingschema.c so the two lists stay easy to
+    // cross-check by eye.
+    GUIStr_HelpFreezeOnFocusLost,
+    GUIStr_HelpStartupSplash,
+    GUIStr_HelpStartupIntro,
+    GUIStr_HelpEasterEgg,
+    GUIStr_HelpCensorship,
+    GUIStr_HelpFleeButtonDefault,
+    GUIStr_HelpImprisonButtonDefault,
+    GUIStr_HelpLanguage,
+    GUIStr_HelpDeltaTime,
+    GUIStr_HelpDisplayNumber,
+    GUIStr_HelpFpsAuto,
+    GUIStr_HelpFpsLimit,
+    GUIStr_HelpGuiBlinkRate,
+    GUIStr_HelpCreatureStatusSize,
+    GUIStr_HelpLineBoxSize,
+    GUIStr_HelpNeutralFlashRate,
+    GUIStr_HelpPauseMusicOnPause,
+    GUIStr_HelpMuteAudioOnFocusLost,
+    GUIStr_HelpAtmosphericSounds,
+    GUIStr_HelpUseCdMusic,
+    GUIStr_HelpAtmosVolume,
+    GUIStr_HelpAtmosFrequency,
+    GUIStr_HelpPointerSensitivity,
+    GUIStr_HelpAltInput,
+    GUIStr_HelpUnlockCursorOnPause,
+    GUIStr_HelpLockCursorInPossession,
+    GUIStr_HelpCursorEdgeCameraPanning,
+    GUIStr_HelpTagModeToggling,
+    GUIStr_HelpDefaultTagMode,
+    GUIStr_HelpZoomToMouse,
+    GUIStr_HelpRotateAroundMouse,
+    GUIStr_HelpScreenshotFormat,
+    GUIStr_HelpHandSize,
+    GUIStr_HelpResizeMovies,
+    // INGAME_RES (Phase G step 12, resolution picker): appended here rather
+    // than grouped with the other GUIStr_Set*/GUIStr_Help* entries above,
+    // since inserting into either block would shift every entry after it
+    // by one and desync them from their already-numbered guitext:NNNN
+    // lines in gtext_eng.pot (position in this enum *is* the guitext
+    // number -- see the .pot file's own header comment).
+    GUIStr_SetIngameRes,
+    GUIStr_HelpIngameRes,
+    // UI_FONT_SCALE (Phase G follow-up, user-reported font size feedback).
+    GUIStr_SetUiFontScale,
+    GUIStr_HelpUiFontScale,
+    // Reset Progress (Phase E, docs/refactor/gui/05-campaign-progress-and-landview.md §3.5).
+    GUIStr_SetResetCampaignProgress,
+    GUIStr_HelpResetCampaignProgress,
+    // SHADOWS/VIEW_DISTANCE (settings-screen graphics-parity follow-up):
+    // ported from the in-game Video options menu (frontmenu_options.c's
+    // gui_video_shadows()/gui_video_view_distance_level()), previously
+    // missing from the main-menu->Options->Graphics route entirely.
+    GUIStr_SetVideoShadows,
+    GUIStr_HelpVideoShadows,
+    GUIStr_SetViewDistance,
+    GUIStr_HelpViewDistance,
     GuiStrEnd
 };
 

@@ -74,7 +74,7 @@ short play_smacker_file(char *filename, FrontendMenuState nstate)
   short result = 1;
   if ((result)&&(nstate>-2))
   {
-    if ( setup_screen_mode_minimal(get_movies_vidmode()) )
+    if ( setup_screen_mode_minimal(get_screen_vidmode()) )
     {
       LbMouseChangeSprite(NULL);
       RendererClearScreen(0);
@@ -95,7 +95,7 @@ short play_smacker_file(char *filename, FrontendMenuState nstate)
   }
   if (nstate>-2)
   {
-    if ( !setup_screen_mode_minimal(get_frontend_vidmode()) )
+    if ( !setup_screen_mode_minimal(get_screen_vidmode()) )
     {
       ERRORLOG("Can't re-enter frontend video mode after playing Smacker file");
       FatalError = 1;

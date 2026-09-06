@@ -52,19 +52,12 @@
 extern "C" {
 #endif
 /******************************************************************************/
-TbScreenMode switching_vidmodes[] = {
-  Lb_SCREEN_MODE_320_200_8,
-  Lb_SCREEN_MODE_640_480_8,
-  Lb_SCREEN_MODE_INVALID,
-  Lb_SCREEN_MODE_INVALID,
-  Lb_SCREEN_MODE_INVALID,
-  Lb_SCREEN_MODE_INVALID,
-  };
-
-
-static TbScreenMode failsafe_vidmode = Lb_SCREEN_MODE_320_200_8;
-static TbScreenMode movies_vidmode   = Lb_SCREEN_MODE_640_480_8;
-static TbScreenMode frontend_vidmode = Lb_SCREEN_MODE_640_480_8;
+// The single resolution used for the frontend, movie playback, and in-game
+// alike (config_keeperfx.c's INGAME_RES). Historically these were four
+// separate screen-specific modes (failsafe/movies/frontend/an Alt+R cycle
+// list) -- collapsed to one per docs/refactor/renderer/
+// 04-imgui-gui-foundation.md sec 6.4, ahead of Phase G's settings screen.
+static TbScreenMode screen_vidmode = Lb_SCREEN_MODE_640_480_8;
 
 //struct IPOINT_2D units_per_pixel;
 unsigned short units_per_pixel_min;
@@ -215,55 +208,31 @@ void FreeMcgaData(void)
     free_spritesheet(&gui_panel_sprites);
 }
 
-void set_game_vidmode(uint i, TbScreenMode nmode)
+TbScreenMode get_screen_vidmode(void)
 {
-  switching_vidmodes[i%MAX_GAME_VIDMODE_COUNT]=nmode;
+  return screen_vidmode;
 }
 
-TbScreenMode get_game_vidmode(uint i)
+void set_screen_vidmode(TbScreenMode nmode)
 {
-  return switching_vidmodes[i%MAX_GAME_VIDMODE_COUNT];
+  screen_vidmode=nmode;
 }
 
-TbScreenMode try_failsafe_vidmode(void)
+/**
+ * Hardcoded emergency fallback used by setup_screen_mode()'s failsafe path
+ * when the configured screen_vidmode can't be set up. Always one of the
+ * standard VESA modes registered unconditionally by
+ * LbRegisterStandardVideoModes(), so it never depends on user config.
+ */
+static TbScreenMode try_failsafe_vidmode(void)
 {
-  // Check the failsafe mode
+  TbScreenMode failsafe_vidmode = Lb_SCREEN_MODE_640_480_8;
   if (!LbScreenIsModeAvailable(failsafe_vidmode, display_id))
   {
       ERRORLOG("Failsafe video mode (mode %d) is invalid.",(int)failsafe_vidmode);
       return Lb_SCREEN_MODE_INVALID;
   }
   return failsafe_vidmode;
-}
-
-TbScreenMode get_failsafe_vidmode(void)
-{
-  return failsafe_vidmode;
-}
-
-void set_failsafe_vidmode(TbScreenMode nmode)
-{
-  failsafe_vidmode=nmode;
-}
-
-TbScreenMode get_movies_vidmode(void)
-{
-  return movies_vidmode;
-}
-
-void set_movies_vidmode(TbScreenMode nmode)
-{
-  movies_vidmode=nmode;
-}
-
-TbScreenMode get_frontend_vidmode(void)
-{
-  return frontend_vidmode;
-}
-
-void set_frontend_vidmode(TbScreenMode nmode)
-{
-  frontend_vidmode=nmode;
 }
 
 void load_pointer_file(short hi_res)
@@ -939,134 +908,23 @@ TbScreenMode setup_screen_mode_zero(TbScreenMode nmode)
 }
 
 /**
- * Set up a the screen using the mode saved in settings (video_scrnmode).
+ * Set up the screen using the single resolution set by the INGAME_RES config
+ * setting (screen_vidmode), falling back to a hardcoded safe mode if it
+ * can't be set up.
  *
  * @return Returns the mode that the screen was setup successfully with (or Lb_SCREEN_MODE_INVALID/false when the screen was not setup successfully).
  */
 TbScreenMode reenter_video_mode(void)
 {
-  TbScreenMode scrmode = get_game_vidmode(settings.switching_vidmodes_index);
-  scrmode = setup_screen_mode(scrmode, false);
+  TbScreenMode scrmode = setup_screen_mode(get_screen_vidmode(), true);
   if (scrmode == Lb_SCREEN_MODE_INVALID)
-  {
-    // try all of the other switchable video modes before eventually trying the failsafe
-    if (!switch_to_next_video_mode())
-    {
-      return Lb_SCREEN_MODE_INVALID;
-    }
-  }
-  else
-  {
-    SYNCLOG("set in-game video as %s (mode %d)", get_vidmode_name(scrmode),(int)scrmode);
-  }
-  return scrmode;
-}
-
-/**
- * Switch to the next mode in the list set by the INGAME_RES config setting (these are stored in switching_vidmodes[]).
- *
- * @return Returns the mode that the screen was setup successfully with (or Lb_SCREEN_MODE_INVALID/false when the screen was not setup successfully).
- */
-TbBool switch_to_next_video_mode(void)
-{
-  uint current = settings.switching_vidmodes_index;
-  uint i = current;
-  TbBool failsafe = false;
-  TbScreenMode scrmode;
-  do
-  {
-    if ((features_enabled & Ft_HiResVideo) == 0)
-    {
-      // Do not allow user enter higher modes on low memory systems
-      scrmode = setup_screen_mode(Lb_SCREEN_MODE_320_200_8, true);
-      failsafe = ((scrmode == Lb_SCREEN_MODE_320_200_8) ? false : true);
-      break;
-    }
-    i++;
-    if (i>=MAX_GAME_VIDMODE_COUNT)
-    {
-      i=0;
-    }
-    if (i == current)
-    {
-      // we have done a full loop of switching_vidmodes[]
-      if (get_game_vidmode(i) == LbScreenActiveMode())
-      {
-        SYNCLOG("No new mode to switch to; staying with %s (mode %d).", get_vidmode_name(scrmode),(int)scrmode);
-        return true; // only 1 valid video mode, and we are already in it
-      }
-      // else there are no valid modes in the array, try the failsafe
-      scrmode = setup_screen_mode(get_failsafe_vidmode(), false);
-      failsafe = true;
-      break;
-    }
-    scrmode = get_game_vidmode(i);
-    if (scrmode != Lb_SCREEN_MODE_INVALID)
-    {
-      // try the next vidmode in switching_vidmodes[]
-      scrmode = setup_screen_mode(scrmode, false);
-    }
-  } while (scrmode == Lb_SCREEN_MODE_INVALID);
-
-  if (scrmode > Lb_SCREEN_MODE_INVALID)
-  {
-    if (failsafe)
-    {
-      sim_feedback->show_onscreen_msg(kfx_sim_state.turns_per_second * 6, get_string(856));
-    }
-    else
-    {
-      // we managed to switch to a new mode
-      sim_feedback->show_onscreen_msg(kfx_sim_state.turns_per_second * 6, get_vidmode_name(scrmode));
-      settings.switching_vidmodes_index = i;
-      save_settings();
-    }
-  }
-  else
   {
     FatalError = 1;
     exit_keeper = 1;
-    return false;
+    return Lb_SCREEN_MODE_INVALID;
   }
-  SYNCLOG("Switched video to %s (mode %d)", get_vidmode_name(scrmode),(int)scrmode);
-  return true;
-}
-
-/** Needed until its contents are refactored, then we can just call switch_to_next_video_mode from PckA_SwitchScrnRes. */
-void switch_to_next_video_mode_wrapper(void)
-{
-  char percent_x = ((float)lbDisplay.MMouseX / (float)(lbDisplay.MouseWindowX + lbDisplay.MouseWindowWidth)) * 100;
-  char percent_y = ((float)lbDisplay.MMouseY / (float)(lbDisplay.MouseWindowY + lbDisplay.MouseWindowHeight)) * 100;
-
-  if (switch_to_next_video_mode() == Lb_SCREEN_MODE_INVALID)
-  {
-    return;
-  }
-
-  TbBool reload_video = (render_overlay->menu_is_active(GMnu_VIDEO));
-  if (render_overlay->menu_is_active(GMnu_CREATURE_QUERY1))
-  {
-    vid_change_query_menu = GMnu_CREATURE_QUERY1;
-  }
-  else if (render_overlay->menu_is_active(GMnu_CREATURE_QUERY2))
-  {
-    vid_change_query_menu = GMnu_CREATURE_QUERY2;
-  }
-  else if (render_overlay->menu_is_active(GMnu_CREATURE_QUERY3))
-  {
-    vid_change_query_menu = GMnu_CREATURE_QUERY3;
-  }
-  else if (render_overlay->menu_is_active(GMnu_CREATURE_QUERY4))
-  {
-    vid_change_query_menu = GMnu_CREATURE_QUERY4;
-  }
-  render_overlay->reinit_all_menus();
-  if (reload_video)
-  {
-    render_overlay->turn_on_menu(GMnu_VIDEO);
-  }
-  LbMouseSetPosition(((lbDisplay.MouseWindowX + lbDisplay.MouseWindowWidth) / 100) * percent_x, ((lbDisplay.MouseWindowY + lbDisplay.MouseWindowHeight) / 100) * percent_y);
-  return;
+  SYNCLOG("set in-game video as %s (mode %d)", get_vidmode_name(scrmode),(int)scrmode);
+  return scrmode;
 }
 
 #if (BFDEBUG_LEVEL > 0)

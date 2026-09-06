@@ -3,6 +3,7 @@
 
 #include "bflib_basics.h"  // TbResult
 #include "bflib_video.h"   // TbScreenMode, TbScreenCoord
+#include "gui/ImGuiContext.h" // ImGuiCursorImage/ImGuiCursorImageFn, reused directly below
 
 // RendererType is a C++ enum; C translation units see it as an opaque int.
 #ifdef __cplusplus
@@ -56,14 +57,86 @@ TbPixel* RendererGetFramebuffer(void);
 // off-screen buffer for off-screen rendering (e.g. the eye-lens effect's
 // render target) -- returns the previous WScreen pointer, which must be
 // passed to RendererRestoreFramebufferTarget() to point drawing back at the
-// real framebuffer. Callers still save/restore the graphics *window* (the
-// clip rect within the target) separately via LbScreenStoreGraphicsWindow()/
+// real framebuffer. The previous GraphicsScreenWidth/Height are saved
+// internally (single-level -- callers always restore before swapping again)
+// and reapplied by RendererRestoreFramebufferTarget(), so a target smaller
+// than the real screen (e.g. a small off-screen cursor/icon render) doesn't
+// leave the real framebuffer's stride wrong for every draw after it.
+// Callers still save/restore the graphics *window* (the clip rect within
+// the target) separately via LbScreenStoreGraphicsWindow()/
 // LbScreenLoadGraphicsWindow() -- this pair only owns the target identity.
 TbPixel* RendererSwapFramebufferTarget(TbPixel *target, uint32_t width, uint32_t height);
 void RendererRestoreFramebufferTarget(TbPixel *previous_target);
 
 // Save the current frame to a file via the active backend (fmt: 1=PNG, 2=BMP).
 TbBool RendererScheduleScreenshot(const char* path, int fmt);
+
+// ImGui overlay control (docs/refactor/renderer/04-imgui-gui-foundation.md).
+// Global switch for whether the active backend stands up an ImGui context
+// and composites it over the frame at all. Pushed down once from resolved
+// config/cmdline state (main.cpp::setup_game(), the same "push resolved
+// state into bflib_*" spot bf_sprfnt_set_language_lwrstr and friends use) --
+// kfx_platform can't call kfx_config's use_classic_menu() directly, since
+// kfx_config is ranked above kfx_platform.
+TbBool RendererImGuiEnabled(void);
+void RendererSetImGuiEnabled(TbBool enabled);
+
+// Phase A proof-of-concept only: show imgui_demo.cpp's demo window whenever
+// the overlay is enabled, so the backend wiring can be exercised
+// interactively before any real screen migrates (§7 Phase A exit criteria).
+void RendererSetImGuiDemoVisible(TbBool visible);
+
+// Per-frame ImGui content submission, for callers above kfx_platform.
+// kfx_frontend owns the §5 wrapper layer and Phase B's style-sheet test
+// screen, both of which submit real ImGui widgets -- but kfx_platform can't
+// call up into kfx_frontend directly (layering), so RendererSoftware::
+// PresentFrame calls this registered callback (between ImGui's NewFrame and
+// Render) instead, the same *Callbacks-in-kfx_platform,
+// registered-in-main.cpp::setup_game() pattern RendererDrawCallbacks above
+// already uses. A null callback (the default) means nothing extra is drawn.
+typedef void (*RendererImGuiFrameFn)(void);
+void RendererSetImGuiFrameCallback(RendererImGuiFrameFn fn);
+void RendererRunImGuiFrameCallback(void);
+
+// Feeds ImGui the game's own tracked cursor position each frame, in place
+// of raw SDL motion events -- see gui/ImGuiContext.h's ImGuiMousePositionFn
+// for why (the game's grab-warp mouse handling makes a motion event's
+// absolute position meaningless near a window edge). fn's out_x/out_y are
+// real window pixels, matching where the game's own cursor sprite draws
+// (e.g. kfx_frontend's GetMouseX()/GetMouseY()).
+typedef void (*RendererMousePositionFn)(long *out_x, long *out_y);
+void RendererSetMousePositionCallback(RendererMousePositionFn fn);
+
+// Draws the game's own cursor sprite over ImGui content instead of ImGui's
+// generic built-in arrow -- see gui/ImGuiContext.h's ImGuiCursorImage for
+// the full story. fn supplies the sprite as RGBA8888, e.g. by rendering it
+// through the software backend's off-screen framebuffer-target seam
+// (RendererSwapFramebufferTarget below) the same way the eye-lens effect
+// does, since kfx_platform has no access to the sprite/asset system that
+// owns the pixels.
+void RendererSetCursorImageCallback(ImGuiCursorImageFn fn);
+
+// True while the current frontend screen is entirely ImGui-owned (docs/
+// refactor/renderer/05-imgui-owned-menu-backdrop.md's 15 migrated states) --
+// see gui/ImGuiContext.h's ImGuiScreenOwnedFn for the full contract this is
+// a thin pass-through to. RendererSoftware::PresentFrame() checks this to
+// skip its own legacy framebuffer blit for those screens; the cursor code
+// (ImGuiContext.cpp) checks the same thing to draw the ImGui cursor
+// unconditionally there, not just when WantCaptureMouse happens to be true.
+typedef TbBool (*RendererScreenOwnedFn)(void);
+void RendererSetScreenOwnedCallback(RendererScreenOwnedFn fn);
+TbBool RendererScreenOwned(void);
+
+// Dynamic RGBA texture for embedding rendered content into ImGui via
+// ImGui::Image() -- see gui/ImGuiContext.h's ImGuiContextCreateTexture for
+// the full contract (opaque handle, safe to cast straight to ImTextureID,
+// STREAMING-backed so callers update it every frame). Thin facade so
+// kfx_frontend (which owns imgui.h usage per §3.1/§5.2) never needs to
+// reach into gui/ImGuiContext.h directly, matching every other ImGui-
+// adjacent entry point on this file.
+void* RendererCreateDynamicTexture(int width, int height);
+void RendererUpdateDynamicTexture(void *texture, const void *rgba_data, int width, int height);
+void RendererDestroyDynamicTexture(void *texture);
 
 // Screen lifecycle (window + draw surface).
 TbResult RendererSetupScreen(TbScreenMode mode, TbScreenCoord width, TbScreenCoord height,

@@ -215,3 +215,21 @@ extern "C" int PlatformManager_GetDisplayRefreshRate(void)
     IWindowSystem* ws = GetSDLWindowSystem();
     return ws ? ws->GetDisplayRefreshRate() : 0;
 }
+
+extern "C" int PlatformManager_GetFullscreenDisplayModeCount(int display)
+{
+    IWindowSystem* ws = GetSDLWindowSystem();
+    return ws ? ws->GetFullscreenDisplayModeCount(display) : 0;
+}
+
+extern "C" int PlatformManager_GetFullscreenDisplayModeAt(int display, int index, int* out_w, int* out_h)
+{
+    IWindowSystem* ws = GetSDLWindowSystem();
+    if (!ws)
+    {
+        if (out_w) *out_w = 0;
+        if (out_h) *out_h = 0;
+        return 0;
+    }
+    return ws->GetFullscreenDisplayModeAt(display, index, out_w, out_h) ? 1 : 0;
+}

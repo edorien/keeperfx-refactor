@@ -101,3 +101,43 @@ TEST_CASE_METHOD(VideoScaleCallbacksFixture, "scale_value_menu reads units_per_p
     g_fake_scale_values.units_per_pixel_menu = 32;
     CHECK(scale_value_menu(10) == 20);
 }
+
+// Regression for a live bug: INGAME_RES never actually applied across a
+// restart. Root cause -- Lb_SCREEN_MODE_INVALID is 0, indistinguishable from
+// a real mode landing at registry index 0 (LbRegisterVideoMode's own return
+// value). setup_game() used to call load_configuration() (which parses
+// INGAME_RES via LbRegisterVideoModeString(), config_keeperfx.c case 7)
+// before LbScreenInitialize() ever ran -- so on an otherwise-empty registry,
+// a user's own custom resolution string became the table's actual first
+// entry, landed on index 0, and was silently rejected by the case-7 parser's
+// "mode > 0" check, leaving screen_vidmode stuck at its compiled default.
+// Fixed by calling LbRegisterDefaultVideoModesIfNeeded() (which reserves
+// index 0 with the standard/modern mode table's own "INVALID" placeholder,
+// bflib_video.c) early in setup_game(), before load_configuration(). This
+// test exercises the fix directly, independent of setup_game()'s call order.
+TEST_CASE("LbRegisterDefaultVideoModesIfNeeded reserves index 0 so a fresh custom resolution never collides with Lb_SCREEN_MODE_INVALID", "[kfx_platform][bflib_video]") {
+    LbRegisterDefaultVideoModesIfNeeded();
+
+    // Index 0 itself is the reserved placeholder, not a real mode.
+    TbScreenModeInfo *invalid_info = LbScreenGetModeInfo(Lb_SCREEN_MODE_INVALID);
+    REQUIRE(invalid_info != nullptr);
+    CHECK(strcmp(invalid_info->Desc, "INVALID") == 0);
+
+    // A brand-new resolution never seen before in this process must not
+    // land on that same index -- this is the exact collision that made
+    // INGAME_RES silently fail to apply.
+    TbScreenMode mode = LbRegisterVideoModeString("1937x1111x32");
+    REQUIRE(mode != Lb_SCREEN_MODE_INVALID);
+    TbScreenModeInfo *info = LbScreenGetModeInfo(mode);
+    REQUIRE(info != nullptr);
+    CHECK(info->Width == 1937);
+    CHECK(info->Height == 1111);
+    CHECK(info->BitsPerPixel == 32);
+
+    // Idempotent: calling it again (as LbScreenInitialize() itself still
+    // does) must not re-reserve or disturb what's already registered.
+    LbRegisterDefaultVideoModesIfNeeded();
+    TbScreenModeInfo *info_again = LbScreenGetModeInfo(mode);
+    REQUIRE(info_again != nullptr);
+    CHECK(info_again->Width == 1937);
+}

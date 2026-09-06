@@ -31,8 +31,6 @@
 extern "C" {
 #endif
 
-#define MAX_GAME_VIDMODE_COUNT 6 /**< the size of the switching_vidmodes array. */
-
 enum MousePointerGraphics {
     MousePG_Invisible = 0,
     MousePG_Arrow,
@@ -169,17 +167,9 @@ extern unsigned char *hires_parchment;
 // docs/refactor/stage-13-enforce-and-document.md.
 extern unsigned char *frontend_backup_palette;
 /******************************************************************************/
-void switch_to_next_video_mode_wrapper(void);
-TbBool switch_to_next_video_mode(void);
-void set_game_vidmode(uint i, TbScreenMode nmode);
-TbScreenMode get_game_vidmode(uint i);
+TbScreenMode get_screen_vidmode(void);
+void set_screen_vidmode(TbScreenMode nmode);
 TbScreenMode reenter_video_mode(void);
-TbScreenMode get_failsafe_vidmode(void);
-TbScreenMode get_movies_vidmode(void);
-TbScreenMode get_frontend_vidmode(void);
-void set_failsafe_vidmode(TbScreenMode nmode);
-void set_movies_vidmode(TbScreenMode nmode);
-void set_frontend_vidmode(TbScreenMode nmode);
 char *get_vidmode_name(TbScreenMode mode);
 
 TbScreenMode setup_screen_mode(TbScreenMode nmode, TbBool failsafe);

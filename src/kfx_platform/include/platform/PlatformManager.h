@@ -35,6 +35,8 @@ void         PlatformManager_WarpCursor(int x, int y);
 int          PlatformManager_IsCursorInWindow(void);
 int          PlatformManager_RecreateWindowForSoftwareRenderer(void);
 int          PlatformManager_GetDisplayRefreshRate(void);
+int          PlatformManager_GetFullscreenDisplayModeCount(int display);
+int          PlatformManager_GetFullscreenDisplayModeAt(int display, int index, int* out_w, int* out_h);
 
 #ifdef __cplusplus
 }

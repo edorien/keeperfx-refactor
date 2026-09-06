@@ -457,6 +457,18 @@ extern int32_t fps_limit_current;
 extern int32_t fps_limit_main; // -1 if auto
 extern int32_t fps_limit_secondary;
 void redetect_screen_refresh_rate_for_draw(void);
+// Populates the standard+modern video mode table (idempotent -- a no-op once
+// lbScreenModeInfoNum is non-zero) without touching SDL/the platform layer,
+// unlike LbScreenInitialize() which also calls PlatformManager_InitVideo().
+// Exists so config parsing (load_configuration(), which runs before
+// LbScreenInitialize() in setup_game()'s startup order) can call
+// LbRegisterVideoModeString() -- e.g. for INGAME_RES -- against an
+// already-populated table. The table's first entry is always a reserved
+// "INVALID" placeholder at index 0 (Lb_SCREEN_MODE_INVALID); without this
+// call having run first, a config-parsed custom resolution would become the
+// table's actual first entry and land on that same index 0, indistinguishable
+// from failure to every "mode > 0" caller.
+void LbRegisterDefaultVideoModesIfNeeded(void);
 /******************************************************************************/
 TbResult LbScreenInitialize(void);
 TbResult LbScreenSetDoubleBuffering(TbBool state);

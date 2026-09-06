@@ -258,26 +258,52 @@ void frontnet_session_add(struct GuiButton *gbtn)
     set_menu_visible_on(GMnu_FEADD_SESSION);
 }
 
-void frontnet_session_join(struct GuiButton *gbtn)
+/** frontnet_session_join's actual work, minus the state-transition call
+ * itself: returns the FrontendMenuState to transition to (int, -1 =
+ * nothing to do / join failed). Split out so the ImGui screen can request
+ * the transition itself (frontend_set_state() is unsafe to call
+ * synchronously from inside an active ImGui window) while the legacy
+ * click_event below keeps calling frontend_set_state() directly,
+ * unchanged -- same convention Phase E's frontend_land_selection_enter_resolve
+ * established.
+ */
+int frontnet_session_join_resolve(void)
 {
     long plyr_num;
     if (!frontnet_can_join_session())
-        return;
+        return -1;
     plyr_num = network_session_join();
     if (plyr_num < 0)
-        return;
+        return -1;
     frontend_set_player_number(plyr_num);
-    frontend_set_state(FeSt_NET_START);
+    return FeSt_NET_START;
 }
 
-void frontnet_return_to_main_menu(struct GuiButton *gbtn)
+void frontnet_session_join(struct GuiButton *gbtn)
+{
+    int next_state = frontnet_session_join_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
+}
+
+/** frontnet_return_to_main_menu's actual work, minus the state-transition
+ * call itself -- see frontnet_session_join_resolve's comment for why.
+ */
+int frontnet_return_to_main_menu_resolve(void)
 {
   if ( LbNetwork_Stop() )
   {
     ERRORLOG("LbNetwork_Stop() failed");
-    return;
+    return -1;
   }
-  frontend_set_state(FeSt_MAIN_MENU);
+  return FeSt_MAIN_MENU;
+}
+
+void frontnet_return_to_main_menu(struct GuiButton *gbtn)
+{
+    int next_state = frontnet_return_to_main_menu_resolve();
+    if (next_state >= 0)
+        frontend_set_state((FrontendMenuState)next_state);
 }
 
 void frontnet_add_session_back(struct GuiButton *gbtn)
@@ -402,14 +428,21 @@ void frontnet_draw_net_start_players(struct GuiButton *gbtn)
     }
 }
 
-void frontnet_select_alliance(struct GuiButton *gbtn)
+/** Toggles the alliance between plyr1_idx/plyr2_idx (queued via the
+ * screen-packet system, not applied immediately -- same as the legacy
+ * click_event, so an ImGui checkbox toggled this way shows the change
+ * with the same one-frame-or-so lag the legacy sprite grid already has).
+ * No frontend_set_state() call anywhere in this one, so it's directly
+ * safe to call from an active ImGui window, same as
+ * frontnet_session_select_by_index. Shared by the legacy click_event
+ * (frontnet_select_alliance, below) and the ImGui screen
+ * (frontgui_screens.cpp), which iterates player indices directly rather
+ * than decoding them from two different GuiButton fields.
+ */
+void frontnet_select_alliance_by_index(int plyr1_idx, int plyr2_idx)
 {
     struct PlayerInfo *myplyr;
     myplyr = get_my_player();
-    int plyr1_idx;
-    int plyr2_idx;
-    plyr1_idx = gbtn->content.lval - 74;
-    plyr2_idx = gbtn->btype_value & LbBFeF_IntValueMask;
     if ( plyr1_idx == myplyr->id_number || plyr2_idx == myplyr->id_number )
     {
         struct ScreenPacket *nspck;
@@ -421,6 +454,15 @@ void frontnet_select_alliance(struct GuiButton *gbtn)
             nspck->action_par2 = plyr2_idx;
         }
     }
+}
+
+void frontnet_select_alliance(struct GuiButton *gbtn)
+{
+    int plyr1_idx;
+    int plyr2_idx;
+    plyr1_idx = gbtn->content.lval - 74;
+    plyr2_idx = gbtn->btype_value & LbBFeF_IntValueMask;
+    frontnet_select_alliance_by_index(plyr1_idx, plyr2_idx);
 }
 
 void frontnet_draw_alliance_grid(struct GuiButton *gbtn)
@@ -710,18 +752,26 @@ void frontnet_draw_service_button(struct GuiButton *gbtn)
   LbTextDrawResized(0, 0, tx_units_per_px, net_service[srvidx]);
 }
 
-void frontnet_service_select(struct GuiButton *gbtn)
+/** frontnet_service_select's actual work, keyed by index directly rather
+ * than decoding one from a row button's content.lval -- shared by the
+ * legacy click_event (frontnet_service_select, below) and the ImGui
+ * screen (frontgui_screens.cpp), which iterates net_service[] directly
+ * and already has a real index. Unlike every other _resolve()-style
+ * extraction so far, this one is NOT safe to call directly from an active
+ * ImGui window even once split: setup_network_service() (kfx_net/
+ * net_game.c) itself calls frontend_set_state() three layers down, via
+ * net_callbacks->enter_net_session_screen() -- across the kfx_net/
+ * kfx_frontend layering boundary, too deep to return a target state the
+ * way the single-layer cases elsewhere in this file could. The ImGui
+ * screen defers this whole function via frontgui_screens.cpp's generic
+ * pending-action mechanism instead of calling it inline.
+ */
+void frontnet_service_select_by_index(long srvidx)
 {
-  int srvidx;
-  srvidx = frontend_selectlist_row_to_item_index(&net_service_list, gbtn);
-  if ( ((kfx_sim_state.system_flags & GSF_AllowOnePlayer) != 0)
-     && (srvidx+1 >= net_number_of_services) )
-  {
-      frontend_set_player_number(default_loc_player);
-      fe_network_active = 0;
-      net_service_index_selected = FrontendNetSvc_Skirmish;
-      frontend_set_state(FeSt_MP_MAPPACK_SELECT);
-  } else
+  // Used to have a special-case branch here for Skirmish, appended as an
+  // extra row past the real services -- moved to its own Main Menu button
+  // (frontend_start_skirmish(), frontend.cpp), so net_service[] now only
+  // ever lists real network services and srvidx always indexes one directly.
   if (srvidx < 0)
   {
       frontend_set_state(FeSt_NET_SERVICE);
@@ -729,6 +779,13 @@ void frontnet_service_select(struct GuiButton *gbtn)
   {
       setup_network_service(srvidx);
   }
+}
+
+void frontnet_service_select(struct GuiButton *gbtn)
+{
+  int srvidx;
+  srvidx = frontend_selectlist_row_to_item_index(&net_service_list, gbtn);
+  frontnet_service_select_by_index(srvidx);
 }
 
 /******************************************************************************/

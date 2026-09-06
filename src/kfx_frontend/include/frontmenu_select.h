@@ -20,6 +20,7 @@
 #define DK_FRONTMENU_SELECT_H
 
 #include "globals.h"
+#include "config_campaigns.h" // struct GameCampaign
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,9 +78,18 @@ extern struct GuiMenu frontend_select_mappack_menu;
 extern struct GuiMenu frontend_select_mp_mappack_menu;
 
 /******************************************************************************/
+// Merged Free play screen: which mappack/level the lists are currently
+// highlighting -- both NULL/0 until frontend_mappack_list_load/
+// frontend_mappack_select_by_index/frontend_level_select_by_index first
+// set them. static dropped -- see land_selection_highlighted_campaign's
+// comment above.
+extern struct GameCampaign *freeplay_highlighted_mappack;
+extern LevelNumber freeplay_highlighted_level;
+
 // Level list selection screen
 void frontend_draw_levels_scroll_tab(struct GuiButton *gbtn);
 void frontend_draw_level_select_button(struct GuiButton *gbtn);
+void frontend_level_select_by_index(long i);
 void frontend_level_select(struct GuiButton *gbtn);
 void frontend_level_select_up(struct GuiButton *gbtn);
 void frontend_level_select_down(struct GuiButton *gbtn);
@@ -92,6 +102,13 @@ void frontend_level_list_unload(void);
 void frontend_level_select_update(void);
 void frontend_draw_level_select_mappack(struct GuiButton *gbtn);
 
+// Land selection screen: which campaign the list is currently
+// highlighting -- NULL until frontend_campaign_list_load/
+// frontend_campaign_select_by_index first sets it. static dropped so the
+// ImGui screen (frontgui_screens.cpp) can read it directly -- see the
+// definition's own comment (frontmenu_select.c).
+extern struct GameCampaign *land_selection_highlighted_campaign;
+
 // Campaign selection screen
 void frontend_campaign_select_up(struct GuiButton *gbtn);
 void frontend_campaign_select_down(struct GuiButton *gbtn);
@@ -100,15 +117,26 @@ void frontend_campaign_select_up_maintain(struct GuiButton *gbtn);
 void frontend_campaign_select_down_maintain(struct GuiButton *gbtn);
 void frontend_campaign_select_maintain(struct GuiButton *gbtn);
 void frontend_draw_campaign_select_button(struct GuiButton *gbtn);
-// frontend_campaign_select is the list row click_event -- it *highlights*
-// the row's campaign (loads its land preview, resets the detail panel),
-// it does not commit/start it. Committing (starting the campaign, or the
-// highlighted level within it) is frontend_land_selection_enter, the
-// "Enter this land" button's click_event.
+// frontend_campaign_select_by_index/frontend_campaign_select *highlight*
+// the given campaign (loads its land preview, resets the detail panel),
+// they do not commit/start it. Committing (starting the campaign, or the
+// highlighted level within it) is frontend_land_selection_enter_resolve/
+// frontend_land_selection_enter, the "Enter this land" button's
+// click_event.
+void frontend_campaign_select_by_index(long i);
 void frontend_campaign_select(struct GuiButton *gbtn);
 void frontend_campaign_select_update(void);
 void frontend_draw_simple_scroll_track(struct GuiButton *gbtn);
 void frontend_draw_campaign_scroll_tab(struct GuiButton *gbtn);
+// Returns the FrontendMenuState to transition to (as int -- see
+// frontend_mp_mappack_select_resolve's comment for the convention), or -1
+// if nothing is highlighted or starting the campaign failed. The ImGui
+// "Enter this land" button calls this directly and requests the
+// transition itself, since frontend_set_state() is unsafe to call
+// synchronously from inside an active ImGui window (see
+// frontgui_screens.cpp's request_frontend_state comment); the legacy
+// click_event below still calls frontend_set_state() directly, unchanged.
+int frontend_land_selection_enter_resolve(void);
 void frontend_land_selection_enter(struct GuiButton *gbtn);
 void frontend_land_selection_enter_maintain(struct GuiButton *gbtn);
 void frontend_land_selection_return_to_main(struct GuiButton *gbtn);
@@ -125,19 +153,37 @@ void frontend_mappack_select_up_maintain(struct GuiButton *gbtn);
 void frontend_mappack_select_down_maintain(struct GuiButton *gbtn);
 void frontend_mappack_select_maintain(struct GuiButton *gbtn);
 void frontend_draw_mappack_select_button(struct GuiButton *gbtn);
+void frontend_mappack_select_by_index(long i);
 void frontend_mappack_select(struct GuiButton *gbtn);
 void frontend_mappack_select_update(void);
 void frontend_draw_mappack_scroll_tab(struct GuiButton *gbtn);
 void frontend_draw_mp_mappack_scroll_tab(struct GuiButton *gbtn);
+// FeSt_MAPPACK_SELECT is shared by normal Free play and Skirmish (the
+// latter flags itself via net_service_index_selected beforehand -- see
+// frontend_start_skirmish_resolve(), frontend.cpp); these pick which
+// campaign list/type the screen sources from, single source of truth for
+// that check rather than duplicating it at every call site (including the
+// ImGui screen, frontgui_screens.cpp).
+TbBool frontend_freeplay_is_skirmish(void);
+struct CampaignsList *frontend_freeplay_active_mappacks_list(void);
+// Skirmish mappacks register their levels under campaign.multi_levels
+// (LvKind_IsMulti), not campaign.freeplay_levels -- see the definition's own
+// comment (frontmenu_select.c) for why. Writes the active count to *out_count
+// and returns the matching array; callers index it the same way regardless
+// of which list is behind it.
+LevelNumber *frontend_freeplay_active_levels(unsigned long *out_count);
 void frontend_mappack_list_load(void);
 void frontend_draw_variable_mappack_exit_button(struct GuiButton *gbtn);
-// frontend_mappack_select/frontend_level_select (above) are the two list
-// rows' click_events, both *highlighting* now (repurposed the same way
+// frontend_mappack_select_by_index/frontend_level_select_by_index (above)
+// are the two lists' highlight actions (repurposed the same way
 // frontend_campaign_select was for Land selection) -- mappack highlight
 // switches the level list's contents and auto-highlights its first level;
 // level highlight loads that level's own land preview. Committing is
-// frontend_freeplay_enter, the "Play"/"Enter this land" button's
-// click_event -- same highlight/commit split as Land selection.
+// frontend_freeplay_enter_resolve/frontend_freeplay_enter, the
+// "Play"/"Enter this land" button's click_event -- same highlight/commit
+// split as Land selection, same resolve-then-request convention as
+// frontend_land_selection_enter_resolve.
+int frontend_freeplay_enter_resolve(void);
 void frontend_freeplay_enter(struct GuiButton *gbtn);
 void frontend_freeplay_enter_maintain(struct GuiButton *gbtn);
 void frontend_freeplay_return_to_main(struct GuiButton *gbtn);
@@ -152,11 +198,20 @@ void frontend_mp_mappack_select_up_maintain(struct GuiButton *gbtn);
 void frontend_mp_mappack_select_down_maintain(struct GuiButton *gbtn);
 void frontend_mp_mappack_select_maintain(struct GuiButton *gbtn);
 void frontend_draw_mp_mappack_select_button(struct GuiButton *gbtn);
+// MP mappack select has no highlight/commit split (never did -- unlike
+// the other two, its list has no preview panel), so this both highlights
+// *and* commits immediately, same as the legacy click_event -- see
+// frontend_mp_mappack_select_resolve's own comment (frontmenu_select.c).
+// Returns the FrontendMenuState to transition to (int, -1 = nothing to
+// do), same resolve-then-request convention as
+// frontend_land_selection_enter_resolve.
+int frontend_mp_mappack_select_resolve(long i);
 void frontend_mp_mappack_select(struct GuiButton *gbtn);
 void frontend_mp_mappack_select_update(void);
 void frontend_mp_draw_mappack_scroll_tab(struct GuiButton *gbtn);
 void frontend_mp_mappack_list_load(void);
 void frontend_mp_draw_variable_mappack_exit_button(struct GuiButton *gbtn);
+int frontend_back_from_mp_mappack_list_target(void);
 void frontend_back_from_mp_mappack_list(struct GuiButton *gbtn);
 /******************************************************************************/
 #ifdef __cplusplus
