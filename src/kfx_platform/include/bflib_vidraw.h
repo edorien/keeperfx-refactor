@@ -180,8 +180,15 @@ extern unsigned char *dither_end;
  * SetupSpriteRemapGhost()/SetupSpriteRemapShade() below. */
 extern TbPixel *lbSpriteReMapPtr;
 extern TbPixel lbSpriteRemapTable[256];
-/** Fills lbSpriteRemapTable[i] = render_ghost_blend(ref=ref_index, dest=i) for every possible source byte i, and points lbSpriteReMapPtr at it. */
-void SetupSpriteRemapGhost(uint8_t ref_index);
+/* Tint weight for SetupSpriteRemapGhost()'s `strength` arg (0 = source
+ * unchanged, 255 = pure tint colour). SPRITE_TINT_LEGACY is exactly the
+ * historical render_ghost_blend() 1/3 weight (255/3); SPRITE_TINT_STRONG is
+ * the heavier blend the freeze effect needs to stay visible now that the
+ * 8-bit renderer's per-pixel palette-snap no longer amplifies weak tints. */
+#define SPRITE_TINT_LEGACY  85
+#define SPRITE_TINT_STRONG  128
+/** Fills lbSpriteRemapTable[i] with ref_index tinted over source byte i at the given strength, and points lbSpriteReMapPtr at it. */
+void SetupSpriteRemapGhost(uint8_t ref_index, uint8_t strength);
 /** Fills lbSpriteRemapTable[i] = render_shade(i, shade) for every possible source byte i, and points lbSpriteReMapPtr at it. */
 void SetupSpriteRemapShade(int shade);
 /** Fills lbSpriteRemapTable with the possession/full-flash remap (replaces the old white_pal[256]) and points lbSpriteReMapPtr at it. */

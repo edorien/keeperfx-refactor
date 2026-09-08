@@ -68,6 +68,7 @@ struct KeeperFxUiConfig keeperfx_ui_config = {
     .zoom_to_mouse_option = 3, // ZoomToMouse_Always
     .rotate_around_mouse_option = 1, // RotateAroundMouse_Never
     .ui_font_scale_pct = 100,
+    .ui_font = "AUTO",
 };
 static NetworkIsActiveFn g_network_is_active_fn = NULL;
 
@@ -192,6 +193,7 @@ const struct NamedCommand conf_commands[] = {
   {"VID_SMOOTH"                    , 50},
   {"ALT_INPUT"                     , 51},
   {"UI_FONT_SCALE"                 , 52},
+  {"UI_FONT"                       , 53},
   {NULL,                   0},
   };
 
@@ -1123,6 +1125,15 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           }
           if ((i >= 50) && (i <= 200)) {
               keeperfx_ui_config.ui_font_scale_pct = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
+      case 53: // UI_FONT -- ImGui-frontend typeface (frontgui_style.cpp);
+                // "AUTO"/"CINZEL"/"EXOCET" or a fxdata/font/ sub-dir name.
+          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
+          {
+              snprintf(keeperfx_ui_config.ui_font, sizeof(keeperfx_ui_config.ui_font), "%s", word_buf);
           } else {
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
           }

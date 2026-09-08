@@ -41,10 +41,14 @@
 #include "bflib_sound.h" // atmos_sound_volume
 #include "bflib_fmvids.h" // SMK_FullscreenFit/Stretch/Crop -- RESIZE_MOVIES
 #include "bflib_basics.h" // ERRORLOG
-#include "platform/PlatformManager.h" // INGAME_RES's display-mode enumeration
+#include "bflib_fileio.h" // LbFileExists -- UI_FONT's Exocet probe
+#include "globals.h"      // FGrp_FxData
+#include "config.h"       // prepare_file_path -- UI_FONT's fxdata/font/ scan
+#include "platform/PlatformManager.h" // INGAME_RES modes, UI_FONT sub-dir scan
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h> // strcasecmp -- UI_FONT token match
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -138,6 +142,83 @@ static const struct NamedCommand ui_font_scale_enum[] = {
 };
 static long get_ui_font_scale(void) { return keeperfx_ui_config.ui_font_scale_pct; }
 static void set_ui_font_scale(long val) { keeperfx_ui_config.ui_font_scale_pct = (int)val; }
+
+// UI_FONT (case 53, config_keeperfx.c): the ImGui-frontend typeface. Like
+// INGAME_RES, its list can't be a compile-time constant -- it's "AUTO",
+// "Cinzel" (bundled), "Exocet" (only when the DK2 files are present in
+// fxdata/), then one entry per family sub-directory the user has dropped
+// into fxdata/font/. .name is the literal keeperfx.cfg token (the family
+// dir name, or "AUTO"/"CINZEL"/"EXOCET"); .num is the row index.
+// SApply_NeedsRestart -- swapping the live font atlas mid-session is a
+// separate piece of work; frontgui_style.cpp reads this at startup.
+#define UI_FONT_MAX_ENTRIES 32
+#define UI_FONT_NAME_LEN 48
+static struct NamedCommand ui_font_enum[UI_FONT_MAX_ENTRIES + 1];
+static char ui_font_names[UI_FONT_MAX_ENTRIES][UI_FONT_NAME_LEN];
+static TbBool ui_font_enum_ready = false;
+
+static void ui_font_add(int *n, const char *name)
+{
+    if (*n >= UI_FONT_MAX_ENTRIES)
+        return;
+    snprintf(ui_font_names[*n], UI_FONT_NAME_LEN, "%s", name);
+    ui_font_enum[*n].name = ui_font_names[*n];
+    ui_font_enum[*n].num = *n;
+    (*n)++;
+}
+
+static void ensure_ui_font_enum(void)
+{
+    if (ui_font_enum_ready)
+        return;
+    ui_font_enum_ready = true;
+
+    int n = 0;
+    ui_font_add(&n, "AUTO");
+    ui_font_add(&n, "CINZEL");
+
+    char *exh = prepare_file_path(FGrp_FxData, "EXH_____.TTF");
+    TbBool have_exh = (exh != NULL) && LbFileExists(exh);
+    char *exl = prepare_file_path(FGrp_FxData, "EXL_____.TTF");
+    if (have_exh && (exl != NULL) && LbFileExists(exl))
+        ui_font_add(&n, "EXOCET");
+
+    char *font_dir = prepare_file_path(FGrp_FxData, "font");
+    if (font_dir != NULL)
+    {
+        char subs[UI_FONT_MAX_ENTRIES][UI_FONT_NAME_LEN];
+        int count = PlatformManager_ListSubdirectories(font_dir, &subs[0][0],
+                                                       UI_FONT_NAME_LEN, UI_FONT_MAX_ENTRIES);
+        for (int i = 0; i < count; i++)
+        {
+            // Skip the bundled Cinzel dir -- already offered as "Cinzel".
+            if (strcasecmp(subs[i], "Cinzel") == 0)
+                continue;
+            ui_font_add(&n, subs[i]);
+        }
+    }
+
+    ui_font_enum[n].name = NULL;
+    ui_font_enum[n].num = 0;
+}
+
+static long get_ui_font(void)
+{
+    ensure_ui_font_enum();
+    for (int i = 0; ui_font_enum[i].name != NULL; i++)
+        if (strcasecmp(ui_font_enum[i].name, keeperfx_ui_config.ui_font) == 0)
+            return i;
+    return 0; // AUTO
+}
+
+static void set_ui_font(long idx)
+{
+    ensure_ui_font_enum();
+    if ((idx < 0) || (idx >= UI_FONT_MAX_ENTRIES) || (ui_font_enum[idx].name == NULL))
+        return;
+    snprintf(keeperfx_ui_config.ui_font, sizeof(keeperfx_ui_config.ui_font),
+             "%s", ui_font_enum[idx].name);
+}
 
 // Reset Progress (Phase E, docs/refactor/gui/05-campaign-progress-and-landview.md
 // §3.5): SOptT_Action's only row so far. reset_all_campaign_progress()
@@ -736,10 +817,19 @@ const struct SettingOption setting_options[] = {
         .ensure_enum_table = &ensure_ingame_res_enum,
     },
     {
-        .cfg_key = "UI_FONT_SCALE", .type = SOptT_Enum, .category = SCat_Graphics, .apply_class = SApply_Live,
+        .cfg_key = "UI_FONT_SCALE", .type = SOptT_Enum, .category = SCat_GUI, .apply_class = SApply_Live,
         .label_stridx = GUIStr_SetUiFontScale,
         .help_stridx = GUIStr_HelpUiFontScale,
         .enum_table = ui_font_scale_enum, .get_enum = &get_ui_font_scale, .set_enum = &set_ui_font_scale,
+    },
+    {
+        .cfg_key = "UI_FONT", .type = SOptT_Enum, .category = SCat_GUI, .apply_class = SApply_Live,
+        .label_literal = "UI Font",
+        .help_literal = "Typeface for menus and the HUD. Add more by dropping a font family "
+                        "folder into fxdata/font/. Only changeable from the main menu.",
+        .frontend_only = true,
+        .enum_table = ui_font_enum, .get_enum = &get_ui_font, .set_enum = &set_ui_font,
+        .ensure_enum_table = &ensure_ui_font_enum,
     },
     {
         // Ported from the in-game Video options menu -- see

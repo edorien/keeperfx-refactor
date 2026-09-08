@@ -1,5 +1,6 @@
 #include "pre_inc.h"
 #include "frontgui_screens.h"
+#include "frontgui_ingame.h" // Phase 0: the in-game HUD/menu ImGui arm
 #include "frontgui_widgets.h"
 #include "frontgui_style.h"
 #include "frontgui_stylesheet_test.h"
@@ -35,6 +36,7 @@
 #include "bflib_datetm.h" // LbTimerClock
 #include "frontmenu_ingame_evnt.h" // timer_enabled
 #include "kfx_sim_state.h" // kfx_sim_state.Timer/TimerGame
+#include "kfx_net_state.h" // autopilot comp_player_* flags (in-game options fold)
 #include <cstdio>
 #include <vector>
 #include "post_inc.h"
@@ -299,6 +301,14 @@ namespace {
         FeEndModal(open);
     }
 
+    // docs/refactor/ingame-gui/02-pause-menu-and-options.md §3/§7: the same
+    // frontgui_options_frame() is reused for the in-game pause menu. When
+    // in-game, a needs-restart option can't take effect until the engine
+    // restarts, so it is shown disabled ("change from the main menu")
+    // rather than editable -- a blanket rule keyed on apply_class, no new
+    // schema field. Set at the top of frontgui_options_frame().
+    bool s_options_in_game = false;
+
     static void draw_setting_options_for_category(enum SettingCategory category)
     {
         for (int i = 0; i < setting_options_count; i++)
@@ -306,10 +316,13 @@ namespace {
             const struct SettingOption *opt = &setting_options[i];
             if (opt->category != category)
                 continue;
-            bool enabled = (opt->is_enabled == nullptr) || opt->is_enabled();
+            const bool restart_blocked_in_game =
+                s_options_in_game && (opt->apply_class == SApply_NeedsRestart || opt->frontend_only);
+            bool enabled = ((opt->is_enabled == nullptr) || opt->is_enabled()) && !restart_blocked_in_game;
             ImGui::BeginDisabled(!enabled);
             char label[128];
-            std::snprintf(label, sizeof(label), "%s%s", get_string(opt->label_stridx),
+            std::snprintf(label, sizeof(label), "%s%s",
+                opt->label_literal ? opt->label_literal : get_string(opt->label_stridx),
                 (opt->apply_class == SApply_NeedsRestart) ? " *" : "");
             if (opt->type == SOptT_Bool)
             {
@@ -353,7 +366,13 @@ namespace {
                 if (FeButton(label))
                     s_pending_action_option = opt;
             }
-            if (opt->help_stridx != 0) // 0 isn't "no help text" in get_string()'s own id space -- guard it
+            if (restart_blocked_in_game)
+                FeHelpTooltip(opt->frontend_only
+                    ? "Change this from the main menu."
+                    : "Change this from the main menu -- it only takes effect after a restart.");
+            else if (opt->help_literal)
+                FeHelpTooltip(opt->help_literal);
+            else if (opt->help_stridx != 0) // 0 isn't "no help text" in get_string()'s own id space -- guard it
                 FeHelpTooltip(get_string(opt->help_stridx));
             ImGui::EndDisabled();
         }
@@ -371,12 +390,97 @@ namespace {
 
     static void draw_setting_options_restart_note(enum SettingCategory category)
     {
-        if (category_has_needs_restart_option(category))
-            FeCaption("* takes effect after restarting");
+        if (!category_has_needs_restart_option(category))
+            return;
+        FeCaption(s_options_in_game
+            ? "* only available from the main menu (needs a restart)"
+            : "* takes effect after restarting");
     }
 
-    void frontgui_options_frame()
+    // docs/refactor/ingame-gui/02-pause-menu-and-options.md §3: the legacy
+    // in-game video_menu / autopilot_menu sprite sub-menus fold into this
+    // window as hand-written rows rather than becoming keeperfx.cfg schema
+    // rows -- they send packets (MP-deterministic, kfx_net_state /
+    // player-state), which the generic get_int/set_int schema plumbing has
+    // no player context for. Only drawn when in_game (they need a live
+    // player); shadows + view distance are already real schema rows and
+    // show in both contexts. Each reuses the exact legacy click handler
+    // (which ignores its GuiButton* arg) so the packet + save_settings()
+    // path is identical to the classic menu's.
+    static void draw_ingame_video_controls()
     {
+        FeSeparator();
+        FeSubheading("View");
+
+        const char *view_items[] = { "Isometric", "Isometric (level)", "Front view" };
+        int view = settings.video_rotate_mode;
+        ImGui::SetNextItemWidth(220.0f);
+        if (FeCombo("View mode", &view, view_items, 3))
+        {
+            settings.video_rotate_mode = (unsigned char)view;
+            gui_video_rotate_mode(nullptr); // PckA_SwitchView + save_settings()
+        }
+        FeHelpTooltip(get_string(GUIStr_OptionViewTypeDesc));
+
+        bool full_walls = settings.video_cluedo_mode == 0; // cluedo mode 1 == see-over ("short") walls
+        if (FeCheckbox("Full-height walls", &full_walls))
+        {
+            video_cluedo_mode = full_walls ? 0 : 1;
+            gui_video_cluedo_mode(nullptr); // PckA_SetCluedo
+        }
+        FeHelpTooltip(get_string(GUIStr_OptionWallHeightDesc));
+
+        float gamma = (float)settings.gamma_correction;
+        ImGui::SetNextItemWidth(220.0f);
+        if (FeSlider("Gamma correction", &gamma, 0.0f, (float)(GAMMA_LEVELS_COUNT - 1), "%.0f"))
+        {
+            video_gamma_correction = (unsigned char)gamma;
+            set_players_packet_action(get_my_player(), PckA_SetGammaLevel, video_gamma_correction, 0, 0, 0);
+        }
+        FeHelpTooltip(get_string(GUIStr_OptionGammaCorrectionDesc));
+    }
+
+    static void draw_ingame_autopilot_controls()
+    {
+        // §2.3 decision: collapsed by default, room to grow as the AI does.
+        if (!ImGui::CollapsingHeader(get_string(GUIStr_MnuComputerAssist)))
+            return;
+
+        struct AssistOpt { const char *label; int kind; TextStringId help; };
+        static const AssistOpt opts[] = {
+            { "Aggressive",   1, GUIStr_AggressiveAssistDesc },
+            { "Defensive",    2, GUIStr_DefensiveAssistDesc },
+            { "Construction", 3, GUIStr_ConstructionAssistDesc },
+            { "Move only",    4, GUIStr_MoveOnlyAssistDesc },
+        };
+        int current = kfx_net_state.comp_player_aggressive   ? 1
+                    : kfx_net_state.comp_player_defensive    ? 2
+                    : kfx_net_state.comp_player_construct    ? 3
+                    : kfx_net_state.comp_player_creatrsonly  ? 4 : 0;
+        for (const AssistOpt &o : opts)
+        {
+            // No FeRadio wrapper exists; ImGui::RadioButton direct, same
+            // narrow exception the land-preview / SetNextItemWidth calls in
+            // this file already take (frontgui_widgets.h header note).
+            if (ImGui::RadioButton(o.label, current == o.kind) && current != o.kind)
+            {
+                // Mirror the classic radio group: exactly one comp_player_*
+                // flag set locally, then gui_set_autopilot() reads it and
+                // sends PckA_SetComputerKind (the flags are GUI-display
+                // state; the packet does the real setup on every client).
+                kfx_net_state.comp_player_aggressive  = (o.kind == 1);
+                kfx_net_state.comp_player_defensive   = (o.kind == 2);
+                kfx_net_state.comp_player_construct   = (o.kind == 3);
+                kfx_net_state.comp_player_creatrsonly = (o.kind == 4);
+                gui_set_autopilot(nullptr);
+            }
+            FeHelpTooltip(get_string(o.help));
+        }
+    }
+
+    void frontgui_options_frame(bool in_game)
+    {
+        s_options_in_game = in_game;
         ImGuiIO &io = ImGui::GetIO();
         // Fixed size regardless of which tab is active -- found live that
         // ImGuiWindowFlags_AlwaysAutoResize (removed below) made the whole
@@ -430,6 +534,8 @@ namespace {
             {
                 FeBeginScrollArea("##game_scroll", ImVec2(0, scroll_h));
                 draw_setting_options_for_category(SCat_Game);
+                if (in_game)
+                    draw_ingame_autopilot_controls();
                 FeEndScrollArea();
                 draw_setting_options_restart_note(SCat_Game);
                 FeEndTab();
@@ -438,8 +544,18 @@ namespace {
             {
                 FeBeginScrollArea("##graphics_scroll", ImVec2(0, scroll_h));
                 draw_setting_options_for_category(SCat_Graphics);
+                if (in_game)
+                    draw_ingame_video_controls();
                 FeEndScrollArea();
                 draw_setting_options_restart_note(SCat_Graphics);
+                FeEndTab();
+            }
+            if (FeTab("GUI"))
+            {
+                FeBeginScrollArea("##gui_scroll", ImVec2(0, scroll_h));
+                draw_setting_options_for_category(SCat_GUI);
+                FeEndScrollArea();
+                draw_setting_options_restart_note(SCat_GUI);
                 FeEndTab();
             }
             if (FeTab(get_string(frontend_button_info[FEBtn_MnuSoundOptions].capstr_idx)))
@@ -481,15 +597,30 @@ namespace {
         FeEndTabBar(tabbar_open);
 
         FeSeparator();
+        // Define Keys: frontend-only for now -- there is no in-game key-rebind
+        // path (docs/refactor/ingame-gui/02-pause-menu-and-options.md §7).
+        ImGui::BeginDisabled(in_game);
         if (FeButton(get_string(frontend_button_info[FEBtn_DefineKeys_95].capstr_idx)))
             request_frontend_state(FeSt_FEDEFINE_KEYS);
+        ImGui::EndDisabled();
         ImGui::SameLine();
-        if (FeButton(get_string(frontend_button_info[FEBtn_MnuReturnToMain].capstr_idx)))
-            request_frontend_state(FeSt_MAIN_MENU);
+        if (in_game)
+        {
+            // English literal, same as the "Game"/"Graphics" tab captions
+            // above -- no GUIStr_* fits "back to the launcher".
+            if (FeButton("Back"))
+                ingame_options_back_to_launcher(); // collapse to the 4-button launcher
+        }
+        else
+        {
+            if (FeButton(get_string(frontend_button_info[FEBtn_MnuReturnToMain].capstr_idx)))
+                request_frontend_state(FeSt_MAIN_MENU);
+        }
 
         draw_pending_action_confirm_modal();
 
         ImGui::End();
+        s_options_in_game = false;
     }
 
     // §6.1: "In ImGui the remap screen is a for loop over
@@ -1805,6 +1936,11 @@ void FrontendImGuiFrame(void)
 
     FeStyleSheetFrame(); // Phase B debug overlay -- independent of migration state
 
+    // docs/refactor/ingame-gui/ Phase 0: the in-game HUD/menu arm. No-op
+    // unless a level is running with a migrated GMnu_* turned on -- mutually
+    // exclusive with the frontend arm below via kfx_sim_state.game_kind.
+    ingame_imgui_frame();
+
     if (!frontend_imgui_screen_active(frontend_menu_state))
         return;
 
@@ -1815,7 +1951,7 @@ void FrontendImGuiFrame(void)
         case FeSt_STORY_POEM:     frontgui_story_frame(); break;
         case FeSt_STORY_BIRTHDAY: frontgui_birthday_frame(); break;
         case FeSt_CREDITS:        frontgui_credits_frame(); break;
-        case FeSt_FEOPTIONS:      frontgui_options_frame(); break;
+        case FeSt_FEOPTIONS:      frontgui_options_frame(false); break;
         case FeSt_FEDEFINE_KEYS:  frontgui_definekeys_frame(); break;
         case FeSt_HIGH_SCORES:    frontgui_highscores_frame(); break;
         case FeSt_FELOAD_GAME:    frontgui_loadgame_frame(); break;
@@ -1831,4 +1967,13 @@ void FrontendImGuiFrame(void)
     }
 
     draw_error_box_overlay(); // independent of frontend_menu_state -- see its own comment
+}
+
+// docs/refactor/ingame-gui/02-pause-menu-and-options.md: the in-game pause
+// menu's "Options" reuses the very same settings window, in its in-game
+// form (restart-class rows disabled, Define Keys disabled, "Back" instead
+// of "Return to Main"). Called from frontgui_ingame.cpp.
+void frontgui_options_frame_ingame(void)
+{
+    frontgui_options_frame(true);
 }

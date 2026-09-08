@@ -38,6 +38,12 @@ int          PlatformManager_GetDisplayRefreshRate(void);
 int          PlatformManager_GetFullscreenDisplayModeCount(int display);
 int          PlatformManager_GetFullscreenDisplayModeAt(int display, int index, int* out_w, int* out_h);
 
+// Lists the immediate sub-directory names of `path` into `out` (a flat
+// buffer of `max` slots, `stride` bytes each; each name NUL-terminated and
+// truncated to fit). Returns the number of names written. LbFileFindFirst
+// deliberately drops directories on every platform, so this is separate.
+int          PlatformManager_ListSubdirectories(const char* path, char* out, int stride, int max);
+
 #ifdef __cplusplus
 }
 #endif

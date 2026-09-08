@@ -33,6 +33,11 @@ void FrontendImGuiLandPreviewInput(int state);
 // frontgui_stylesheet_test.h).
 void FrontendImGuiFrame(void);
 
+// docs/refactor/ingame-gui/02-pause-menu-and-options.md: submit the shared
+// settings window in its in-game form. Called from frontgui_ingame.cpp's
+// pause-menu launcher when "Options" is expanded.
+void frontgui_options_frame_ingame(void);
+
 #ifdef __cplusplus
 }
 #endif

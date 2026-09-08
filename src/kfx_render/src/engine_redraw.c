@@ -494,6 +494,10 @@ void set_engine_view(struct PlayerInfo *player, long val)
 
 void draw_overlay_compass(long base_x, long base_y)
 {
+    // Phase 4: drawn by ingame_panel_frame() (frontgui_ingame_panel.cpp)
+    // over the ImGui minimap texture when the ImGui HUD is on.
+    if (RendererImGuiEnabled())
+        return;
     struct PlayerInfo* player = get_my_player();
     struct Camera* camera = get_player_active_camera(player);
     struct Camera* cam = get_local_camera(camera);
@@ -974,7 +978,10 @@ void redraw_display(void)
     RendererClearDrawFlags(Lb_TEXT_ONE_COLOR);
     int tx_units_per_px = ( (MyScreenHeight < 400) && (dbc_initialized && dbc_enabled) ) ? scale_ui_value(32) : (22 * units_per_pixel) / LbTextLineHeight();
     LbTextSetWindow(0, 0, MyScreenWidth, MyScreenHeight);
-    if ((player->allocflags & PlaF_NewMPMessage) != 0)
+    // Phase 3: the MP chat input line moves to ingame_text_overlays_frame()
+    // under the ImGui HUD (input handling -- get_players_message_inputs() --
+    // is unchanged; only this echo of player->mp_message_text moves).
+    if (((player->allocflags & PlaF_NewMPMessage) != 0) && !RendererImGuiEnabled())
     {
         char text[sizeof(player->mp_message_text) + 4];
         snprintf(text, sizeof(text), ">%s_", player->mp_message_text);
@@ -1008,7 +1015,13 @@ void redraw_display(void)
     }
     render_overlay->draw_debug_overlays();
 
-    if (((kfx_sim_state.operation_flags & GOF_Paused) != 0) && ((kfx_sim_state.operation_flags & GOF_WorldInfluence) == 0) && !render_overlay->get_unpausing_in_progress())
+    // Phase 3 (docs/refactor/ingame-gui/04-messages-tooltips-infobox.md):
+    // with the ImGui HUD on, ingame_text_overlays_frame()
+    // (frontgui_ingame_text.cpp) draws the "Paused" caption instead, from
+    // the FrontendImGuiFrame submission -- same GOF_Paused/WorldInfluence/
+    // unpausing gate.
+    if (!RendererImGuiEnabled()
+     && ((kfx_sim_state.operation_flags & GOF_Paused) != 0) && ((kfx_sim_state.operation_flags & GOF_WorldInfluence) == 0) && !render_overlay->get_unpausing_in_progress())
     {
           render_overlay->set_winfont();
           const char * text = get_string(GUIStr_PausedMsg);

@@ -674,9 +674,8 @@ void draw_2d_map(void)
     draw_overhead_room_icons(&map_area, block_size, player->id_number);
 }
 
-void draw_map_level_name(void)
+const char *get_map_level_name(void)
 {
-    // Retrieving name
     const char* lv_name = NULL;
     LevelNumber lvnum = get_loaded_level_number();
     struct LevelInformation* lvinfo = get_level_info(lvnum);
@@ -691,6 +690,12 @@ void draw_map_level_name(void)
     {
       lv_name = level_name;
     }
+    return lv_name;
+}
+
+void draw_map_level_name(void)
+{
+    const char* lv_name = get_map_level_name();
     // Retrieving position
     struct TbRect bkgnd_area;
     get_parchment_background_area_rect(&bkgnd_area);
@@ -944,15 +949,24 @@ void redraw_parchment_view(void)
   SYNCDBG(5,"Starting");
   // Load and draw background
   load_parchment_file();
-  draw_map_parchment();
-  // Draw top view of the map
-  draw_2d_map();
+  // Under ImGui, ingame_parchment_frame() redirects this raster (parchment
+  // paper + overhead map + zoom box) into a dynamic texture and composites
+  // it + a crisp level name itself.
+  const TbBool imgui_hud = RendererImGuiEnabled();
+  if (!imgui_hud)
+  {
+    draw_map_parchment();
+    draw_2d_map();
+  }
   // Draw on-screen GUIs and boxes
   draw_gui();
   gui_draw_all_boxes();
   // Put zoom box, map name and tooltips
-  draw_zoom_box();
-  draw_map_level_name();
+  if (!imgui_hud)
+  {
+    draw_zoom_box();
+    draw_map_level_name();
+  }
   draw_tooltip();
 }
 
@@ -964,6 +978,10 @@ void redraw_minimal_overhead_view(void)
     draw_tooltip();
 }
 
+// The legacy PVT_MapFadeIn/Out screen-transition path only ever ran
+// single-player at PhysicalScreenWidth <= 320, which no current INGAME_RES
+// allows -- so the fade branch here is dead (docs/refactor/ingame-gui/
+// 08-parchment-map.md Sec.6). Only the no-fade path remains.
 void zoom_to_parchment_map(void)
 {
     turn_off_all_window_menus();
@@ -972,32 +990,17 @@ void zoom_to_parchment_map(void)
     else
       set_flag(kfx_sim_state.operation_flags, GOF_ShowPanel);
     struct PlayerInfo* player = get_my_player();
-    if (network_is_active()
-        || (lbDisplay.PhysicalScreenWidth > 320))
-    {
-      if (!toggle_status_menu(0))
-        clear_flag(kfx_sim_state.operation_flags, GOF_ShowPanel);
-      set_players_packet_action(player, PckA_SaveViewType, PVT_MapScreen, 0, 0, 0);
-      turn_off_roaming_menus();
-    } else
-    {
-      set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeIn, 0, 0, 0);
-      turn_off_roaming_menus();
-    }
+    if (!toggle_status_menu(0))
+      clear_flag(kfx_sim_state.operation_flags, GOF_ShowPanel);
+    set_players_packet_action(player, PckA_SaveViewType, PVT_MapScreen, 0, 0, 0);
+    turn_off_roaming_menus();
 }
 
 void zoom_from_parchment_map(void)
 {
     struct PlayerInfo* player = get_my_player();
-    if (network_is_active()
-        || (lbDisplay.PhysicalScreenWidth > 320))
-    {
-        if ((kfx_sim_state.operation_flags & GOF_ShowPanel) != 0)
-          toggle_status_menu(1);
-        set_players_packet_action(player, PckA_LoadViewType, PVT_DungeonTop, 0,0,0);
-    } else
-    {
-        set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeOut, 0,0,0);
-    }
+    if ((kfx_sim_state.operation_flags & GOF_ShowPanel) != 0)
+      toggle_status_menu(1);
+    set_players_packet_action(player, PckA_LoadViewType, PVT_DungeonTop, 0,0,0);
 }
 /******************************************************************************/

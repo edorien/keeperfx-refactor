@@ -47,6 +47,12 @@ TbBool erstat_check(void);
 extern struct ErrorStatistics erstat[];
 extern int last_checked_stat_num;
 extern float render_onscreen_msg_time;
+extern char onscreen_msg_text[]; // Phase 3: read by the ImGui text overlay
+
+// Phase 3: draw_onscreen_direct_messages()'s last "banner should show"
+// verdict (render_onscreen_msg_time > 0 || erstat_check()), for the ImGui
+// overlay -- see frontgui_ingame_text.cpp / that function's comment.
+TbBool onscreen_banner_visible(void);
 
 TbBool is_onscreen_msg_visible(void);
 TbBool show_onscreen_msg(int nturns, const char *fmt_str, ...);

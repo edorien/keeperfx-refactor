@@ -586,7 +586,9 @@ void update_creature_graphic_tint(struct Thing *thing)
     struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
     if (creature_under_spell_effect(thing, CSAfF_Freeze))
     {
-        tint_thing(thing, kfx_sim_state.colours[4][4][15], 1);
+        // tint level 2 (TRF_Tint_2) -> renderer applies the stronger blend, so
+        // the pale-blue freeze tint stays visible in the true-colour renderer.
+        tint_thing(thing, kfx_sim_state.colours[4][4][15], 2);
     } else
     if (((cctrl->combat_flags & CmbtF_Melee) == 0) && ((cctrl->combat_flags & CmbtF_Ranged) == 0))
     {

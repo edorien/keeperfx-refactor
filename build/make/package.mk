@@ -34,9 +34,7 @@ PKG_FXDATA_FILES = \
 	$(patsubst config/%,pkg/%,$(wildcard config/fxdata/lua/**/*.lua)) \
 	$(patsubst config/%,pkg/%,$(wildcard config/fxdata/lua/*.lua)) \
 	$(patsubst config/fxdata/%,pkg/fxdata/%,$(wildcard config/fxdata/*.ttf)) \
-	$(patsubst config/%,pkg/%,$(wildcard config/fxdata/Cinzel/*.txt)) \
-	$(patsubst config/%,pkg/%,$(wildcard config/fxdata/Cinzel/*.ttf)) \
-	$(patsubst config/%,pkg/%,$(wildcard config/fxdata/Cinzel/static/*.ttf))
+	$(patsubst config/%,pkg/%,$(shell find config/fxdata/font -type f \( -name '*.ttf' -o -name '*.otf' -o -name '*.txt' \) 2>/dev/null))
 PKG_FXDATA_DIRS = $(sort $(dir $(PKG_FXDATA_FILES)))
 PKG_MOD_FILES := $(patsubst config/%,pkg/%,$(shell find config/mods -type f))
 PKG_MOD_DIRS := $(sort $(dir $(PKG_MOD_FILES)))
@@ -142,15 +140,19 @@ pkg/fxdata/%.toml: config/fxdata/%.toml | pkg/fxdata
 pkg/fxdata/%.txt: config/fxdata/%.txt | $(PKG_FXDATA_DIRS)
 	$(CP) $^ $@
 
-# .ttf: Cinzel, the bundled fallback face for the ImGui frontend (docs/
-# refactor/renderer/04-imgui-gui-foundation.md §4.1 point 2 -- Exocet
-# itself is never packaged, it's copied from the user's own DK2 install at
-# install time, not shipped from this repo). Prerequisite is
-# $(PKG_FXDATA_DIRS), not the bare pkg/fxdata used by .cfg/.toml above --
-# Cinzel's files are one/two directories deeper (pkg/fxdata/Cinzel/,
-# pkg/fxdata/Cinzel/static/), same reason the .txt rule above needed the
-# same fix once Cinzel/OFL.txt and Cinzel/README.txt started matching it.
+# .ttf/.otf: the ImGui frontend's font families under config/fxdata/font/ --
+# the bundled Cinzel fallback face (docs/refactor/renderer/
+# 04-imgui-gui-foundation.md §4.1 point 2) plus any extra families the repo
+# ships for the UI_FONT picker (config_settingschema.c). Exocet itself is
+# never packaged -- it's copied from the user's own DK2 install at install
+# time. Prerequisite is $(PKG_FXDATA_DIRS), not the bare pkg/fxdata used by
+# .cfg/.toml above -- these files are two/three directories deeper
+# (pkg/fxdata/font/<Family>/, pkg/fxdata/font/<Family>/static/), same reason
+# the .txt rule above needed the same fix.
 pkg/fxdata/%.ttf: config/fxdata/%.ttf | $(PKG_FXDATA_DIRS)
+	$(CP) $^ $@
+
+pkg/fxdata/%.otf: config/fxdata/%.otf | $(PKG_FXDATA_DIRS)
 	$(CP) $^ $@
 
 pkg/fxdata/lua/%.lua: config/fxdata/lua/%.lua | pkg/fxdata/lua

@@ -31,6 +31,7 @@ extern "C" {
 
 struct GuiMenu;
 struct GuiButton;
+struct Thing;
 
 // enum IngameButtonGroupIDs moved to globals.h (stage 9,
 // docs/refactor/stage-09-kfx-game.md).
@@ -74,6 +75,8 @@ extern struct GuiMenu trap_menu2;
 /******************************************************************************/
 void gui_zoom_in(struct GuiButton *gbtn);
 void gui_zoom_out(struct GuiButton *gbtn);
+void gui_go_to_map(struct GuiButton *gbtn);          // -> zoom_to_parchment_map()
+void gui_turn_on_autopilot(struct GuiButton *gbtn);  // -> PckA_ToggleComputer
 void draw_whole_status_panel(void);
 void gui_set_button_flashing(long btn_idx, long gameturns);
 short button_designation_to_tab_designation(short btn_designt_id);
@@ -81,12 +84,17 @@ short get_button_designation(short btn_group, short btn_item);
 void draw_placefiller(long scr_x, long scr_y, long units_per_px);
 
 void gui_over_creature_button(struct GuiButton* gbtn);
+unsigned short get_creature_pick_flags(TbBool pick_up);
+long find_room_type_capacity_total_percentage(PlayerNumber plyr_idx, RoomKind rkind);
+long anger_get_creature_highest_anger_type_and_byte_percentage(struct Thing *creatng, int32_t *out_angr_typ, int32_t *out_angr_prct);
 
 void update_room_tab_to_config(void);
 void update_trap_tab_to_config(void);
 void update_powers_tab_to_config(void);
 
 void go_to_my_next_room_of_type_and_select(RoomKind rkind);
+void go_to_next_spell_of_type(PowerKind pwkind, PlayerNumber plyr_idx);
+void go_to_next_trap_of_type(ThingModel tngmodel, PlayerNumber plyr_idx);
 void go_to_my_next_room_of_type(RoomKind rkind);
 RoomIndex find_my_next_room_of_type(RoomKind rkind);
 RoomIndex find_next_room_of_type(PlayerNumber plyr_idx, RoomKind rkind);

@@ -129,6 +129,10 @@ TbBool IsMouseInsideWindow(void);
 TbResult LbMouseChangeSprite(const struct TbSprite *mouseSprite);
 TbResult LbMouseSuspend(void);
 void GetPointerHotspot(int32_t *hot_x, int32_t *hot_y);
+// The sprite last passed to LbMouseChangeSpriteAndHotspot() -- NULL when
+// the pointer is hidden (MousePG_Invisible). Lets the ImGui cursor mirror
+// the game's actual current pointer over ImGui panels.
+const struct TbSprite *LbMouseGetSprite(void);
 TbResult LbMouseIsInstalled(void);
 TbResult LbMouseSetWindow(long x, long y, long width, long height);
 TbResult LbMouseChangeMoveRatio(long ratio_x, long ratio_y);

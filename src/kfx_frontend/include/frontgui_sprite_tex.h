@@ -1,0 +1,56 @@
+#ifndef FRONTGUI_SPRITE_TEX_H
+#define FRONTGUI_SPRITE_TEX_H
+
+// Renders a classic GUI button sprite (get_button_sprite() / the GBS_*
+// indices in sprites.h) into a GPU texture the ImGui menu layer can draw,
+// and a button widget built on top of it. The off-screen-render-then-
+// composite technique is the same one the ImGui cursor and land-preview
+// panel use (RendererSwapFramebufferTarget, frontgui_style.cpp /
+// frontgui_screens.cpp) -- here it turns a single static sprite into a
+// cached texture, built once, keyed by sprite index.
+//
+// C++ only: the widget takes ImGui-flavoured defaults and this whole
+// layer sits above <imgui.h> like frontgui_widgets.h.
+#ifdef __cplusplus
+
+// Lazily renders button sprite `sprite_idx` into a cached texture and
+// returns its RendererCreateDynamicTexture handle. Returns nullptr until
+// the button spritesheet is loaded and the render has succeeded -- safe to
+// call every frame, it retries until it can build and caches thereafter.
+// *out_w / *out_h receive the sprite's pixel size when non-null (set even
+// on a frame the texture is not ready yet, once the sprite itself exists).
+void *FeSpriteTexture(short sprite_idx, int *out_w, int *out_h);
+
+// Same, for a GUI *panel* sprite (get_panel_sprite() -- the GPS_* indices),
+// cached separately since the panel and button index spaces overlap. Used
+// by the in-game message queue's per-type icons.
+void *FeGuiPanelTexture(short sprite_idx, int *out_w, int *out_h);
+
+// A menu button drawn as a GUI sprite icon, with an optional localized text
+// label to the icon's right (label == nullptr -> icon only). Mirrors
+// fe_text_button()'s behaviour: transparent hit box, blood-red highlight
+// while hovered / nav-focused, menu click sound on release, global-alpha
+// aware so BeginDisabled() dims it. `icon_h` is the icon height in px
+// (0 -> one line of the body font); width keeps the sprite's aspect ratio.
+// Falls back to a plain text button until the texture is ready (or forever,
+// if the sprite can't be found) so the menu is never blank.
+// Returns true on click.
+bool FeSpriteButton(const char *str_id, short sprite_idx, const char *label, float icon_h = 0.0f);
+
+// Same button, but the icon is a GUI *panel* sprite (get_panel_sprite() /
+// GPS_* -- e.g. the message-box zoom / close / scroll arrows). Falls back
+// to a text button (str_id or label) until the texture is ready.
+bool FeGuiPanelButton(const char *str_id, short sprite_idx, const char *label, float icon_h = 0.0f);
+
+// Icon-only panel-sprite button: no label drawn beside the icon, but
+// `fallback_label` is shown as a text button until the texture is ready.
+bool FeGuiPanelIconButton(const char *str_id, short sprite_idx, const char *fallback_label, float icon_h = 0.0f);
+
+// The layout width FeSpriteButton() will occupy for the same args -- for a
+// caller that wants to centre a row of sprite buttons itself. 0 if the
+// sprite can't be found (the widget would fall back to a text button, whose
+// width the caller can get from ImGui directly).
+float FeSpriteButtonWidth(short sprite_idx, const char *label, float icon_h = 0.0f);
+
+#endif // __cplusplus
+#endif // FRONTGUI_SPRITE_TEX_H

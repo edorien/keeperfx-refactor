@@ -3,7 +3,7 @@
 #include "globals.h"       // FGrp_FxData
 #include "config.h"        // prepare_file_path
 #include "config_keeperfx.h" // keeperfx_ui_config.ui_font_scale_pct
-#include "bflib_fileio.h"  // LbFileExists
+#include "bflib_fileio.h"  // LbFileExists, LbFileFindFirst
 #include "renderer/RendererManager.h" // ImGuiCursorImage, RendererSwapFramebufferTarget/RestoreFramebufferTarget
 #include "bflib_video.h"   // TbGraphicsWindow, LbScreen{Store,Load,Set}GraphicsWindow
 #include "bflib_vidraw.h"  // LbSpriteDrawImmediate
@@ -12,9 +12,14 @@
 #include "custom_sprites.h" // get_frontend_sprite
 #include "vidmode.h"       // frontend_sprite (readiness check)
 #include "vidfade.h"        // frontend_palette (the stable, un-faded target palette)
+#include "bflib_mouse.h"   // LbMouseGetSprite, GetPointerHotspot
+#include "kfx_sim_state.h" // game_kind (in-game vs frontend cursor)
 #include "gui_draw.h"       // frontend_background
 #include <imgui.h>
+#include <cctype>
+#include <cstdio>
 #include <cstring>
+#include <strings.h> // strcasecmp
 #include <vector>
 #include "post_inc.h"
 
@@ -23,6 +28,7 @@ namespace {
     ImFont* s_font_light = nullptr; // Exocet Light, or Cinzel-Regular.ttf
     bool s_initialised = false;
     bool s_using_exocet = false;
+    char s_loaded_font[64] = {0};   // keeperfx_ui_config.ui_font that load_fonts() last acted on
 
     // fname resolves through FGrp_FxData (prepare_file_path), which means
     // mod/override directories work for free via the same mechanism
@@ -38,30 +44,109 @@ namespace {
         return true;
     }
 
+    // Case-insensitive substring test.
+    bool name_has(const char *hay, const char *needle_lc)
+    {
+        char lc[128];
+        size_t i = 0;
+        for (; hay[i] != '\0' && i + 1 < sizeof(lc); i++)
+            lc[i] = (char)std::tolower((unsigned char)hay[i]);
+        lc[i] = '\0';
+        return std::strstr(lc, needle_lc) != nullptr;
+    }
+
+    // Resolve a user font-family directory (fxdata/font/<family>/, plus its
+    // optional static/ sub-dir) to a heavy + light TTF/OTF path pair. Picks
+    // by weight keyword in the filename; a single-weight family uses the
+    // one file for both roles. Returns false if no usable face was found.
+    bool resolve_family_fonts(const char *family, char *heavy, char *light, size_t sz)
+    {
+        static const char *const heavy_kw[] = { "black", "extrabold", "heavy", "bold", "semibold", nullptr };
+        static const char *const light_kw[] = { "regular", "book", "light", "medium", nullptr };
+
+        char best_heavy[512] = {0}, best_light[512] = {0}, any[512] = {0};
+        int best_heavy_rank = 999, best_light_rank = 999;
+
+        const char *subdirs[2] = { "", "/static" };
+        for (int s = 0; s < 2; s++)
+        {
+            char rel[256];
+            std::snprintf(rel, sizeof(rel), "font/%s%s", family, subdirs[s]);
+            char *dir = prepare_file_path(FGrp_FxData, rel);
+            if (dir == nullptr)
+                continue;
+            char pattern[600];
+            std::snprintf(pattern, sizeof(pattern), "%s/*", dir);
+
+            struct TbFileEntry fe;
+            struct TbFileFind *ff = LbFileFindFirst(pattern, &fe);
+            if (ff == nullptr)
+                continue;
+            do {
+                const char *fn = fe.Filename;
+                if (fn == nullptr || (!name_has(fn, ".ttf") && !name_has(fn, ".otf")))
+                    continue;
+                char full[600];
+                std::snprintf(full, sizeof(full), "%s/%s", dir, fn);
+                if (any[0] == '\0')
+                    std::snprintf(any, sizeof(any), "%s", full);
+                for (int r = 0; heavy_kw[r] != nullptr; r++)
+                    if (name_has(fn, heavy_kw[r]) && r < best_heavy_rank)
+                    { best_heavy_rank = r; std::snprintf(best_heavy, sizeof(best_heavy), "%s", full); }
+                for (int r = 0; light_kw[r] != nullptr; r++)
+                    if (name_has(fn, light_kw[r]) && r < best_light_rank)
+                    { best_light_rank = r; std::snprintf(best_light, sizeof(best_light), "%s", full); }
+            } while (LbFileFindNext(ff, &fe) >= 0);
+            LbFileFindEnd(ff);
+        }
+
+        const char *l = (best_light[0] != '\0') ? best_light : any;
+        const char *h = (best_heavy[0] != '\0') ? best_heavy : l;
+        if (l[0] == '\0')
+            return false;
+        std::snprintf(light, sz, "%s", l);
+        std::snprintf(heavy, sz, "%s", h);
+        return true;
+    }
+
     void load_fonts()
     {
         ImGuiIO &io = ImGui::GetIO();
         ImFontAtlas *atlas = io.Fonts;
 
-        char heavy_path[512];
-        char light_path[512];
-        // §4.1: Exocet Heavy/Light are the named files in the DK2 Windows
-        // theme's install; the launcher/installer copies them into fxdata/
-        // out of the user's own DK2 install when present. Both must
-        // resolve for Exocet to be used at all -- a partial pair falls
-        // back to Cinzel entirely rather than mixing faces.
-        bool have_exocet = resolve_fxdata_font(heavy_path, sizeof(heavy_path), "EXH_____.TTF")
-                         && resolve_fxdata_font(light_path, sizeof(light_path), "EXL_____.TTF");
+        char heavy_path[512] = {0};
+        char light_path[512] = {0};
 
-        if (!have_exocet)
+        // UI_FONT (keeperfx.cfg / config_settingschema.c): "AUTO" keeps the
+        // §4.1 behaviour (Exocet from the user's DK2 install if present,
+        // else the bundled Cinzel); "CINZEL"/"EXOCET" force one; anything
+        // else is a family sub-directory under fxdata/font/.
+        const char *sel = keeperfx_ui_config.ui_font;
+        const bool want_auto   = (sel[0] == '\0') || strcasecmp(sel, "AUTO") == 0;
+        const bool want_cinzel = strcasecmp(sel, "CINZEL") == 0;
+        const bool want_exocet = strcasecmp(sel, "EXOCET") == 0;
+        const bool want_family = !want_auto && !want_cinzel && !want_exocet;
+
+        // §4.1: Exocet Heavy/Light are the named files in the DK2 Windows
+        // theme's install; the launcher/installer copies them into fxdata/.
+        // Both must resolve for Exocet to be used at all -- a partial pair
+        // falls back rather than mixing faces.
+        bool have_exocet = false;
+        if (want_auto || want_exocet)
+            have_exocet = resolve_fxdata_font(heavy_path, sizeof(heavy_path), "EXH_____.TTF")
+                        && resolve_fxdata_font(light_path, sizeof(light_path), "EXL_____.TTF");
+
+        bool have_family = false;
+        if (want_family)
+            have_family = resolve_family_fonts(sel, heavy_path, light_path, sizeof(heavy_path));
+
+        // Fall back to the bundled Cinzel static instances (stb_truetype has
+        // no variable-axis support, so a named instance is correct anyway)
+        // whenever nothing better resolved.
+        if (!have_exocet && !have_family)
         {
-            // §4.1 point 1: this is the common case (Exocet ships in a
-            // DK2-era extras bundle most installs don't have), so it must
-            // look deliberate. Static instances, not the variable font --
-            // stb_truetype has no variable-axis support, so a named
-            // instance is the correct (and simpler) choice regardless.
-            resolve_fxdata_font(heavy_path, sizeof(heavy_path), "Cinzel/static/Cinzel-Black.ttf");
-            resolve_fxdata_font(light_path, sizeof(light_path), "Cinzel/static/Cinzel-Regular.ttf");
+            resolve_fxdata_font(heavy_path, sizeof(heavy_path), "font/Cinzel/static/Cinzel-Black.ttf");
+            resolve_fxdata_font(light_path, sizeof(light_path), "font/Cinzel/static/Cinzel-Regular.ttf");
         }
 
         // Reference size: rebuilt every PushFont call at whatever pixel
@@ -83,6 +168,10 @@ namespace {
         s_font_light = atlas->AddFontFromFileTTF(light_path, reference_size, &cfg, ranges);
         s_using_exocet = have_exocet && s_font_heavy != nullptr && s_font_light != nullptr;
 
+        JUSTLOG("UI font '%s': %s%s / %s%s", sel,
+                heavy_path, s_font_heavy != nullptr ? "" : " (FAILED)",
+                light_path, s_font_light != nullptr ? "" : " (FAILED)");
+
         // Fall through to ImGui's built-in default font rather than a null
         // ImFont* (PushFont(nullptr, size) means "keep current font", not
         // "no font") if a face genuinely failed to load (corrupt file,
@@ -93,6 +182,34 @@ namespace {
             if (s_font_heavy == nullptr) s_font_heavy = fallback;
             if (s_font_light == nullptr) s_font_light = fallback;
         }
+
+        std::snprintf(s_loaded_font, sizeof(s_loaded_font), "%s", keeperfx_ui_config.ui_font);
+    }
+
+    // Live UI_FONT swap (config_settingschema.c makes the row SApply_Live,
+    // frontend-only). Called from FeStyleEnsureInit() -> every
+    // FeStylePushFont: if the selection changed, drop the old faces and
+    // reload. Safe mid-frame -- the imgui_impl_sdlrenderer3 backend sets
+    // ImGuiBackendFlags_RendererHasTextures, so the atlas is never Locked
+    // during a frame (imgui.cpp UpdateFontsNewFrame); RemoveFont() also
+    // fixes up any live ImFont* the context still holds.
+    void refresh_fonts_if_changed()
+    {
+        if (!s_initialised)
+            return;
+        if (std::strcmp(s_loaded_font, keeperfx_ui_config.ui_font) == 0)
+            return;
+
+        ImFontAtlas *atlas = ImGui::GetIO().Fonts;
+        ImFont *old_heavy = s_font_heavy;
+        ImFont *old_light = s_font_light;
+        s_font_heavy = s_font_light = nullptr;
+        if (old_heavy != nullptr)
+            atlas->RemoveFont(old_heavy);
+        if (old_light != nullptr && old_light != old_heavy)
+            atlas->RemoveFont(old_light);
+
+        load_fonts();
     }
 
     // A KeeperFX-authentic dark bronze/parchment/blood-red palette. Placeholder
@@ -179,6 +296,13 @@ namespace {
         c[ImGuiCol_NavCursor]             = bronze_bright;
         c[ImGuiCol_NavWindowingHighlight] = bronze_bright;
         c[ImGuiCol_NavWindowingDimBg]     = ImVec4(0, 0, 0, 0.5f);
+        // ImGui's dark-theme default for ModalWindowDimBg is a *light* grey
+        // (0.80,0.80,0.80,0.35) -- it dims by lightening, which reads as a
+        // wash-out over KeeperFX's dark parchment menus and, worse, over the
+        // live 3D scene behind an in-game modal (docs/refactor/ingame-gui/
+        // Phase 0). Darken it like NavWindowingDimBg so a modal actually
+        // dims what's behind it.
+        c[ImGuiCol_ModalWindowDimBg]      = ImVec4(0, 0, 0, 0.55f);
     }
 
     // Sizing derives from font metrics and window scale, never literal
@@ -236,6 +360,8 @@ void FeStyleEnsureInit()
 {
     if (!s_initialised)
         FeStyleInit();
+    else
+        refresh_fonts_if_changed();
 }
 
 void FeStylePushFont(FeFontRole role)
@@ -423,9 +549,84 @@ namespace {
     }
 }
 
+namespace {
+    // ---- in-game cursor: mirror the game's *current* pointer sprite -----
+    // Over an ImGui panel / the parchment map the game's own framebuffer
+    // cursor is hidden, so ImGui draws the cursor itself -- and it must be
+    // whatever the game currently has (arrow / pickaxe / power hand / a
+    // per-spell pointer / deny mark), not the frontend gauntlet. In-game
+    // the pointer_sprites decode correctly against the ambient (engine)
+    // palette, so no palette override is needed here (unlike the frontend
+    // GFS_cursor_horny path). Scaled to scale_ui_value_lofi() -- the same
+    // size LbI_PointerHandler draws it at outside ImGui content.
+    std::vector<TbPixel> s_ig_cursor_pixels;
+    int s_ig_w = 0, s_ig_h = 0;
+    const void *s_ig_last_spr = nullptr;
+    int s_ig_last_scale = 0;
+    unsigned int s_ig_serial = 1;
+
+    bool build_ingame_cursor(const struct TbSprite *spr)
+    {
+        if (spr == nullptr || spr->SWidth <= 0 || spr->SHeight <= 0)
+            return false;
+        const int dw = (int)scale_ui_value_lofi(spr->SWidth + 1);
+        const int dh = (int)scale_ui_value_lofi(spr->SHeight + 1);
+        if (dw <= 0 || dh <= 0)
+            return false;
+        if (spr == s_ig_last_spr && (int)units_per_pixel == s_ig_last_scale && !s_ig_cursor_pixels.empty())
+            return true;
+
+        s_ig_w = dw;
+        s_ig_h = dh;
+        s_ig_cursor_pixels.assign((size_t)dw * (size_t)dh, TbPixel{0, 0, 0, 0});
+
+        const unsigned short prev_flags = RendererGetDrawFlags();
+        const unsigned char prev_colour = RendererGetDrawColour();
+        RendererSetDrawFlags(0);
+        TbGraphicsWindow grwnd;
+        LbScreenStoreGraphicsWindow(&grwnd);
+        TbPixel *previous = RendererSwapFramebufferTarget(s_ig_cursor_pixels.data(), dw, dh);
+        LbScreenSetGraphicsWindow(0, 0, dw, dh);
+        LbSpriteDrawScaledImmediate(0, 0, spr, dw, dh);
+        RendererRestoreFramebufferTarget(previous);
+        RendererSetDrawFlags(prev_flags);
+        RendererSetDrawColour(prev_colour);
+        LbScreenLoadGraphicsWindow(&grwnd);
+
+        s_ig_last_spr = spr;
+        s_ig_last_scale = (int)units_per_pixel;
+        s_ig_serial++;
+        return true;
+    }
+}
+
 TbBool FeStyleGetCursorImage(struct ImGuiCursorImage *out)
 {
-    if (out == nullptr || !build_cursor_pixels())
+    if (out == nullptr)
+        return 0;
+    out->serial = 0;
+    out->native_size = 0;
+
+    if (kfx_sim_state.game_kind == GKind_LocalGame || kfx_sim_state.game_kind == GKind_MultiGame)
+    {
+        const struct TbSprite *spr = LbMouseGetSprite();
+        if (spr == nullptr)
+            return 0;   // MousePG_Invisible -- draw no cursor
+        if (!build_ingame_cursor(spr))
+            return 0;
+        int hx = 0, hy = 0;
+        GetPointerHotspot(&hx, &hy);
+        out->rgba = s_ig_cursor_pixels.data();
+        out->width = s_ig_w;
+        out->height = s_ig_h;
+        out->hotspot_x = (int)scale_ui_value_lofi(hx);
+        out->hotspot_y = (int)scale_ui_value_lofi(hy);
+        out->serial = s_ig_serial;
+        out->native_size = 1;
+        return 1;
+    }
+
+    if (!build_cursor_pixels())
         return 0;
     out->rgba = s_cursor_pixels.data();
     out->width = s_cursor_w;

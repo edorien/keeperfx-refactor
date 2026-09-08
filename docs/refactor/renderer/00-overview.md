@@ -167,16 +167,18 @@ trusting a *new* graph-based claim about them.
 
 ## The roadmap
 
-Four stage docs, meant to be read and executed in order — each is a prerequisite for the next,
+Stage docs, meant to be read and executed in order — each is a prerequisite for the next,
 except stage 4 which can start any time after stage 1 and is independent of stages 2–3's
-completion (it targets the GUI 2D layer specifically, not the 3D engine).
+completion (it targets the GUI 2D layer specifically, not the 3D engine). Stage 5 is a
+post-stage-4 cleanup that should land before stage 3's Phase B.
 
 | # | Doc | What it does | Depends on |
 |---|-----|---------------|-------------|
 | 1 | [01-close-the-seam.md](01-close-the-seam.md) — **complete 2026-09-03** | Extend `IUIRenderer`/a new raster-target abstraction to actually cover `engine_render.c`'s polygon/sprite rasterizer and `engine_textures.c`, and eliminate the residual raw `WScreen[]` pokes in `kfx_frontend`. Makes the seam load-bearing instead of decorative. | — |
-| 2 | [02-32bit-software-renderer.md](02-32bit-software-renderer.md) (design spec: [02a-pixel-format-design.md](02a-pixel-format-design.md)) | Widen the CPU raster path to 32-bit RGBA, replace the 8-bit fade/ghost/alpha remap tables with real per-pixel blend math, expand palette-indexed sprite data to RGBA per-draw (removing the one-palette-per-frame ceiling that `colordepth/00-notes.md` hit). Still CPU-rasterized. | 1 |
-| 3 | [03-gpu-renderer.md](03-gpu-renderer.md) | Move drawing onto the GPU in phases — first stop re-deriving RGBA from an intermediate CPU buffer at present time (already 32-bit after stage 2, so upload directly), then move 2D compositing (GUI, sprites, text) to real GPU draw calls, then (stretch, separately scoped) the 3D polygon rasterizer itself. | 2 |
-| 4 | [04-imgui-gui-foundation.md](04-imgui-gui-foundation.md) | Evaluates Dear ImGui as the *rendering* implementation behind `IUIRenderer`/`ITextRenderer` for stage 3's 2D-compositing phase — `kfx_frontend`'s screens/layout/state stay exactly as authored, only the backend that turns their draw calls into GPU work changes. Separately (and explicitly **not** recommended for the main game UI) evaluates full ImGui-widget adoption, i.e. replacing hand-rolled menu code itself. | 1 (can run in parallel with 2–3) |
+| 2 | [02-32bit-software-renderer.md](02-32bit-software-renderer.md) — **complete** (design spec: [02a-pixel-format-design.md](02a-pixel-format-design.md)) | Widen the CPU raster path to 32-bit RGBA, replace the 8-bit fade/ghost/alpha remap tables with real per-pixel blend math, expand palette-indexed sprite data to RGBA per-draw (removing the one-palette-per-frame ceiling that `colordepth/00-notes.md` hit). Still CPU-rasterized. | 1 |
+| 3 | [03-gpu-renderer.md](03-gpu-renderer.md) — **Phase A landed with stage 2; Phase B re-scoped around stage 4; Phase C not started** | Move drawing onto the GPU in phases — Phase A (direct texture upload) shipped with stage 2. Stage 4 then GPU-composited the whole frontend via ImGui/SDLRenderer3, so Phase B is now: frontend backdrop cost, a capture path that includes the overlay, and the in-game HUD (which mostly waits on the in-game-GUI-as-ImGui project). Phase C (3D polygon rasterizer on the GPU) stays a separately-scoped stretch goal. | 2 |
+| 4 | [04-imgui-gui-foundation.md](04-imgui-gui-foundation.md) — **Phases A–G landed; recommendation reversed** | Originally evaluated Dear ImGui only as a batched-quad backend behind `IUIRenderer`/`ITextRenderer`. That was reversed (revision note, 2026-09-04): the whole main-menu frontend (all 15 `GuiMenu`s + backdrop-text screens + a full settings schema) was migrated to real ImGui widgets, rendered through `imgui_impl_sdlrenderer3` into stage 3's own `SDL_Renderer`. In-game GUI untouched, deferred to after the GPU work. | 1 (can run in parallel with 2–3) |
+| 5 | [05-imgui-linkage-consolidation.md](05-imgui-linkage-consolidation.md) — **planning** | Pure refactor: move the one remaining non-frontend ImGui translation unit (`kfx_platform/src/gui/ImGuiContext.cpp`) up into `kfx_frontend` behind a `RendererOverlayCallbacks` struct, so ImGui is compiled/linked into exactly one `kfx_*` library instead of contaminating all ten `*_utest` targets. Prereq for stage 3 Phase B. | 4 |
 
 ## Cross-references to update once implemented
 

@@ -37,6 +37,13 @@ extern "C" {
 char onscreen_msg_text[255]="";
 float render_onscreen_msg_time;
 
+// Phase 3: last verdict of draw_onscreen_direct_messages()'s
+// "should the banner show" test, so the ImGui overlay
+// (frontgui_ingame_text.cpp) can read it without re-running erstat_check()
+// (which has WARNLOG side effects and must poll exactly once per call).
+static TbBool s_onscreen_banner_visible = 0;
+TbBool onscreen_banner_visible(void) { return s_onscreen_banner_visible; }
+
 struct ErrorStatistics erstat[] = {
     {0, 0, "Out of thing slots"},
     {0, 0, "Out of creatures"},
@@ -131,21 +138,32 @@ TbBool draw_onscreen_direct_messages(void)
     {
         tx_units_per_px = scale_ui_value_lofi(16);
     }
-    // Display in-game message for debug purposes
+    // Display in-game message for debug purposes.
+    // Phase 3: with the ImGui HUD on, ingame_text_overlays_frame()
+    // (frontgui_ingame_text.cpp) draws the banner + OOS lines instead --
+    // but the erstat_check() poll and the render_onscreen_msg_time decay
+    // still run here (unchanged cadence), and the verdict is stashed for
+    // the ImGui side to read.
+    const TbBool imgui = RendererImGuiEnabled();
     RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
     if ((render_onscreen_msg_time > 0.0) || erstat_check())
     {
-        if (LbScreenIsLocked())
+        s_onscreen_banner_visible = 1;
+        if (!imgui && LbScreenIsLocked())
         {
             LbTextDrawResized(scale_value_by_horizontal_resolution(160), 0, tx_units_per_px, onscreen_msg_text);
         }
         render_onscreen_msg_time -= kfx_render_state.delta_time;
     }
+    else
+    {
+        s_onscreen_banner_visible = 0;
+    }
     unsigned int msg_pos = scale_value_by_vertical_resolution(200);
     if ((kfx_sim_state.system_flags & GSF_NetGameNoSync) != 0)
     {
         ERRORLOG("OUT OF SYNC (GameTurn %7u)", get_gameturn());
-        if (LbScreenIsLocked())
+        if (!imgui && LbScreenIsLocked())
         {
             LbTextDrawResized(scale_value_by_horizontal_resolution(260), scale_value_by_vertical_resolution(msg_pos), tx_units_per_px, "OUT OF SYNC");
         }
@@ -154,7 +172,7 @@ TbBool draw_onscreen_direct_messages(void)
     if ((kfx_sim_state.system_flags & GSF_NetSeedNoSync) != 0)
     {
         ERRORLOG("SEED OUT OF SYNC (GameTurn %7u)", get_gameturn());
-        if (LbScreenIsLocked())
+        if (!imgui && LbScreenIsLocked())
         {
             LbTextDrawResized(scale_value_by_horizontal_resolution(260), scale_value_by_vertical_resolution(msg_pos), tx_units_per_px, "SEED OUT OF SYNC");
         }

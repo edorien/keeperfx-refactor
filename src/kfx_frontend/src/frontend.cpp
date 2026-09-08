@@ -60,6 +60,7 @@
 #include "front_landview.h"
 #include "front_credits.h"
 #include "frontgui_screens.h"
+#include "frontgui_ingame.h"
 #include "front_torture.h"
 #include "front_highscore.h"
 #include "front_lvlstats.h"
@@ -2657,7 +2658,12 @@ void set_gui_visible(TbBool visible)
       toggle_status_menu(is_visbl);
       break;
   }
-  if (((kfx_sim_state.view_mode_flags & GNFldD_StatusPanelDisplay) != 0) && ((kfx_sim_state.operation_flags & GOF_ShowGui) != 0))
+  // The ImGui HUD composites over a full-screen engine window (also the
+  // only way a horizontal HUD layout works); the classic sprite GUI insets
+  // the engine window by the sidebar's width.
+  if (((kfx_sim_state.view_mode_flags & GNFldD_StatusPanelDisplay) != 0)
+      && ((kfx_sim_state.operation_flags & GOF_ShowGui) != 0)
+      && !RendererImGuiEnabled())
   {
       setup_engine_window(status_panel_width, 0, MyScreenWidth, MyScreenHeight);
   }
@@ -3488,6 +3494,9 @@ void draw_active_menus_buttons(void)
     {
         menu_num = menu_id_to_number(menu_stack[k]);
         if (menu_num < 0) continue;
+        // docs/refactor/ingame-gui/ Phase 0: ImGui submits this menu
+        // (FrontendImGuiFrame -> ingame_imgui_frame); skip the sprite draw.
+        if (ingame_imgui_menu_active(menu_stack[k])) continue;
         gmnu = &active_menus[menu_num];
         //SYNCMSG("DRAW menu %d, fields %d, %d",menu_num,gmnu->visual_state,gmnu->is_turned_on);
         if ((gmnu->visual_state != 0) && (gmnu->is_turned_on))

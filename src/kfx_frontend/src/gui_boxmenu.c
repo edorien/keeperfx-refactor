@@ -39,6 +39,8 @@
 #include "gui_draw.h"
 #include "game_legacy.h"
 #include "kfx_frontend_state.h"
+#include "frontgui_ingame_boxmenu.h" // ImGui path: ingame_boxmenu_frame / _consumes_mouse
+#include "kjm_input.h" // left_button_clicked/released etc.
 
 #include "post_inc.h"
 
@@ -362,6 +364,11 @@ long gfa_is_creature(struct GuiBox *gbox, struct GuiBoxOption *goptn, int32_t *t
 void gui_draw_all_boxes(void)
 {
   SYNCDBG(5,"Starting");
+  // Phase 2: with the ImGui HUD on, ingame_boxmenu_frame()
+  // (frontgui_ingame_boxmenu.cpp) draws these from the FrontendImGuiFrame
+  // submission instead -- the GuiBox list itself is unchanged.
+  if (RendererImGuiEnabled())
+    return;
   RendererSetDrawFlags(Lb_TEXT_ONE_COLOR);
   LbTextSetFont(font_sprites);
   struct GuiBox* gbox = gui_get_lowest_priority_box();
@@ -883,6 +890,20 @@ short gui_process_inputs(void)
 {
     struct GuiBox *gbox;
     SYNCDBG(8,"Starting");
+    // Phase 2: the ImGui path (frontgui_ingame_boxmenu.cpp) draws and
+    // hit-tests the boxes itself. Here we only swallow a click that landed
+    // on one of its windows, so the world underneath doesn't also act on
+    // it -- the legacy body below did the equivalent via its own hit-test.
+    // (The return value is ignored by the sole caller, front_input.c.)
+    if (RendererImGuiEnabled())
+    {
+        if (ingame_boxmenu_consumes_mouse())
+        {
+            left_button_clicked = 0;  left_button_released = 0;
+            right_button_clicked = 0; right_button_released = 0;
+        }
+        return cheat_menu_is_active();
+    }
     long mouse_x = GetMouseX();
     long mouse_y = GetMouseY();
     short result = false;

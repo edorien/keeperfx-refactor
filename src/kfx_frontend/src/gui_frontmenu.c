@@ -29,6 +29,7 @@
 #include "config_settings.h"
 #include "game_legacy.h"
 #include "gui_boxmenu.h"
+#include "frontgui_ingame.h"
 #include "config_spritecolors.h"
 #include "creature_instances.h"
 
@@ -404,6 +405,9 @@ void turn_on_menu(MenuID mnu_idx)
 void update_query_menu()
 {
     if(!(menu_is_active(GMnu_CREATURE_QUERY1) || menu_is_active(GMnu_CREATURE_QUERY2) || menu_is_active(GMnu_CREATURE_QUERY3) || menu_is_active(GMnu_CREATURE_QUERY4)))
+        return;
+    // The ImGui query panel is a single 2-tab view -- no legacy page chain.
+    if (ingame_imgui_menu_active(GMnu_CREATURE_QUERY1))
         return;
     struct Thing* thing = thing_get(get_my_player()->influenced_thing_idx);
 

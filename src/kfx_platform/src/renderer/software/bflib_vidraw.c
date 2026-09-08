@@ -66,12 +66,23 @@ TbPixel lbSpriteRemapTable[256];
 long scale_up;
 /******************************************************************************/
 
-void SetupSpriteRemapGhost(uint8_t ref_index)
+void SetupSpriteRemapGhost(uint8_t ref_index, uint8_t strength)
 {
     const unsigned char *palette = RendererGetActivePalette();
-    TbPixel ref = expand_indexed_pixel(ref_index, palette);
+    /* resolve_indexed_pixel(), not expand_indexed_pixel(): ref_index is a tint
+     * reference colour, not a sprite texel, so palette index 0 is a normal
+     * opaque colour here -- never "transparent". */
+    TbPixel ref = resolve_indexed_pixel(ref_index, palette);
+    const int inv = 255 - strength;
     for (int i = 0; i < 256; i++) {
-        lbSpriteRemapTable[i] = render_ghost_blend(ref, expand_indexed_pixel((uint8_t)i, palette));
+        TbPixel texel = expand_indexed_pixel((uint8_t)i, palette);
+        /* strength == SPRITE_TINT_LEGACY (85) reproduces render_ghost_blend()'s
+         * exact 1/3 weight (255/3); higher values blend more of the tint in. */
+        lbSpriteRemapTable[i] = TbPixel_RGBA(
+            (uint8_t)((ref.r * strength + texel.r * inv) / 255),
+            (uint8_t)((ref.g * strength + texel.g * inv) / 255),
+            (uint8_t)((ref.b * strength + texel.b * inv) / 255),
+            255);
     }
     lbSpriteReMapPtr = lbSpriteRemapTable;
 }

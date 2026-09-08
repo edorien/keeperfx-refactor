@@ -40,9 +40,56 @@
 
 /******************************************************************************/
 
+/** Phase 3: the panel-sprite index for message i's left-hand icon, already
+ *  player-colour-remapped where the type calls for it. -1 == no icon.
+ *  Mirrors the per-type switch in message_draw() below (minus its x/y
+ *  nudges) so the ImGui message overlay (frontgui_ingame_messages.cpp) can
+ *  reuse the exact icon logic. */
+short message_icon_spridx(int i)
+{
+    if ((i < 0) || (i >= kfx_sim_state.active_messages_count))
+        return -1;
+    const struct GuiMessage *msg = &kfx_sim_state.messages[i];
+    PlayerNumber plyr_idx = msg->plyr_idx;
+    switch (msg->type)
+    {
+        case MsgType_Player:
+            if (player_is_roaming(plyr_idx))
+                return get_player_colored_icon_idx(GPS_plyrsym_symbol_player_red_std_b, plyr_idx);
+            if (msg->plyr_idx == kfx_config_state.neutral_player_num)
+                return (short)(((get_gameturn() >> 1) & 3) + GPS_plyrsym_symbol_player_red_std_b);
+            return get_player_colored_icon_idx(
+                player_has_heart(msg->plyr_idx) ? GPS_plyrsym_symbol_player_red_std_b
+                                                : GPS_plyrsym_symbol_player_red_dead,
+                plyr_idx);
+        case MsgType_Creature:
+            return (short)get_creature_model_graphics(msg->plyr_idx, CGI_HandSymbol);
+        case MsgType_CreatureSpell:
+            return get_spell_config(msg->plyr_idx)->medsym_sprite_idx;
+        case MsgType_Room:
+            return get_room_kind_stats(msg->plyr_idx)->medsym_sprite_idx;
+        case MsgType_KeeperSpell:
+            return get_power_model_stats(msg->plyr_idx)->medsym_sprite_idx;
+        case MsgType_Query:
+            return (short)(msg->plyr_idx + GPS_plyrsym_symbol_room_yellow_std_a);
+        case MsgType_Custom:
+            return msg->plyr_idx;
+        case MsgType_CreatureInstance:
+            return creature_instance_info_get(msg->plyr_idx)->symbol_spridx;
+        case MsgType_Blank:
+        default:
+            return -1;
+    }
+}
+
 void message_draw(void)
 {
     SYNCDBG(7,"Starting");
+    // Phase 3: the ImGui message overlay (frontgui_ingame_messages.cpp)
+    // draws the queue instead when the ImGui HUD is on -- same
+    // kfx_sim_state.messages[] source, same target-idx filter.
+    if (RendererImGuiEnabled())
+        return;
     LbTextSetFont(winfont);
     int ps_units_per_px;
     const struct TbSprite* spr;

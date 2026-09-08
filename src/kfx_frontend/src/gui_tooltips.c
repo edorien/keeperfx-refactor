@@ -636,6 +636,12 @@ void draw_tooltip_at(long ttpos_x,long ttpos_y,char *tttext)
 void draw_tooltip(void)
 {
     SYNCDBG(7,"Starting");
+    // Phase 3: with the ImGui HUD on, ingame_tooltip_frame()
+    // (frontgui_ingame_text.cpp) renders tool_tip_box.text as an ImGui
+    // tooltip instead -- setup_*_tooltips() still runs in the input path
+    // and populates tool_tip_box, only this final draw moves.
+    if (RendererImGuiEnabled())
+        return;
     LbTextSetFont(winfont);
     if ((tool_tip_box.flags & TTip_Visible) != 0)
     {

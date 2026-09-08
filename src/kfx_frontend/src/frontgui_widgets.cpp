@@ -3,6 +3,7 @@
 #include "frontgui_style.h"
 #include "bflib_guibtns.h" // do_sound_menu_click -- menu hover/click sound feedback lives in the wrapper, not per-screen (§5.2)
 #include <imgui_internal.h> // GImGui->NavCursorVisible -- no public getter; the wrapper is the one place ImGui internals are allowed
+#include <cmath>            // std::sin / floor -- procedural marble list background
 #include "post_inc.h"
 
 namespace {
@@ -96,13 +97,38 @@ namespace {
         fe_inset_bevel(wp, ImVec2(wp.x + ws.x, wp.y + ws.y));
     }
 
+    // --- cheap deterministic value-noise fbm, for the marble list bg ----
+    float sb_hash(int x, int y)
+    {
+        unsigned int h = (unsigned int)x * 374761393u + (unsigned int)y * 668265263u;
+        h = (h ^ (h >> 13)) * 1274126177u;
+        h ^= h >> 16;
+        return (float)(h & 0xFFFFu) * (1.0f / 65535.0f);
+    }
+    float sb_vnoise(float x, float y)
+    {
+        const float fx = std::floor(x), fy = std::floor(y);
+        const int xi = (int)fx, yi = (int)fy;
+        const float xf = x - fx, yf = y - fy;
+        const float u = xf * xf * (3.0f - 2.0f * xf);
+        const float v = yf * yf * (3.0f - 2.0f * yf);
+        const float a = sb_hash(xi, yi),     b = sb_hash(xi + 1, yi);
+        const float c = sb_hash(xi, yi + 1), d = sb_hash(xi + 1, yi + 1);
+        return a + (b - a) * u + (c - a) * v + (a - b + d - c) * u * v;
+    }
+    float sb_fbm(float x, float y)
+    {
+        return 0.6f  * sb_vnoise(x, y)
+             + 0.3f  * sb_vnoise(x * 2.1f + 5.2f, y * 2.1f + 1.3f)
+             + 0.15f * sb_vnoise(x * 4.3f + 9.1f, y * 4.3f + 7.7f);
+    }
+
     // Legacy selection lists sit on a dark, mottled parchment-shadow texture
-    // rather than a flat fill. Approximated procedurally over the current
-    // (list) window's rect: a firm dark base, then a jittered grid of small
-    // translucent light/dark flecks that read as coarse mottling. Cell size
-    // tracks the body font so the look stays constant and the fleck count
-    // stays bounded from 640x480 up to 4K. Drawn right after BeginListBox,
-    // so it sits behind the rows.
+    // rather than a flat fill. A firm dark base plus procedural marble
+    // veining -- the same domain-warped sine the in-game panel uses
+    // (frontgui_ingame_relief.cpp), this list's own colours. Deterministic,
+    // so it's stable per frame and just re-lays on a resize. Drawn right
+    // after BeginListBox, so it sits behind the rows.
     void fe_stipple_bg()
     {
         ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -110,31 +136,30 @@ namespace {
         const ImVec2 s = ImGui::GetWindowSize();
         const float x0 = p.x + 2.0f, y0 = p.y + 2.0f;
         const float x1 = p.x + s.x - 2.0f, y1 = p.y + s.y - 2.0f;
+        if (x1 <= x0 || y1 <= y0)
+            return;
 
         // Firm, mostly-opaque dark base -- the classic list panel is clearly
         // darker than the surrounding chrome, not a translucent wash.
         dl->AddRectFilled(p, ImVec2(p.x + s.x, p.y + s.y), IM_COL32(14, 10, 7, 232));
 
-        FeStylePushFont(FeFont_Body);
-        float cell = ImGui::GetFontSize() * 0.34f;
-        FeStylePopFont();
-        if (cell < 8.0f) cell = 8.0f;
-
-        unsigned int seed = 0x9E3779B9u;
+        const float cell = 5.0f;
+        const float ns = 0.013f, amp = 40.0f, freq = 0.030f;
         for (float y = y0; y < y1; y += cell)
             for (float x = x0; x < x1; x += cell)
             {
-                seed = seed * 1664525u + 1013904223u;
-                const int v = (int)(seed & 31u) - 16;   // -16..+15
-                if (v > -4 && v < 4)
-                    continue;                           // ~1/4 of cells stay flat
-                const ImU32 col = (v > 0)
-                    ? IM_COL32(156, 126, 88, 8 + v)     // light fleck  (a=11..23)
-                    : IM_COL32(0, 0, 0, 8 - v);         // dark fleck   (a=12..24)
-                const float jx = (float)((seed >> 5) & 7u);
-                const float jy = (float)((seed >> 9) & 7u);
-                const float w = 2.0f + (float)((seed >> 13) & 3u) + cell * 0.35f;
-                dl->AddRectFilled(ImVec2(x + jx, y + jy), ImVec2(x + jx + w, y + jy + w), col);
+                const float px = x - p.x, py = y - p.y;
+                const float warp = sb_fbm(px * ns, py * ns) - 0.4f;
+                const float m = std::sin(freq * (px + py * 0.4f + amp * warp)); // -1..1
+                const float t = 0.5f + 0.5f * m;
+                const float lightv = t * t * t;
+                const float darkv  = (1.0f - t) * (1.0f - t) * (1.0f - t);
+                if (lightv < 0.09f && darkv < 0.09f)
+                    continue;
+                const ImU32 col = (lightv >= darkv)
+                    ? IM_COL32(156, 126, 88, (int)(lightv * 46.0f)) // light vein
+                    : IM_COL32(0, 0, 0, (int)(darkv * 54.0f));      // dark vein
+                dl->AddRectFilled(ImVec2(x, y), ImVec2(x + cell + 0.5f, y + cell + 0.5f), col);
             }
     }
 }

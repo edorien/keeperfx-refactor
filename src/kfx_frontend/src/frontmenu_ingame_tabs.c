@@ -2602,18 +2602,36 @@ void draw_whole_status_panel(void)
     }
     RendererSetDrawColour(kfx_sim_state.colours[15][15][15]);
     RendererSetDrawFlags(0);
-    LbTiledSpriteDraw(0, 0, fs_units_per_px, &status_panel, get_panel_sprite);
-    // Draws gold amount; note that button_sprite[] is used instead of full font
-    draw_gold_total(player->id_number, gmnu->pos_x + gmnu->width/2, gmnu->pos_y + gmnu->height*67/200, fs_units_per_px, dungeon->total_money_owned);
+    // Phase 4 (docs/refactor/ingame-gui/05-...): with the ImGui HUD on, the
+    // sidebar frame + gold + placefiller are drawn by ingame_panel_frame()
+    // (frontgui_ingame_panel.cpp). The minimap raster below is kept -- it
+    // still draws to the real framebuffer at PanelMapX/Y, showing through a
+    // transparent hole the ImGui panel leaves for it (their geometry both
+    // derive from status_panel_width). Migrated to a texture in a later
+    // sub-chunk.
+    const TbBool imgui_hud = RendererImGuiEnabled();
+    if (!imgui_hud)
+    {
+        LbTiledSpriteDraw(0, 0, fs_units_per_px, &status_panel, get_panel_sprite);
+        // Draws gold amount; note that button_sprite[] is used instead of full font
+        draw_gold_total(player->id_number, gmnu->pos_x + gmnu->width/2, gmnu->pos_y + gmnu->height*67/200, fs_units_per_px, dungeon->total_money_owned);
+    }
     if (16/mm_units_per_px < 3)
         mmzoom = (player->minimap_zoom) / scale_value_for_resolution_with_upp(2,mm_units_per_px);
     else
         mmzoom = player->minimap_zoom;
-    panel_map_draw_slabs(player->minimap_pos_x, player->minimap_pos_y, mm_units_per_px, mmzoom);
-    long basic_zoom = player->minimap_zoom;
-    panel_map_draw_overlay_things(mm_units_per_px, mmzoom, basic_zoom);
+    // Phase 4 (minimap sub-chunk): under the ImGui HUD the minimap raster
+    // is rendered off-screen and composited as a texture by
+    // ingame_panel_frame() -- same panel_map_draw_slabs/_overlay_things
+    // calls, just a redirected framebuffer target.
+    if (!imgui_hud)
+    {
+        panel_map_draw_slabs(player->minimap_pos_x, player->minimap_pos_y, mm_units_per_px, mmzoom);
+        long basic_zoom = player->minimap_zoom;
+        panel_map_draw_overlay_things(mm_units_per_px, mmzoom, basic_zoom);
+    }
     unsigned char placefill_threshold = (LbScreenHeight() >= 400) ? 80 : 40;
-    if (LbScreenHeight() - gmnu->height >= placefill_threshold)
+    if (!imgui_hud && LbScreenHeight() - gmnu->height >= placefill_threshold)
     {
         draw_placefiller(0, gmnu->pos_y + gmnu->height, fs_units_per_px);
     }

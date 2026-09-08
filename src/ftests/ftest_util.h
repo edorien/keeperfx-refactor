@@ -160,10 +160,43 @@ TbBool ftest_util_replace_slabs_with_dungeon_hearts(MapSlabCoord slb_x_from, Map
 TbBool ftest_util_mark_slab_for_highlight(MapSlabCoord slb_x, MapSlabCoord slb_y, PlayerNumber plyr_idx);
 
 /**
+ * @brief Is the given in-game GUI menu (GMnu_*) currently active/turned on?
+ */
+TbBool ftest_util_gui_menu_is_on(MenuID menu_id);
+
+/**
+ * @brief Turn on an in-game GUI menu (GMnu_*) if it isn't already.
+ * Its buttons are instantiated by the game loop; let at least one game
+ * turn pass before ftest_util_gui_click() against them.
+ * @return false (and fails the test) if the menu did not come up.
+ */
+TbBool ftest_util_gui_turn_on_menu(MenuID menu_id);
+
+/**
+ * @brief Is there an active GUI button with this BID_* id whose menu is on?
+ */
+TbBool ftest_util_gui_button_is_active(short bid);
+
+/**
+ * @brief The `content.lval` of the active GUI button with this BID_* id
+ * (e.g. the RoomKind a room-tab button currently represents after
+ * update_room_tab_to_config()), or -1 if not found.
+ */
+long ftest_util_gui_button_content(short bid);
+
+/**
+ * @brief Fire an in-game GUI button's click_event by its BID_* id, via
+ * the same fake_button_click() path the keyboard shortcuts use -- no
+ * mouse cursor or hit-test, so it is headless-safe.
+ * @return false (and fails the test) if no matching active button exists.
+ */
+TbBool ftest_util_gui_click(short bid);
+
+/**
  * @brief test action to create a torture room for player and fill it with assigned torture creatures
- * 
- * @param args 
- * @return TbBool 
+ *
+ * @param args
+ * @return TbBool
  */
 TbBool ftest_util_action__create_and_fill_torture_room(struct FTestActionArgs* const args);
 struct ftest_util_action__create_and_fill_torture_room__variables

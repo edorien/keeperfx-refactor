@@ -18,6 +18,7 @@
 #include "renderer/RendererManager.h"
 #include "frontgui_stylesheet_test.h"
 #include "frontgui_screens.h"
+#include "frontgui_ingame_parchment.h"
 #include "frontgui_style.h"
 #include "globals.h"
 #include "bflib_sprite.h"
@@ -950,11 +951,23 @@ static void render_overlay_set_winfont(void)
 
 static long render_overlay_get_status_panel_width(void)
 {
+    // The ImGui HUD composites over a full-screen 3D view -- it does not
+    // inset the engine window (and a horizontal HUD layout could not be
+    // expressed as a left inset at all). The classic sprite GUI keeps its
+    // inset.
+    if (RendererImGuiEnabled())
+        return 0;
     return status_panel_width;
 }
 
 static void render_overlay_draw_debug_overlays(void)
 {
+    // Phase 2 (docs/refactor/ingame-gui/03-debug-overlays-and-box-menus.md):
+    // when the ImGui HUD is on, ingame_debug_overlays_frame()
+    // (frontgui_ingame_debug.cpp) draws all of these instead, from the
+    // FrontendImGuiFrame submission -- same *_enabled() gates.
+    if (RendererImGuiEnabled())
+        return;
     if (bonus_timer_enabled())
     {
         draw_bonus_timer();
@@ -1305,7 +1318,7 @@ short setup_game(void)
   // check, so a plain non-capturing lambda (same idiom as the mouse
   // position callback above) reads the live frontend_menu_state global.
   RendererSetScreenOwnedCallback([]() -> TbBool {
-      return frontend_imgui_screen_active(frontend_menu_state);
+      return frontend_imgui_screen_active(frontend_menu_state) || ingame_parchment_active();
   });
   static const struct InputFocusPredicates input_focus_predicates = {
       &freeze_game_on_focus_lost, &mute_audio_on_focus_lost,

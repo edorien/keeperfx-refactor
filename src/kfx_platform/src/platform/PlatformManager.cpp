@@ -17,6 +17,7 @@
 #include "bflib_video.h"
 #include "cdrom.h"
 #include "steam_api.hpp"
+#include <SDL3/SDL.h>
 #include "post_inc.h"
 
 /******************************************************************************/
@@ -64,6 +65,35 @@ extern "C" int LbFileFindNext(struct TbFileFind * ffind, struct TbFileEntry * fe
 extern "C" void LbFileFindEnd(struct TbFileFind * ffind)
 {
     delete ffind;
+}
+
+namespace {
+struct SubdirCollect { char* out; int stride; int max; int count; };
+
+SDL_EnumerationResult SDLCALL subdir_enum_cb(void* ud, const char* dirname, const char* fname)
+{
+    SubdirCollect* c = static_cast<SubdirCollect*>(ud);
+    if (c->count >= c->max)
+        return SDL_ENUM_SUCCESS;
+    char full[1024];
+    SDL_snprintf(full, sizeof(full), "%s/%s", dirname, fname);
+    SDL_PathInfo info;
+    if (SDL_GetPathInfo(full, &info) && info.type == SDL_PATHTYPE_DIRECTORY)
+    {
+        SDL_strlcpy(c->out + (size_t)c->count * c->stride, fname, c->stride);
+        c->count++;
+    }
+    return SDL_ENUM_CONTINUE;
+}
+} // namespace
+
+extern "C" int PlatformManager_ListSubdirectories(const char* path, char* out, int stride, int max)
+{
+    if (out == nullptr || stride <= 0 || max <= 0)
+        return 0;
+    SubdirCollect c { out, stride, max, 0 };
+    SDL_EnumerateDirectory(path, subdir_enum_cb, &c);
+    return c.count;
 }
 
 /******************************************************************************/

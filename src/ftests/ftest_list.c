@@ -28,6 +28,8 @@
 #include "tests/ftest_net_resync_fake_multiplayer.h"
 #include "tests/ftest_net_enet_loopback_host.h"
 #include "tests/ftest_net_enet_loopback_join.h"
+#include "tests/ftest_gui_packet_parity.h"
+#include "tests/ftest_gui_seam_ingame.h"
 // append your test include here, eg: #include "tests/ftest_your_test_header.h"
 
 #include "post_inc.h"
@@ -60,6 +62,8 @@ struct ftest_onlyappendtests__config ftest_onlyappendtests__conf = {
          { .test_name="creature_prison_capture",             .init_func=ftest_creature_prison_capture_init,          .level_file="keeporig", .level=11, .frame_skip=8 },
          { .test_name="creature_torture_ownership",          .init_func=ftest_creature_torture_ownership_init,       .level_file="keeporig", .level=11, .frame_skip=8 },
          { .test_name="net_resync_fake_multiplayer",         .init_func=ftest_net_resync_fake_multiplayer_init,      .level_file="keeporig", .level=11, .frame_skip=8 },
+         { .test_name="gui_packet_parity",                   .init_func=ftest_gui_packet_parity_init,                .level_file="keeporig", .level=11, .frame_skip=8 },
+         { .test_name="gui_seam_ingame",                     .init_func=ftest_gui_seam_ingame_init,                  .level_file="keeporig", .level=11, .frame_skip=8 },
 
          // GUI/cursor-dependent, not headless-safe: drives mouse-cursor/thing-under-hand
          // selection (ftest_util_center_cursor_over_dungeon_view(), player->thing_under_hand)

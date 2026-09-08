@@ -55,6 +55,7 @@
 #include "gui_boxmenu.h"
 #include "gui_draw.h"
 #include "gui_frontmenu.h"
+#include "frontgui_ingame.h"
 #include "gui_frontbtns.h"
 #include "gui_tooltips.h"
 #include "gui_topmsg.h"
@@ -1328,7 +1329,7 @@ static short get_creature_passenger_action_inputs(void)
         return false;
     struct Thing* thing = thing_get(player->controlled_thing_idx);
     TRACE_THING(thing);
-    if (thing_is_creature(thing))
+    if (thing_is_creature(thing) && !ingame_imgui_menu_active(GMnu_CREATURE_QUERY1))
     {
         if (menu_is_active(GMnu_CREATURE_QUERY1))
         {
@@ -1546,7 +1547,9 @@ static short get_creature_control_action_inputs(void)
     {
         return false;
     }
-    if (menu_is_active(GMnu_CREATURE_QUERY1))
+    // The ImGui query panel is a single 2-tab view -- skip the legacy page chain.
+    const TbBool imgui_query = ingame_imgui_menu_active(GMnu_CREATURE_QUERY1);
+    if (!imgui_query && menu_is_active(GMnu_CREATURE_QUERY1))
     {
       if ( ( (is_key_pressed(KC_7,KMod_DONTCARE) || (is_key_pressed(KC_NUMPAD7,KMod_DONTCARE))) && (creature_instance_get_available_id_for_pos(thing,6) > 0) ) ||
            ( (is_key_pressed(KC_8,KMod_DONTCARE) || (is_key_pressed(KC_NUMPAD8,KMod_DONTCARE))) && (creature_instance_get_available_id_for_pos(thing,7) > 0) ) ||
@@ -1577,7 +1580,7 @@ static short get_creature_control_action_inputs(void)
         update_wheel_scrolled();
       }
     }
-    if (menu_is_active(GMnu_CREATURE_QUERY2))
+    if (!imgui_query && menu_is_active(GMnu_CREATURE_QUERY2))
     {
       if ( ( (is_key_pressed(KC_1,KMod_DONTCARE) || (is_key_pressed(KC_NUMPAD1,KMod_DONTCARE))) ) ||
            ( (is_key_pressed(KC_2,KMod_DONTCARE) || (is_key_pressed(KC_NUMPAD2,KMod_DONTCARE))) & (creature_instance_get_available_id_for_pos(thing,1) > 0) ) ||
@@ -1602,7 +1605,7 @@ static short get_creature_control_action_inputs(void)
         update_wheel_scrolled();
       }
     }
-    if (menu_is_active(GMnu_CREATURE_QUERY3))
+    if (!imgui_query && menu_is_active(GMnu_CREATURE_QUERY3))
     {
       if ( ( (is_key_pressed(KC_1,KMod_DONTCARE) || (is_key_pressed(KC_NUMPAD1,KMod_DONTCARE))) ) ||
            ( (is_key_pressed(KC_2,KMod_DONTCARE) || (is_key_pressed(KC_NUMPAD2,KMod_DONTCARE))) & (creature_instance_get_available_id_for_pos(thing,1) > 0) ) ||
@@ -1641,7 +1644,7 @@ static short get_creature_control_action_inputs(void)
         update_wheel_scrolled();
       }
     }
-    if (menu_is_active(GMnu_CREATURE_QUERY4))
+    if (!imgui_query && menu_is_active(GMnu_CREATURE_QUERY4))
     {
       if ( ( (is_key_pressed(KC_1,KMod_DONTCARE) || (is_key_pressed(KC_NUMPAD1,KMod_DONTCARE))) ) ||
            ( (is_key_pressed(KC_2,KMod_DONTCARE) || (is_key_pressed(KC_NUMPAD2,KMod_DONTCARE))) & (creature_instance_get_available_id_for_pos(thing,1) > 0) ) ||
@@ -2958,6 +2961,20 @@ short get_gui_inputs(short gameplay_on)
       }
   }
   update_busy_doing_gui_on_menu();
+  // docs/refactor/ingame-gui/ Phase 0: a migrated in-game modal (ImGui popup)
+  // owns the whole screen -- ImGui handles its own widgets, and world clicks
+  // must be suppressed the same way a legacy monopoly menu suppresses them.
+  if (ingame_imgui_modal_active())
+  {
+      busy_doing_gui = 1;
+      SYNCDBG(8,"ImGui in-game modal active; skipping legacy button sweep");
+      return true;
+  }
+  // Non-monopoly migrated boxes (event box, cheat boxes): let the legacy
+  // sweep run for un-migrated menus, but flag GUI-busy while the pointer
+  // is over one so a click there doesn't also act on the world.
+  if (ingame_imgui_wants_mouse())
+      busy_doing_gui = 1;
   int fmmenu_idx = first_monopoly_menu();
   struct PlayerInfo* player = get_my_player();
   int gmbtn_idx = -1;
@@ -2970,6 +2987,10 @@ short get_gui_inputs(short gameplay_on)
       if ((gbtn->flags & LbBtnF_Active) == 0)
           continue;
       if (!get_active_menu(gbtn->gmenu_idx)->is_turned_on)
+          continue;
+      // docs/refactor/ingame-gui/ Phase 0: buttons of a migrated menu are
+      // owned by the ImGui path -- never sweep, hover or click them here.
+      if (ingame_imgui_menu_active(get_active_menu(gbtn->gmenu_idx)->ident))
           continue;
       Gf_Btn_Callback callback = gbtn->maintain_call;
       if (callback != NULL)

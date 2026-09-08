@@ -13,6 +13,9 @@
 #include "thing_physics.h"
 #include "creature_states.h"
 #include "frontend.h"
+#include "gui_frontmenu.h"
+#include "gui_frontbtns.h"
+#include "bflib_guibtns.h"
 #include "bflib_mouse.h"
 #include "bflib_planar.h"
 
@@ -454,6 +457,65 @@ struct Thing* ftest_util_create_door_for_player_with_health(MapSlabCoord slb_x, 
     return new_door;
 }
 
+TbBool ftest_util_gui_menu_is_on(MenuID menu_id)
+{
+    return menu_is_active(menu_id) != 0;
+}
+
+TbBool ftest_util_gui_turn_on_menu(MenuID menu_id)
+{
+    if (!menu_is_active(menu_id))
+        turn_on_menu(menu_id);
+    if (!menu_is_active(menu_id))
+    {
+        FTEST_FAIL_TEST("Failed to turn on GUI menu %d", (int)menu_id);
+        return false;
+    }
+    return true;
+}
+
+static struct GuiButton *ftest_util_gui_find_button(short bid)
+{
+    for (int i = 0; i < ACTIVE_BUTTONS_COUNT; i++)
+    {
+        struct GuiButton *gbtn = &active_buttons[i];
+        if ((gbtn->flags & LbBtnF_Active) != 0 && gbtn->id_num == bid
+            && active_menus[(unsigned char)gbtn->gmenu_idx].is_turned_on)
+            return gbtn;
+    }
+    return NULL;
+}
+
+TbBool ftest_util_gui_button_is_active(short bid)
+{
+    return ftest_util_gui_find_button(bid) != NULL;
+}
+
+long ftest_util_gui_button_content(short bid)
+{
+    const struct GuiButton *gbtn = ftest_util_gui_find_button(bid);
+    return gbtn != NULL ? gbtn->content.lval : -1;
+}
+
+TbBool ftest_util_gui_click(short bid)
+{
+    struct GuiButton *gbtn = ftest_util_gui_find_button(bid);
+    if (gbtn == NULL)
+    {
+        FTEST_FAIL_TEST("No active GUI button with id %d (menu not on, or buttons not instantiated yet)", (int)bid);
+        return false;
+    }
+    // Drive the button's *release* path directly -- that is where
+    // NormalBtn/ToggleBtn/HoldableBtn click_event callbacks actually fire
+    // and where parent_menu is opened (do_button_release_actions,
+    // frontend.cpp); do_button_press/click_actions alone do neither for
+    // those types. No mouse cursor / hit-test is involved, so this is
+    // headless-safe. Pre-set the left-pressed state the same way a real
+    // press would have, so the "if (*s != 0)" guards fire.
+    gbtn->button_state_left_pressed = 1;
+    do_button_release_actions(gbtn, &gbtn->button_state_left_pressed, gbtn->click_event);
+    return true;
+}
 
 #ifdef __cplusplus
 }

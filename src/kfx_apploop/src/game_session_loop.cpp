@@ -85,6 +85,9 @@
 #include "moonphase.h"
 #include "kfx_frontend_state.h"
 #include "config_keeperfx.h"
+#ifdef FUNCTESTING
+#include "ftests/ftest_packet_capture.h"
+#endif
 #include "frontmenu_ingame_evnt.h"
 #include "scrcapt.h"
 #include "gui_topmsg.h"
@@ -508,6 +511,10 @@ static void gameplay_loop_logic()
     input_eastegg();
     input();
     exchange_packets();
+#ifdef FUNCTESTING
+    if (flag_is_set(start_params.functest_flags, FTF_Enabled))
+        ftest_packet_capture_tick();
+#endif
 
     update_gameplay_delta_time();
     if (kfx_net_state.process_turn_time > kfx_sim_state.turns_per_second + 1)

@@ -52,12 +52,15 @@ enum SettingOptionType {
     SOptT_Action,
 };
 
-// Mirrors the launcher's own Game/Graphics/Sound/Input tab grouping
-// (§6.2/§6.3's own decision) so the schema's category maps directly to a
-// settings-screen tab.
+// Mirrors the settings screen's own tab grouping (§6.2/§6.3's own
+// decision) so the schema's category maps directly to a settings-screen
+// tab. SCat_GUI groups the KeeperFX-only HUD/interface options (the
+// in-game GUI -> ImGui migration's font scale, etc.), separate from the
+// engine's Graphics options.
 enum SettingCategory {
     SCat_Game,
     SCat_Graphics,
+    SCat_GUI,
     SCat_Sound,
     SCat_Input,
 };
@@ -84,6 +87,21 @@ struct SettingOption {
     // space, not a sentinel) -- every row has one as of Phase G step 11.
     unsigned short label_stridx;
     unsigned short help_stridx;
+
+    // When non-NULL, used verbatim as the on-screen label / help instead of
+    // get_string(label_stridx / help_stridx). For KeeperFX-only rows added
+    // after gtext_eng.pot's guitext numbering was frozen -- English-first,
+    // the same accepted interim as the settings screen's own tab labels
+    // ("Game"/"Graphics"/"GUI", frontgui_screens.cpp).
+    const char *label_literal;
+    const char *help_literal;
+
+    // Show the row but disable it while the settings screen is the in-game
+    // pause menu (s_options_in_game) -- same treatment SApply_NeedsRestart
+    // rows already get, for a live option that is nonetheless only safe /
+    // sensible to change from the main menu (UI_FONT: rebuilding the font
+    // atlas is cheap in the frontend, undesirable mid-match).
+    TbBool frontend_only;
 
     TbBool (*get_bool)(void);
     void (*set_bool)(TbBool val);

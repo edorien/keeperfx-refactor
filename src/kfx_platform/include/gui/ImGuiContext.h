@@ -67,15 +67,25 @@ void ImGuiContextSetMousePositionCallback(ImGuiMousePositionFn fn);
 // content, visibly mismatched against the game's actual cursor everywhere
 // else) instead of ImGui's software cursor. kfx_platform has no access to
 // the game's sprite/asset system (get_frontend_sprite() et al rank above
-// it), so the pixels are supplied via callback, as RGBA8888; the texture
-// is built lazily on first use and cached (rgba only needs to be valid for
-// the duration of the call).
+// it), so the pixels are supplied via callback, as RGBA8888; the callback
+// is polled every frame (the in-game path returns the game's *current*
+// pointer sprite, which changes -- pickaxe, power hand, per-spell
+// pointers, ...) and the texture re-uploaded when `serial` changes (rgba
+// only needs to be valid for the duration of the call).
 struct ImGuiCursorImage {
     const void *rgba; // width * height * 4 bytes, row-major
     int width;
     int height;
     int hotspot_x;
     int hotspot_y;
+    // Bumped by the provider whenever the pixels change, so the context
+    // knows to re-upload. 0 from a provider that never changes its image.
+    unsigned int serial;
+    // 1 = the pixels are already at the intended on-screen size (the
+    // in-game pointer, pre-scaled to match the game's own cursor); the
+    // context draws it 1:1. 0 = native sprite size, context rescales to
+    // ImGui's UI scale (the frontend GFS_cursor_horny path).
+    TbBool native_size;
 };
 typedef TbBool (*ImGuiCursorImageFn)(struct ImGuiCursorImage *out);
 void ImGuiContextSetCursorImageCallback(ImGuiCursorImageFn fn);

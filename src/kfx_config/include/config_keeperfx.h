@@ -221,6 +221,11 @@ struct KeeperFxUiConfig {
     // resolution-derived base size (frontgui_style.cpp) -- no equivalent
     // option in original DK, KeeperFX-only. 100 = unscaled.
     int ui_font_scale_pct;
+    // ImGui-frontend typeface selector (frontgui_style.cpp / config_settingschema.c
+    // UI_FONT row). "AUTO" = Exocet if the DK2 files are in fxdata/, else the
+    // bundled Cinzel; "CINZEL"/"EXOCET" force one; anything else is a family
+    // sub-directory name under fxdata/font/. KeeperFX-only, needs a restart.
+    char ui_font[64];
 };
 extern struct KeeperFxUiConfig keeperfx_ui_config;
 

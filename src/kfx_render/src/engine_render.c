@@ -5202,7 +5202,8 @@ static void draw_fastview_mapwho(struct Camera *cam, struct BucketKindJontySprit
     if ( thing->rendering_flags & TRF_Tint_Flags )
     {
         RendererAddDrawFlags(Lb_SPRITE_REMAP);
-        SetupSpriteRemapGhost(thing->tint_colour);
+        SetupSpriteRemapGhost(thing->tint_colour,
+            (thing->rendering_flags & TRF_Tint_2) ? SPRITE_TINT_STRONG : SPRITE_TINT_LEGACY);
     }
     else if ( shade_intensity == 0x2000 )
     {
@@ -8171,7 +8172,8 @@ static void prepare_jonty_remap_and_scale(int32_t *scale, const struct BucketKin
     {
         RendererAddDrawFlags(Lb_SPRITE_REMAP);
         shade_factor = thing->tint_colour;
-        SetupSpriteRemapGhost((uint8_t)shade_factor);
+        SetupSpriteRemapGhost((uint8_t)shade_factor,
+            (thing->rendering_flags & TRF_Tint_2) ? SPRITE_TINT_STRONG : SPRITE_TINT_LEGACY);
     } else
     if (shade_factor == 32)
     {

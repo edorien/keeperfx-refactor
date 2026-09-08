@@ -16,6 +16,10 @@ namespace {
     SDL_Texture* s_cursor_texture = nullptr;
     int s_cursor_w = 0, s_cursor_h = 0;
     int s_cursor_hotspot_x = 0, s_cursor_hotspot_y = 0;
+    bool s_cursor_native_size = false;
+    bool s_cursor_have = false;          // callback produced an image this frame
+    unsigned int s_cursor_serial = 0xFFFFFFFFu;
+    int s_cursor_tex_w = 0, s_cursor_tex_h = 0;
     ImGuiScreenOwnedFn s_screen_owned_fn = nullptr;
 
     void shutdown_backends()
@@ -27,6 +31,9 @@ namespace {
             SDL_DestroyTexture(s_cursor_texture);
             s_cursor_texture = nullptr;
         }
+        s_cursor_tex_w = s_cursor_tex_h = 0;
+        s_cursor_serial = 0xFFFFFFFFu;
+        s_cursor_have = false;
         ImGui_ImplSDLRenderer3_Shutdown();
         ImGui_ImplSDL3_Shutdown();
         ImGui::DestroyContext();
@@ -35,33 +42,52 @@ namespace {
         s_renderer = nullptr;
     }
 
-    // Retries every frame until the callback succeeds -- the cursor sprite
-    // sheet (frontend_sprite) isn't guaranteed loaded yet on early frames
-    // (see FeStyleGetCursorImage's frontend_sprite==NULL guard), so a
-    // failed attempt must not latch permanently or the cursor never
-    // appears for the rest of the session.
-    void ensure_cursor_texture()
+    // Polled every frame: the in-game provider returns the game's *current*
+    // pointer sprite (which changes), the frontend provider a fixed one
+    // (serial 0). Re-uploads the SDL texture only when `serial` or the
+    // dimensions change; recreates it when the size changes. A provider
+    // that isn't ready yet (frontend sprite sheet not loaded, in-game
+    // pointer hidden) returns false -- s_cursor_have goes false and no
+    // cursor is drawn that frame, and it keeps retrying.
+    void refresh_cursor_texture()
     {
-        if (s_cursor_texture != nullptr || s_cursor_image_fn == nullptr)
+        s_cursor_have = false;
+        if (s_cursor_image_fn == nullptr)
             return;
 
         ImGuiCursorImage img = {};
         if (!s_cursor_image_fn(&img) || img.rgba == nullptr || img.width <= 0 || img.height <= 0)
             return;
 
-        SDL_Texture *tex = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_RGBA32,
-            SDL_TEXTUREACCESS_STATIC, img.width, img.height);
-        if (tex == nullptr)
-            return;
-        SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
-        SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
-        SDL_UpdateTexture(tex, nullptr, img.rgba, img.width * 4);
+        if (s_cursor_texture == nullptr || img.width != s_cursor_tex_w || img.height != s_cursor_tex_h)
+        {
+            if (s_cursor_texture != nullptr)
+                SDL_DestroyTexture(s_cursor_texture);
+            s_cursor_texture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_RGBA32,
+                SDL_TEXTUREACCESS_STREAMING, img.width, img.height);
+            if (s_cursor_texture == nullptr)
+            {
+                s_cursor_tex_w = s_cursor_tex_h = 0;
+                return;
+            }
+            SDL_SetTextureBlendMode(s_cursor_texture, SDL_BLENDMODE_BLEND);
+            SDL_SetTextureScaleMode(s_cursor_texture, SDL_SCALEMODE_NEAREST);
+            s_cursor_tex_w = img.width;
+            s_cursor_tex_h = img.height;
+            s_cursor_serial = img.serial - 1u;   // force the upload below
+        }
+        if (img.serial != s_cursor_serial)
+        {
+            SDL_UpdateTexture(s_cursor_texture, nullptr, img.rgba, img.width * 4);
+            s_cursor_serial = img.serial;
+        }
 
-        s_cursor_texture = tex;
         s_cursor_w = img.width;
         s_cursor_h = img.height;
         s_cursor_hotspot_x = img.hotspot_x;
         s_cursor_hotspot_y = img.hotspot_y;
+        s_cursor_native_size = (img.native_size != 0);
+        s_cursor_have = true;
     }
 }
 
@@ -197,7 +223,7 @@ void ImGuiContextNewFrame(void)
     // isn't visible in practice.
     ImGuiIO &io = ImGui::GetIO();
     io.MouseDrawCursor = false;
-    ensure_cursor_texture();
+    refresh_cursor_texture();
     // docs/refactor/renderer/05-imgui-owned-menu-backdrop.md: found live,
     // "cursor only appears when hovering over menus, disappears over
     // background" -- WantCaptureMouse alone is only true over the actual
@@ -211,8 +237,19 @@ void ImGuiContextNewFrame(void)
     // draw the ImGui cursor unconditionally there -- there's no legacy
     // fallback left to defer to on any part of the screen.
     bool want_cursor = io.WantCaptureMouse || ImGuiContextScreenOwned();
-    if (want_cursor && s_cursor_texture != nullptr && s_cursor_h > 0)
+    if (want_cursor && s_cursor_have && s_cursor_texture != nullptr && s_cursor_h > 0)
     {
+        if (s_cursor_native_size)
+        {
+            // Already scaled to the game's own cursor size by the provider
+            // -- draw 1:1 so it matches the cursor over the 3D view exactly.
+            const ImVec2 pos(io.MousePos.x - (float)s_cursor_hotspot_x,
+                             io.MousePos.y - (float)s_cursor_hotspot_y);
+            ImGui::GetForegroundDrawList()->AddImage((ImTextureID)(intptr_t)s_cursor_texture,
+                pos, ImVec2(pos.x + (float)s_cursor_w, pos.y + (float)s_cursor_h));
+        }
+        else
+        {
         // The texture holds the sprite at its native pixel size (built
         // once, cached). This used to be rescaled through
         // scale_ui_value_lofi() -- the same legacy DK-asset scale
@@ -255,6 +292,7 @@ void ImGuiContextNewFrame(void)
         ImVec2 pos(io.MousePos.x - scaled_hot_x, io.MousePos.y - scaled_hot_y);
         ImGui::GetForegroundDrawList()->AddImage((ImTextureID)(intptr_t)s_cursor_texture,
             pos, ImVec2(pos.x + scaled_w, pos.y + scaled_h));
+        }
     }
 
     if (s_demo_visible)

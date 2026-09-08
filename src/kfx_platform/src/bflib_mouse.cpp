@@ -56,8 +56,16 @@ volatile TbBool lbMouseGrab = true;
 volatile TbBool lbMouseGrabbed = true;
 volatile TbDisplayStructEx lbDisplayEx;
 /******************************************************************************/
+static const struct TbSprite *lbMousePointerSprite = NULL;
+
+const struct TbSprite *LbMouseGetSprite(void)
+{
+  return lbMousePointerSprite;
+}
+
 TbResult LbMouseChangeSpriteAndHotspot(const struct TbSprite *pointerSprite, long hot_x, long hot_y)
 {
+  lbMousePointerSprite = pointerSprite;
 #if (BFDEBUG_LEVEL > 18)
   if (pointerSprite == NULL)
     SYNCLOG("Setting to %s","NONE");
@@ -167,6 +175,7 @@ TbResult LbMouseChangeSprite(const struct TbSprite *pointerSprite)
 #endif
   if (!lbMouseInstalled)
     return Lb_FAIL;
+  lbMousePointerSprite = pointerSprite;
   if (!pointerHandler.SetMousePointer(pointerSprite))
     return Lb_FAIL;
   return Lb_SUCCESS;

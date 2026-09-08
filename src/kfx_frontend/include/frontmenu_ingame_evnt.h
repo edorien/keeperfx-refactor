@@ -55,6 +55,10 @@ void turn_on_event_info_panel_if_necessary(EventIndex evidx);
 void activate_event_box(EventIndex evidx);
 void gui_next_battle(struct GuiButton *gbtn);
 void gui_previous_battle(struct GuiButton *gbtn);
+// Phase 3: the battle-box battler actions (act on the battle_creature_over
+// global; all ignore their GuiButton* arg) -- exposed for the ImGui box.
+void gui_get_creature_in_battle(struct GuiButton *gbtn);   // cast selected power / pick up
+void gui_go_to_person_in_battle(struct GuiButton *gbtn);   // zoom camera to it
 
 short zoom_to_fight(PlayerNumber plyr_idx);
 

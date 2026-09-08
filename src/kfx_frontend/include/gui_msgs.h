@@ -45,6 +45,9 @@ unsigned long expiration_turn;
 /******************************************************************************/
 void message_update(void);
 void message_draw(void);
+// Phase 3: panel-sprite index for message i's icon (colour-remapped where
+// the type needs it), -1 for none -- for the ImGui message overlay.
+short message_icon_spridx(int i);
 void zero_messages(void);
 void message_add(char type, short idx, const char *text);
 void message_add_custom_icon(short icon_idx, const char *text);

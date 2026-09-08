@@ -1,6 +1,9 @@
 # Stage 2 — 32-bit true-colour software renderer
 
-Status: **planning, not started.** Depends on [01-close-the-seam.md](01-close-the-seam.md). See
+Status: **complete.** `TbPixel` is now `struct { uint8_t r,g,b,a; }` (`bflib_video.h`),
+`lbDrawSurface` is `SDL_PIXELFORMAT_RGBA32`, the fade/ghost/alpha tables are real per-pixel blend
+math, and sprite data is expanded to RGBA per-draw. Depends on
+[01-close-the-seam.md](01-close-the-seam.md). See
 [00-overview.md](00-overview.md) for context, including why this is the direct fix for
 [`docs/refactor/gui/colordepth/00-notes.md`](../gui/colordepth/00-notes.md)'s one-palette-per-frame
 finding.
