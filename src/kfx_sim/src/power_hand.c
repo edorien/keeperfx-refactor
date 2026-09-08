@@ -571,7 +571,7 @@ void draw_power_hand(void)
     }
     // Now draw
     if (((kfx_sim_state.operation_flags & GOF_ShowGui) != 0) && (kfx_sim_state.small_map_state != 2)
-      && sim_feedback->mouse_is_over_panel_map(player->minimap_pos_x, player->minimap_pos_y))
+      && sim_feedback->mouse_is_over_panel_map(local_info.minimap_pos_x, local_info.minimap_pos_y))
     {
         MapSubtlCoord stl_x;
         MapSubtlCoord stl_y;

@@ -327,8 +327,14 @@ struct BucketKindRoomFlag { // BasicQ type 17,19
 
 
 
+/* Corner slot holding the ceiling vertex. Slots 0..COLUMN_STACK_HEIGHT belong to the
+   cubes of a column and the abyss walls own the slots above them, so the ceiling needs
+   a slot of its own past both. Sharing slot COLUMN_STACK_HEIGHT with the cubes made a
+   column with every cube filled draw its top face and topmost side at ceiling height. */
+#define ENGINE_COL_CEILING_CORNER (COLUMN_STACK_HEIGHT + ABYSS_WALL_RENDER_HEIGHT + 3)
+
 struct EngineCol {
-    struct EngineCoord cors[COLUMN_STACK_HEIGHT + ABYSS_WALL_RENDER_HEIGHT + 3];
+    struct EngineCoord cors[ENGINE_COL_CEILING_CORNER + 1];
 };
 
 struct SideOri {
@@ -662,16 +668,14 @@ static long compute_cells_away(void) // For overhead view, not for 1st person vi
     int32_t ymax;
     int32_t xcell;
     int32_t ycell;
-    struct PlayerInfo *player;
     long ncells_a;
-    player = get_my_player();
-    half_width = (player->engine_window_width >> 1);
-    half_height = (player->engine_window_height >> 1);
-    xcell = ((half_width<<1) + (half_width>>4))/pixel_size - player->engine_window_x/pixel_size;
-    ycell = ((8 * high_offset[1]) >> 8) - (half_width>>4)/pixel_size - player->engine_window_y/pixel_size;
+    half_width = (local_info.engine_window_width >> 1);
+    half_height = (local_info.engine_window_height >> 1);
+    xcell = ((half_width<<1) + (half_width>>4))/pixel_size - local_info.engine_window_x/pixel_size;
+    ycell = ((8 * high_offset[1]) >> 8) - (half_width>>4)/pixel_size - local_info.engine_window_y/pixel_size;
     get_floor_pointed_at(xcell, ycell, &xmax, &ymax);
-    xcell = (half_width)/pixel_size - player->engine_window_x/pixel_size;
-    ycell = (half_height)/pixel_size - player->engine_window_y/pixel_size;
+    xcell = (half_width)/pixel_size - local_info.engine_window_x/pixel_size;
+    ycell = (half_height)/pixel_size - local_info.engine_window_y/pixel_size;
     get_floor_pointed_at(xcell, ycell, &xmin, &ymin);
     xcell = abs(ymax - ymin);
     ycell = abs(xmax - xmin);
@@ -1179,7 +1183,7 @@ static void fill_in_points_perspective(struct Camera *cam, long bstl_x, long bst
         {
             wibl = get_wibble_from_table(cam, wib_x + 2 * (hmax + 2 * wib_y - hmin) + 32, stl_x, stl_y);
         }
-        ecord = &ecol->cors[8];
+        ecord = &ecol->cors[ENGINE_COL_CEILING_CORNER];
         {
             ecord->x = apos + wibl->offset_x;
             ecord->y = hpos + wibl->offset_y;
@@ -1748,14 +1752,13 @@ static void create_box_coords(struct EngineCoord *coord, long x, long z, long y)
 
 static void do_perspective_rotation(long x, long y, long z)
 {
-    struct PlayerInfo *player = get_my_player();
     struct EngineCoord epos;
     long zoom;
     long engine_w;
     long engine_h;
     zoom = camera_zoom / pixel_size;
-    engine_w = player->engine_window_width/pixel_size;
-    engine_h = player->engine_window_height/pixel_size;
+    engine_w = local_info.engine_window_width/pixel_size;
+    engine_h = local_info.engine_window_height/pixel_size;
     epos.x = -x;
     epos.y = 0;
     epos.z = y;
@@ -2468,8 +2471,8 @@ static void fiddle_gamut(long pos_x, long pos_y)
     case PVM_IsoWibbleView:
     case PVM_IsoStraightView:
         // Retrieve coordinates on limiting map points
-        ewwidth = player->engine_window_width / pixel_size;
-        ewheight = player->engine_window_height / pixel_size - ((8 * high_offset[1]) >> 8);
+        ewwidth = local_info.engine_window_width / pixel_size;
+        ewheight = local_info.engine_window_height / pixel_size - ((8 * high_offset[1]) >> 8);
         ewzoom = (768 * (camera_zoom/pixel_size)) >> 17;
         fiddle_gamut_find_limits(floor_x, floor_y, ewwidth, ewheight, ewzoom);
         // Place the area at proper base coords
@@ -4405,7 +4408,7 @@ static void do_a_plane_of_engine_columns_perspective(long stl_x, long stl_y, lon
         // Draw the universal ceiling on top of the columns
         TbBool edge_abyss = abyss && ((center_x == 1) || (center_x == kfx_sim_state.map_subtiles_x - 1) || (stl_y == 1) || (stl_y == kfx_sim_state.map_subtiles_y - 1));
         if (!edge_abyss) {
-            ecpos = 8;
+            ecpos = ENGINE_COL_CEILING_CORNER;
             textr_idx = floor_to_ceiling_map[colmn->floor_texture * !abyss];
             textr_idx = engine_remap_texture_blocks(center_x, stl_y, textr_idx);
             do_a_trig_gourad_tr(&fec[0].cors[ecpos], &fec[1].cors[ecpos], &bec[1].cors[ecpos], textr_idx, -1);
@@ -5791,9 +5794,8 @@ static void draw_stripey_line(long x1,long y1,long x2,long y2,unsigned char line
     unsigned char color_index = get_gameturn() & 0xf;
 
     // get engine window width and height
-    struct PlayerInfo *player = get_my_player();
-    long relative_window_width = ((player->engine_window_width * 256) / (pixel_size * 256)) - 1;
-    long relative_window_height = ((player->engine_window_height * 256) / (pixel_size * 256)) - 1;
+    long relative_window_width = ((local_info.engine_window_width * 256) / (pixel_size * 256)) - 1;
+    long relative_window_height = ((local_info.engine_window_height * 256) / (pixel_size * 256)) - 1;
 
     // Bresenham’s Line Drawing Algorithm - handles all octants
     // A and B are relative, and are set to be either X (shallow curves) or Y (steep curves).
@@ -6002,15 +6004,13 @@ static void draw_stripey_line(long x1,long y1,long x2,long y2,unsigned char line
  * resolved TbPixel. */
 static void draw_clipped_line(long x1, long y1, long x2, long y2, unsigned char color)
 {
-    struct PlayerInfo *player;
     if ((x1 >= 0) || (x2 >= 0))
     {
       if ((y1 >= 0) || (y2 >= 0))
       {
-        player = get_my_player();
-        if ((x1 < player->engine_window_width) || (x2 < player->engine_window_width))
+        if ((x1 < local_info.engine_window_width) || (x2 < local_info.engine_window_width))
         {
-          if ((y1 < player->engine_window_height) || (y2 < player->engine_window_height))
+          if ((y1 < local_info.engine_window_height) || (y2 < local_info.engine_window_height))
           {
             draw_stripey_line(x1, y1, x2, y2, color);
           }
@@ -7319,8 +7319,8 @@ static TbBool project_point_helper(struct PlayerInfo *player, int zoom, MapCoord
 {
     int vertical_shift;
     int64_t new_zoom;
-    short window_width = player->engine_window_width;
-    short window_height = player->engine_window_height;
+    short window_width = local_info.engine_window_width;
+    short window_height = local_info.engine_window_height;
 
     *x_out = (zoom * horizontal_delta >> 16) + (*(uint16_t *)&window_width / 2);
     vertical_shift = zoom * vertical_delta >> 8;
@@ -7610,7 +7610,7 @@ static void draw_element(struct Map *map, long lightness, long stl_x, long stl_y
     myplyr = get_my_player();
     cube_itm = (qdrant + 2) & 3;
     delta_y = (zoom << 7) / 256;
-    bckt_idx = myplyr->engine_window_height - (pos_y >> 8) + FRONTVIEW_BUCKET_MARGIN;
+    bckt_idx = local_info.engine_window_height - (pos_y >> 8) + FRONTVIEW_BUCKET_MARGIN;
     // Check if there's enough place to draw
     if (!is_free_space_in_poly_pool(8))
       return;
@@ -9290,8 +9290,8 @@ void draw_frontview_engine(struct Camera *cam)
     cam->zoom = camera_zoom;//TODO [zoom] remove when all cam->zoom will be changed to camera_zoom
     cam_x = cam->mappos.x.val;
     cam_y = cam->mappos.y.val;
-    kfx_render_state.pointer_x = (sim_feedback->GetMouseX() - player->engine_window_x) / pixel_size;
-    kfx_render_state.pointer_y = (sim_feedback->GetMouseY() - player->engine_window_y) / pixel_size;
+    kfx_render_state.pointer_x = (sim_feedback->GetMouseX() - local_info.engine_window_x) / pixel_size;
+    kfx_render_state.pointer_y = (sim_feedback->GetMouseY() - local_info.engine_window_y) / pixel_size;
     LbScreenStoreGraphicsWindow(&grwnd);
     store_engine_window(&ewnd,pixel_size);
     LbScreenSetGraphicsWindow(ewnd.x, ewnd.y, ewnd.width, ewnd.height);
@@ -9577,8 +9577,8 @@ void engine(struct PlayerInfo *player, struct Camera *cam)
     mx = cam->mappos.x.val;
     my = cam->mappos.y.val;
     mz = cam->mappos.z.val;
-    kfx_render_state.pointer_x = (sim_feedback->GetMouseX() - player->engine_window_x) / pixel_size;
-    kfx_render_state.pointer_y = (sim_feedback->GetMouseY() - player->engine_window_y) / pixel_size;
+    kfx_render_state.pointer_x = (sim_feedback->GetMouseX() - local_info.engine_window_x) / pixel_size;
+    kfx_render_state.pointer_y = (sim_feedback->GetMouseY() - local_info.engine_window_y) / pixel_size;
     lens = cam->horizontal_fov * scale_value_by_horizontal_resolution(4) / pixel_size;
     if (lens_mode == 0)
         update_blocks_pointed();

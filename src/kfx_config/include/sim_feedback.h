@@ -28,6 +28,7 @@
 #include "bflib_basics.h"
 #include "bflib_sound.h"
 #include "bflib_keybrd.h"
+#include "bflib_netsp.h"
 #include "bflib_video.h"
 #include "globals.h"
 
@@ -281,7 +282,7 @@ struct SimFeedbackCallbacks {
     unsigned short (*get_zoom_key_room_order)(long idx);
 
     /* net_exchange_gameplay.h */
-    const struct Packet *(*get_history_packet)(PlayerNumber player, GameTurn turn);
+    const struct Packet *(*get_history_packet)(NetUserId user, GameTurn turn);
 
     /* lens_api.h */
     void (*setup_eye_lens)(long nlens);

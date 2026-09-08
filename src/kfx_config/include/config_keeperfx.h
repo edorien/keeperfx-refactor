@@ -126,6 +126,7 @@ struct StartupParameters {
     char config_file[CMDLN_MAXLEN+1];
     GameTurn pause_at_gameturn;
     unsigned char startup_flags;
+    TbBool skip_heart_zoom;
     // Moved from main.cpp (2026-08-29, docs/refactor/todo/
     // check-layering-symbol-level-blind-spot.md) -- cmdline-parsed
     // process-startup config, same shape as this struct's other fields;

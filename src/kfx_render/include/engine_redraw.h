@@ -51,7 +51,7 @@ void smooth_screen_area(TbPixel *a1, long a2, long a3, long a4, long a5, long a6
 
 int get_place_terrain_pointer_graphics(SlabKind skind);
 
-TbBool players_cursor_is_at_top_of_view(struct PlayerInfo *player);
+TbBool players_cursor_is_at_top_of_view(void);
 TbBool engine_point_to_map(struct Camera *camera, long screen_x, long screen_y, int32_t *map_x, int32_t *map_y);
 TbBool screen_to_map(struct Camera *camera, int32_t screen_x, int32_t screen_y, struct Coord3d *mappos);
 void update_local_mouse_light(void);

@@ -18,6 +18,7 @@
 #define DK_RENDER_OVERLAY_H
 
 #include "bflib_basics.h"
+#include "bflib_netsp.h"
 #include "globals.h"
 
 #ifdef __cplusplus
@@ -84,9 +85,7 @@ struct RenderOverlayCallbacks {
     void (*process_first_person_look)(struct Thing *thing, const struct Packet *pckt, long current_horizontal, long current_vertical, long *out_horizontal, long *out_vertical, long *out_roll);
     void (*process_camera_controls)(struct Camera *cam, const struct Packet *pckt, struct PlayerInfo *player, TbBool is_local_camera);
     void (*process_camera_action)(struct Camera *cams, const struct Packet *pckt);
-    struct Packet *(*get_packet)(long plyr_idx);
-    struct Packet *(*get_packet_direct)(long pckt_idx);
-    const struct Packet *(*get_history_packet)(PlayerNumber player, GameTurn turn);
+    const struct Packet *(*get_history_packet)(NetUserId user, GameTurn turn);
     void (*set_packet_control)(struct Packet *pckt, unsigned long flag);
 
     /* frontend.h -- called from kfx_render's vidmode.c (video-mode

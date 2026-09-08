@@ -606,8 +606,6 @@ TbBool load_settings(void)
     settings.video_rotate_mode = clamp(settings.video_rotate_mode, 0, 2);
     settings.video_textures = clamp(settings.video_textures, 0, 1);
     settings.video_cluedo_mode = clamp(settings.video_cluedo_mode, 0, 1);
-    settings.sound_volume = clamp(settings.sound_volume, 0, FULL_LOUDNESS);
-    settings.music_volume = clamp(settings.music_volume, 0, FULL_LOUDNESS);
     settings.mentor_volume = clamp(settings.mentor_volume, 0, FULL_LOUDNESS);
     settings.gamma_correction = clamp(settings.gamma_correction, 0, GAMMA_LEVELS_COUNT);
     settings.first_person_move_sensitivity = clamp(settings.first_person_move_sensitivity, 0, 1000);

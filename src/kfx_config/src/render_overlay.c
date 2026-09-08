@@ -33,9 +33,7 @@ static TbBool noop_can_process_creature_input(struct Thing *thing) { return fals
 static void noop_process_first_person_look(struct Thing *thing, const struct Packet *pckt, long current_horizontal, long current_vertical, long *out_horizontal, long *out_vertical, long *out_roll) {}
 static void noop_process_camera_controls(struct Camera *cam, const struct Packet *pckt, struct PlayerInfo *player, TbBool is_local_camera) {}
 static void noop_process_camera_action(struct Camera *cams, const struct Packet *pckt) {}
-static struct Packet *noop_get_packet(long plyr_idx) { return NULL; }
-static struct Packet *noop_get_packet_direct(long pckt_idx) { return NULL; }
-static const struct Packet *noop_get_history_packet(PlayerNumber player, GameTurn turn) { return NULL; }
+static const struct Packet *noop_get_history_packet(NetUserId user, GameTurn turn) { return NULL; }
 static void noop_set_packet_control(struct Packet *pckt, unsigned long flag) {}
 static long noop_light_create_light(struct InitLight *ilght) { return 0; }
 static void noop_light_set_attached_slab(long lgt_id, SlabCodedCoords slb_num) {}
@@ -76,8 +74,6 @@ static const struct RenderOverlayCallbacks default_render_overlay = {
     &noop_process_first_person_look,
     &noop_process_camera_controls,
     &noop_process_camera_action,
-    &noop_get_packet,
-    &noop_get_packet_direct,
     &noop_get_history_packet,
     &noop_set_packet_control,
 

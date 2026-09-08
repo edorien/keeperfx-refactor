@@ -190,7 +190,6 @@ static void draw_creature_view_icons(struct Thing* creatng)
 void setup_engine_window(long x, long y, long width, long height)
 {
     SYNCDBG(6,"Starting for size (%ld,%ld) at (%ld,%ld)",width,height,x,y);
-    struct PlayerInfo* player = get_my_player();
     long status_panel_width_local = render_overlay->get_status_panel_width();
     if ((kfx_sim_state.operation_flags & GOF_ShowGui) != 0)
     {
@@ -217,38 +216,36 @@ void setup_engine_window(long x, long y, long width, long height)
       height = MyScreenHeight-y;
     if (height < 0)
       height = 0;
-    player->engine_window_x = x;
-    player->engine_window_y = y;
-    player->engine_window_width = width;
-    player->engine_window_height = height;
+    local_info.engine_window_x = x;
+    local_info.engine_window_y = y;
+    local_info.engine_window_width = width;
+    local_info.engine_window_height = height;
 }
 
 void store_engine_window(TbGraphicsWindow *ewnd,int divider)
 {
-    struct PlayerInfo* player = get_my_player();
     if (divider <= 1)
     {
-        ewnd->x = player->engine_window_x;
-        ewnd->y = player->engine_window_y;
-        ewnd->width = player->engine_window_width;
-        ewnd->height = player->engine_window_height;
+        ewnd->x = local_info.engine_window_x;
+        ewnd->y = local_info.engine_window_y;
+        ewnd->width = local_info.engine_window_width;
+        ewnd->height = local_info.engine_window_height;
     } else
     {
-        ewnd->x = player->engine_window_x/divider;
-        ewnd->y = player->engine_window_y/divider;
-        ewnd->width = player->engine_window_width/divider;
-        ewnd->height = player->engine_window_height/divider;
+        ewnd->x = local_info.engine_window_x/divider;
+        ewnd->y = local_info.engine_window_y/divider;
+        ewnd->width = local_info.engine_window_width/divider;
+        ewnd->height = local_info.engine_window_height/divider;
     }
     ewnd->ptr = NULL;
 }
 
 void load_engine_window(TbGraphicsWindow *ewnd)
 {
-    struct PlayerInfo* player = get_my_player();
-    player->engine_window_x = ewnd->x;
-    player->engine_window_y = ewnd->y;
-    player->engine_window_width = ewnd->width;
-    player->engine_window_height = ewnd->height;
+    local_info.engine_window_x = ewnd->x;
+    local_info.engine_window_y = ewnd->y;
+    local_info.engine_window_width = ewnd->width;
+    local_info.engine_window_height = ewnd->height;
 }
 
 /* fade_tbl/ghost_tbl (the palette-index render_fade_tables/map_fade_ghost_table
@@ -558,7 +555,7 @@ void redraw_creature_view(void)
     }
     render_overlay->draw_gui();
     if ((kfx_sim_state.operation_flags & GOF_ShowGui) != 0) {
-        draw_overlay_compass(player->minimap_pos_x, player->minimap_pos_y);
+        draw_overlay_compass(local_info.minimap_pos_x, local_info.minimap_pos_y);
     }
     render_overlay->message_draw();
     render_overlay->gui_draw_all_boxes();
@@ -616,7 +613,7 @@ void redraw_isometric_view(void)
     }
     render_overlay->draw_gui();
     if ((kfx_sim_state.operation_flags & GOF_ShowGui) != 0) {
-        draw_overlay_compass(player->minimap_pos_x, player->minimap_pos_y);
+        draw_overlay_compass(local_info.minimap_pos_x, local_info.minimap_pos_y);
     }
     render_overlay->message_draw();
     render_overlay->gui_draw_all_boxes();
@@ -638,7 +635,7 @@ void redraw_frontview(void)
     }
     render_overlay->draw_gui();
     if (flag_is_set(kfx_sim_state.operation_flags,GOF_ShowGui)) {
-        draw_overlay_compass(player->minimap_pos_x, player->minimap_pos_y);
+        draw_overlay_compass(local_info.minimap_pos_x, local_info.minimap_pos_y);
     }
     render_overlay->message_draw();
     draw_power_hand();
@@ -729,7 +726,7 @@ void process_dungeon_top_pointer_graphic(struct PlayerInfo *player)
         return;
     }
     // Mouse over panel map
-    if (((kfx_sim_state.operation_flags & GOF_ShowGui) != 0) && sim_feedback->mouse_is_over_panel_map(player->minimap_pos_x, player->minimap_pos_y))
+    if (((kfx_sim_state.operation_flags & GOF_ShowGui) != 0) && sim_feedback->mouse_is_over_panel_map(local_info.minimap_pos_x, local_info.minimap_pos_y))
     {
         if (kfx_sim_state.small_map_state == 2) {
             set_pointer_graphic(MousePG_Invisible);
@@ -963,11 +960,11 @@ void redraw_display(void)
         break;
     case PVM_ParchFadeIn:
         render_overlay->set_parchment_loaded(0);
-        player->palette_fade_step_map = map_fade_in(player->palette_fade_step_map);
+        local_info.palette_fade_step_map = map_fade_in(local_info.palette_fade_step_map);
         break;
     case PVM_ParchFadeOut:
         render_overlay->set_parchment_loaded(0);
-        player->palette_fade_step_map = map_fade_out(player->palette_fade_step_map);
+        local_info.palette_fade_step_map = map_fade_out(local_info.palette_fade_step_map);
         break;
     default:
         ERRORLOG("Unsupported drawing state, %d",(int)player->view_mode);
@@ -1033,7 +1030,7 @@ void redraw_display(void)
               player->view_mode == PVM_IsoStraightView ||
               player->view_mode == PVM_CreatureView
           ) {
-              pos_x = player->engine_window_x + (MyScreenWidth - w - player->engine_window_x) / 2;
+              pos_x = local_info.engine_window_x + (MyScreenWidth - w - local_info.engine_window_x) / 2;
           } else {
               pos_x = (MyScreenWidth-w)/2;
           }
@@ -1100,12 +1097,11 @@ void redraw_display(void)
 TbBool keeper_screen_redraw(void)
 {
     SYNCDBG(5,"Starting");
-    struct PlayerInfo* player = get_my_player();
     RendererClearScreen(144);
     if (RendererLockFramebuffer() == Lb_SUCCESS)
     {
-        setup_engine_window(player->engine_window_x, player->engine_window_y,
-            player->engine_window_width, player->engine_window_height);
+        setup_engine_window(local_info.engine_window_x, local_info.engine_window_y,
+            local_info.engine_window_width, local_info.engine_window_height);
         redraw_display();
         RendererUnlockFramebuffer();
         return true;
@@ -1178,8 +1174,19 @@ int get_place_terrain_pointer_graphics(SlabKind skind)
     return result;
 }
 
-TbBool players_cursor_is_at_top_of_view(struct PlayerInfo *player)
+/** Returns if cursor for local player is at top of the dungeon in 3D view.
+ *  Cursor placed at top of dungeon is marked by green/red "volume box";
+ *   if there's no volume box, cursor should be of the field behind it
+ *   (the exact field in a line of view through cursor). If cursor is at top
+ *   of view, then pointed map field is a bit lower than the line of view
+ *   through cursor.
+ *
+ *  This function reverse-engineers the decisions made by
+ *  get_player_coords_and_context() (front_input.c).
+ */
+TbBool players_cursor_is_at_top_of_view(void)
 {
+    const struct PlayerInfo *const player = get_my_player();
     switch (player->work_state)
     {
     case PSt_BuildRoom:
@@ -1205,7 +1212,7 @@ TbBool players_cursor_is_at_top_of_view(struct PlayerInfo *player)
                 return true;
 
             case CSt_PowerHand:
-                return (player->thing_under_hand == 0)
+                return (local_thing_under_hand == 0)
                     || (! power_hand_is_empty(player));
         }
     }
@@ -1214,14 +1221,13 @@ TbBool players_cursor_is_at_top_of_view(struct PlayerInfo *player)
 
 TbBool engine_point_to_map(struct Camera *camera, long screen_x, long screen_y, int32_t *map_x, int32_t *map_y)
 {
-    struct PlayerInfo *player = get_my_player();
     *map_x = 0;
     *map_y = 0;
     if ( (kfx_render_state.pointer_x >= 0) && (kfx_render_state.pointer_y >= 0)
-      && (kfx_render_state.pointer_x < (player->engine_window_width/pixel_size))
-      && (kfx_render_state.pointer_y < (player->engine_window_height/pixel_size)) )
+      && (kfx_render_state.pointer_x < (local_info.engine_window_width/pixel_size))
+      && (kfx_render_state.pointer_y < (local_info.engine_window_height/pixel_size)) )
     {
-        if ( players_cursor_is_at_top_of_view(player) )
+        if ( players_cursor_is_at_top_of_view() )
         {
               *map_x = subtile_coord(kfx_render_state.top_pointed_at_x,kfx_render_state.top_pointed_at_frac_x);
               *map_y = subtile_coord(kfx_render_state.top_pointed_at_y,kfx_render_state.top_pointed_at_frac_y);
@@ -1337,9 +1343,9 @@ void update_mouse_light(struct PlayerInfo *player)
     const struct Packet *pckt = NULL;
 
     if (is_my_player(player))
-        pckt = sim_feedback->get_history_packet(player->packet_num, get_gameturn());
+        pckt = sim_feedback->get_history_packet(player->user_id, get_gameturn());
     if (pckt == NULL)
-        pckt = get_packet_direct(player->packet_num);
+        pckt = get_packet(player->user_id);
 
     const TbBool valid = (pckt->control_flags & PCtr_MapCoordsValid) != 0;
     struct Coord3d pos;

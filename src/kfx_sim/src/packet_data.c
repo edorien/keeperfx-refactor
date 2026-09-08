@@ -36,30 +36,39 @@ struct Packet sim_packets[PACKETS_COUNT];
 struct Packet bad_packet;
 
 /**
- * Gives a pointer for the player's packet.
- * @param plyr_idx The player index for which we want the packet.
- * @return Returns Packet pointer. On error, returns a dummy structure.
+ * Gives the network user id of the local player. Defined purely in terms
+ * of kfx_sim's own state (my_player_number/PlayerInfo.user_id) rather
+ * than reading kfx_net's netstate directly (kfx_net is above kfx_sim) --
+ * player->user_id is kept correct in both modes: set to SOLO_HUMAN_ID by
+ * stop_network_game_state() and to the real NetUserId by
+ * setup_players_from_startup_packets(), so this needs no network-mode
+ * branch of its own.
+ * @return The local player's associated NetUserId.
  */
-struct Packet *get_packet(long plyr_idx)
+NetUserId get_local_user(void)
 {
-    struct PlayerInfo* player = get_player(plyr_idx);
-    if (player_invalid(player))
-        return INVALID_PACKET;
-    if (player->packet_num >= PACKETS_COUNT)
-        return INVALID_PACKET;
-    return &sim_packets[player->packet_num];
+    return get_player(my_player_number)->user_id;
 }
 
 /**
- * Gives a pointer to packet of given index.
- * @param pckt_idx Packet index in the array. Note that it may differ from player index.
+ * Gives a pointer to the local player's packet.
  * @return Returns Packet pointer. On error, returns a dummy structure.
  */
-struct Packet *get_packet_direct(long pckt_idx)
+struct Packet *get_local_packet(void)
 {
-    if ((pckt_idx < 0) || (pckt_idx >= PACKETS_COUNT))
+    return get_packet(get_local_user());
+}
+
+/**
+ * Gives a pointer to the packet of a given network user.
+ * @param user Network user id. Note that it may differ from the player index.
+ * @return Returns Packet pointer. On error, returns a dummy structure.
+ */
+struct Packet *get_packet(NetUserId user)
+{
+    if ((user < 0) || (user >= PACKETS_COUNT))
         return INVALID_PACKET;
-    return &sim_packets[pckt_idx];
+    return &sim_packets[user];
 }
 
 void set_packet_action(struct Packet *pckt, unsigned char pcktype, long par1, long par2, unsigned short par3, unsigned short par4)
@@ -74,7 +83,7 @@ void set_packet_action(struct Packet *pckt, unsigned char pcktype, long par1, lo
 void set_players_packet_action(struct PlayerInfo *player, unsigned char pcktype,
         unsigned long par1, unsigned long par2, unsigned short par3, unsigned short par4)
 {
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet(player->user_id);
     pckt->actn_par1 = par1;
     pckt->actn_par2 = par2;
     pckt->actn_par3 = par3;

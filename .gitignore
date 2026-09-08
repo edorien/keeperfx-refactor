@@ -90,3 +90,4 @@ debug.log
 .local/
 .vscode/compile_and_copy_files.ps1
 third_party/
+/keeperfx_vs2010

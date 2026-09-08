@@ -29,6 +29,7 @@
 
 #include "bflib_basics.h"
 #include "bflib_keybrd.h"
+#include "bflib_netsp.h"
 #include "globals.h"
 #include "player_data.h"
 #include "packet_data.h"
@@ -83,12 +84,12 @@ void force_application_close(void);
 TbBool is_mouse_on_map(struct Packet* pckt);
 void remember_cursor_subtile(struct PlayerInfo *player);
 struct Thing *get_thing_under_hand(struct PlayerInfo *player, MapCoord x, MapCoord y);
-TbBool process_dungeon_control_packet_clicks(long idx);
-TbBool process_players_dungeon_control_packet_action(long idx);
-void process_players_creature_control_packet_control(long idx);
-void process_players_creature_passenger_packet_action(long idx);
-void process_players_creature_control_packet_action(long idx);
-void process_map_packet_clicks(long idx);
+TbBool process_dungeon_control_packet_clicks(NetUserId user);
+TbBool process_user_dungeon_control_packet_action(NetUserId user);
+void process_user_creature_control_packet_control(NetUserId user);
+void process_user_creature_passenger_packet_action(NetUserId user);
+void process_user_creature_control_packet_action(NetUserId user);
+void process_map_packet_clicks(NetUserId user);
 void process_pause_packet(long a1, long a2);
 void process_camera_controls(struct Camera* cam, const struct Packet* pckt, struct PlayerInfo* player, TbBool is_local_camera);
 void process_camera_action(struct Camera *cams, const struct Packet *pckt);

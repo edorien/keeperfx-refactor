@@ -111,7 +111,7 @@ static GameTurn noop_get_play_gameturn(void) { return 0; }
 static void noop_update_time(void) {}
 static struct GameTime noop_get_game_time(unsigned long turns, unsigned long fps) { struct GameTime t = {0,0,0}; return t; }
 static unsigned short noop_get_zoom_key_room_order(long idx) { return 0; }
-static const struct Packet *noop_get_history_packet(PlayerNumber player, GameTurn turn) { return NULL; }
+static const struct Packet *noop_get_history_packet(NetUserId user, GameTurn turn) { return NULL; }
 static void noop_setup_eye_lens(long nlens) {}
 static TbBool noop_lens_is_ready(void) { return false; }
 static TbPixel *noop_lens_get_render_target(void) { return NULL; }

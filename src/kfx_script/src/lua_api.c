@@ -393,6 +393,11 @@ static int lua_Set_next_level(lua_State *L)
     }
 
     intralvl.next_level = lvnum;
+    if (is_bonus_level(kfx_sim_state.loaded_level_number) || is_extra_level(kfx_sim_state.loaded_level_number))
+    {
+        // Allow bonus levels to advance the campaign
+        set_continue_level_number(intralvl.next_level);
+    }
     return 0;
 }
 
@@ -880,11 +885,50 @@ static int lua_Display_variable(lua_State *L)
     int target = luaL_optinteger(L,3,0);
     unsigned char target_type = luaL_optinteger(L,4,0);
 
-    kfx_game_state.script_variable_player = player;
-    kfx_game_state.script_value_type = varib_type;
-    kfx_game_state.script_value_id = varib_id;
-    kfx_game_state.script_variable_target = target;
-    kfx_game_state.script_variable_target_type = target_type;
+    for (int i = DISPLAY_VARIABLES_LIMIT - 1; i > 0; i--)
+    {
+        memcpy(&kfx_game_state.script_variables[i], &kfx_game_state.script_variables[i-1], sizeof(struct ScriptVariable));
+    }
+    kfx_game_state.script_variables[0].variable_player = player;
+    kfx_game_state.script_variables[0].value_type = varib_type;
+    kfx_game_state.script_variables[0].value_id = varib_id;
+    kfx_game_state.script_variables[0].variable_target = target;
+    kfx_game_state.script_variables[0].variable_target_type = target_type;
+
+    kfx_game_state.script_variables[0].include_icon = false;
+    kfx_game_state.script_variables[0].icon_idx = -1;
+    if (kfx_game_state.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
+        kfx_game_state.active_script_var_count++;
+    }
+
+    kfx_game_state.flags_gui |= GGUI_Variable;
+
+    return 0;
+}
+
+
+static int lua_DISPLAY_VARIABLE_WITH_LABEL(lua_State *L)
+{
+    PlayerNumber player   = luaL_checkPlayerSingle(L, 1);
+    int32_t varib_id, varib_type;
+    luaL_checkVariable(L, 2, &varib_id, &varib_type);
+    for (int i = DISPLAY_VARIABLES_LIMIT - 1; i > 0; i--)
+    {
+        memcpy(&kfx_game_state.script_variables[i], &kfx_game_state.script_variables[i-1], sizeof(struct ScriptVariable));
+    }
+
+    short id;
+    char type;
+    luaL_checkMessageIcon(L, 3, &type, &id);
+    kfx_game_state.script_variables[0].variable_player = player;
+    kfx_game_state.script_variables[0].value_type = varib_type;
+    kfx_game_state.script_variables[0].value_id = varib_id;
+    kfx_game_state.script_variables[0].include_icon = true;
+    kfx_game_state.script_variables[0].icon_idx = id;
+    if (kfx_game_state.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
+        kfx_game_state.active_script_var_count++;
+    }
+
     kfx_game_state.flags_gui |= GGUI_Variable;
 
     return 0;
@@ -892,6 +936,8 @@ static int lua_Display_variable(lua_State *L)
 
 static int lua_Hide_variable(lua_State *L)
 {
+    memset(kfx_game_state.script_variables, 0, sizeof(kfx_game_state.script_variables));
+    kfx_game_state.active_script_var_count = 0;
     kfx_game_state.flags_gui &= ~GGUI_Variable;
     return 0;
 }
@@ -2474,6 +2520,7 @@ static const luaL_Reg global_methods[] = {
    {"TutorialFlashButton"                   ,lua_Tutorial_flash_button           },
    {"DisplayCountdown"                      ,lua_Display_countdown               },
    {"DisplayVariable"                       ,lua_Display_variable                },
+   {"DisplayVariableWithLabel"              ,lua_DISPLAY_VARIABLE_WITH_LABEL     },
    {"HideVariable"                          ,lua_Hide_variable                   },
 
 //Manipulating Map

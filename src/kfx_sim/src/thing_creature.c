@@ -363,14 +363,13 @@ TbBool load_swipe_graphic_for_creature(const struct Thing *thing)
 /**
  * Randomise the draw direction of the swipe sprite in the first-person possession view.
  *
- * Sets PlayerInfo->swipe_sprite_drawLR to either TRUE or FALSE.
+ * Sets local_info.swipe_sprite_drawLR to either TRUE or FALSE.
  *
  * Draw direction is either: left-to-right (TRUE) or right-to-left (FALSE)
  */
 void randomise_swipe_graphic_direction()
 {
-    struct PlayerInfo* myplyr = get_my_player();
-    myplyr->swipe_sprite_drawLR = UNSYNC_RANDOM(2); // equal chance to be left-to-right or right-to-left
+    local_info.swipe_sprite_drawLR = UNSYNC_RANDOM(2); // equal chance to be left-to-right or right-to-left
 }
 
 void draw_swipe_graphic(void)
@@ -405,13 +404,13 @@ void draw_swipe_graphic(void)
             int scrpos_y = (MyScreenHeight * 16 / units_per_px - (startspr->SHeight + endspr->SHeight)) / 2;
             const struct TbSprite *spr;
             int scrpos_x;
-            if (myplyr->swipe_sprite_drawLR)
+            if (local_info.swipe_sprite_drawLR)
             {
                 int delta_y = sprlist[1].SHeight;
                 for (i=0; i < SWIPE_SPRITES_X*SWIPE_SPRITES_Y; i+=SWIPE_SPRITES_X)
                 {
                     spr = &startspr[i];
-                    scrpos_x = ((MyScreenWidth + (2 * myplyr->engine_window_x)) * 16 / units_per_px - allwidth)/ 2;
+                    scrpos_x = ((MyScreenWidth + (2 * local_info.engine_window_x)) * 16 / units_per_px - allwidth)/ 2;
                     for (n=0; n < SWIPE_SPRITES_X; n++)
                     {
                         LbSpriteDrawResized(scrpos_x * units_per_px / 16, scrpos_y * units_per_px / 16, units_per_px, spr);
@@ -1092,7 +1091,7 @@ TbBool set_thing_spell_flags_f(struct Thing *thing, SpellKind spell_idx, GameTur
         {
             set_flag(cctrl->spell_flags, CSAfF_Freeze);
             set_flag(cctrl->stateblock_flags, CCSpl_Freeze);
-            if ((thing->movement_flags & TMvF_Flying) != 0)
+            if ((thing->movement_flags & TMvF_Flying) != 0 || (creature_is_being_unconscious(thing) && (crconf->flying || creature_under_spell_effect(thing, CSAfF_Flying))))
             {
                 set_flag(thing->movement_flags, TMvF_Grounded);
                 clear_flag(thing->movement_flags, TMvF_Flying);
@@ -1326,7 +1325,9 @@ TbBool clear_thing_spell_flags_f(struct Thing *thing, unsigned long spell_flags,
         clear_flag(cctrl->stateblock_flags, CCSpl_Freeze);
         if (flag_is_set(thing->movement_flags, TMvF_Grounded))
         {
-            set_flag(thing->movement_flags, TMvF_Flying);
+            if (!creature_is_being_unconscious(thing)) {
+                restore_creature_flight_flag(thing);
+            }
             clear_flag(thing->movement_flags, TMvF_Grounded);
         }
         cleared = true;
@@ -3307,7 +3308,7 @@ void prepare_to_controlled_creature_death(struct Thing *thing)
         sim_feedback->turn_on_main_panel_menu();
         set_flag_value(kfx_sim_state.operation_flags, GOF_ShowPanel, (kfx_sim_state.operation_flags & GOF_ShowGui) != 0);
         sim_feedback->PaletteSetPlayerPalette(player, engine_palette);
-        player->palette_fade_step_possession = 11;
+        local_info.palette_fade_step_possession = 11;
     }
     sim_feedback->light_turn_light_on(player->cursor_light_idx);
 }
@@ -4364,10 +4365,10 @@ void draw_creature_view(struct Thing *thing)
   // Draw swipe into buffer BEFORE lens effects (so overlay renders on top of swipe)
   draw_swipe_graphic();
   // Get the actual viewport dimensions (accounts for sidebar)
-  long view_width = player->engine_window_width / pixel_size;
-  long view_height = player->engine_window_height / pixel_size;
-  long view_x = player->engine_window_x / pixel_size;
-  long view_y = player->engine_window_y / pixel_size;
+  long view_width = local_info.engine_window_width / pixel_size;
+  long view_height = local_info.engine_window_height / pixel_size;
+  long view_x = local_info.engine_window_x / pixel_size;
+  long view_y = local_info.engine_window_y / pixel_size;
   // Restore original graphics settings
   RendererRestoreFramebufferTarget(wscr_cp);
   LbScreenLoadGraphicsWindow(&grwnd);
@@ -6046,7 +6047,7 @@ short update_creature_movements(struct Thing *thing)
 
 void check_for_creature_escape_from_lava(struct Thing *thing)
 {
-    if (((thing->alloc_flags & TAlF_IsControlled) == 0) && ((thing->movement_flags & TMvF_IsOnLava) != 0))
+    if (((thing->alloc_flags & TAlF_IsControlled) == 0) && ((thing->movement_flags & TMvF_IsOnLava) != 0) && !creature_is_being_unconscious(thing))
     {
         struct CreatureModelConfig* crconf = creature_stats_get_from_thing(thing);
         if (crconf->hurt_by_lava > 0)

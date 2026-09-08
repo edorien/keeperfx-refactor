@@ -23,6 +23,7 @@
 #include "bflib_basics.h"
 #include "bflib_math.h"
 #include "bflib_sound.h"
+#include "bflib_netsp.h"
 #include "config_sounds.h"
 #include "bflib_sndlib.h"
 #include "script_hooks.h"
@@ -784,14 +785,16 @@ void init_player_as_single_keeper(struct PlayerInfo *player)
 void init_player(struct PlayerInfo *player, short no_explore)
 {
     SYNCDBG(5,"Starting");
-    player->minimap_pos_x = 11;
-    player->minimap_pos_y = 11;
-    player->minimap_zoom = settings.minimap_zoom;
-    sim_feedback->setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
+    if (is_my_player(player))
+    {
+        local_info.minimap_pos_x = 11;
+        local_info.minimap_pos_y = 11;
+        local_info.minimap_zoom = settings.minimap_zoom;
+        sim_feedback->setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
+        local_info.main_palette = engine_palette;
+    }
     player->continue_work_state = PSt_CtrlDungeon;
     player->work_state = PSt_CtrlDungeon;
-    player->main_palette = engine_palette;
-    player->minimap_zoom = settings.minimap_zoom;
     player->isometric_view_zoom_level = settings.isometric_view_zoom_level;
     player->frontview_zoom_level = settings.frontview_zoom_level;
     player->isometric_tilt = settings.isometric_tilt;
@@ -832,7 +835,8 @@ void init_player(struct PlayerInfo *player, short no_explore)
         break;
     case GKind_MultiGame:
         //workaround until settings are synced through multiplayer
-        player->minimap_zoom = 256;
+        if (is_my_player(player))
+            local_info.minimap_zoom = 256;
         if (sim_feedback->get_isometric_view_zoom_level() == 0)
         {
             player->isometric_view_zoom_level = CAMERA_ZOOM_MAX;
@@ -1118,6 +1122,7 @@ void init_players_local_game(void)
     SYNCDBG(4,"Starting");
     struct PlayerInfo* player = get_my_player();
     player->id_number = my_player_number;
+    player->user_id = SOLO_HUMAN_ID;
     player->allocflags |= PlaF_Allocated;
 
     if( player->id_number == PLAYER_GOOD)

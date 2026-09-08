@@ -74,6 +74,7 @@
 #include "custom_sprites.h"
 #include "sounds.h"
 #include "net_resync.h"
+#include "timer.h"
 
 #ifdef FUNCTESTING
   #include "ftests/ftest.h"
@@ -197,8 +198,8 @@ void reinit_level_after_load(void)
     SYNCDBG(6,"Starting");
     // Reinit structures from within the game
     player = get_my_player();
-    player->lens_palette = 0;
-    player->main_palette = engine_palette;
+    local_info.lens_palette = 0;
+    local_info.main_palette = engine_palette;
     init_navigation();
     reinit_packets_after_load();
     kfx_sim_state.easter_eggs_enabled = start_params.easter_egg;
@@ -401,8 +402,11 @@ static TbBool init_level(void)
     // sounds are added to the already-restored bank (not wiped afterwards).
     sound_restore_to_campaign_snapshot();
     // Load configs which may have per-campaign part, and can even be modified within a level
+    level_load_time_phase(LevelLoadTime_Sprites);
     init_custom_sprites(get_selected_level_number());
+    level_load_time_phase(LevelLoadTime_Configs);
     load_stats_files();
+    level_load_time_phase(LevelLoadTime_GameSetup);
     check_and_auto_fix_stats();
 
     // We should do this after 'load stats'
@@ -434,6 +438,7 @@ static TbBool init_level(void)
     
     // Load the actual level files
     LevelNumber level = get_selected_level_number();
+    level_load_time_phase(LevelLoadTime_Data);
     TbBool script_preloaded = preload_script(level);
     if (!load_map_file(level))
     {
@@ -441,6 +446,7 @@ static TbBool init_level(void)
         JUSTMSG("Unable to load level %u from %s", level, campaign.name);
         return false;
     }
+    level_load_time_phase(LevelLoadTime_GameSetup);
     if (script_preloaded == false && luascript_loaded == false)
     {
         char no_script_msg[MESSAGE_TEXT_LEN];
@@ -448,7 +454,9 @@ static TbBool init_level(void)
         sim_feedback->show_onscreen_msg(200, no_script_msg);
         JUSTMSG("Unable to load script level %u from %s", level, campaign.name);
     }
+    level_load_time_phase(LevelLoadTime_Navigation);
     init_navigation();
+    level_load_time_phase(LevelLoadTime_GameSetup);
     snprintf(kfx_game_state.campaign_fname, sizeof(kfx_game_state.campaign_fname), "%s", campaign.fname);
     light_set_lights_on(1);
     {
@@ -674,6 +682,7 @@ void faststartup_network_game(CoroutineLoop *context)
 
 CoroutineLoopState set_not_has_quit(CoroutineLoop *context)
 {
+    level_load_time_phase(LevelLoadTime_Total);
     get_my_player()->display_flags &= ~PlaF6_PlyrHasQuit;
     return CLS_CONTINUE;
 }

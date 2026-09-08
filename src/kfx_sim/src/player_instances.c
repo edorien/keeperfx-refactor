@@ -308,7 +308,7 @@ long pinstfs_passenger_control_creature(struct PlayerInfo *player, int32_t *n)
   player->allocflags |= PlaF_MouseInputDisabled;
   if (is_my_player(player))
   {
-    player->palette_fade_step_possession = 1;
+    local_info.palette_fade_step_possession = 1;
     sim_feedback->turn_off_all_window_menus();
     sim_feedback->turn_off_menu(GMnu_CREATURE_QUERY1);
     sim_feedback->turn_off_menu(GMnu_CREATURE_QUERY2);
@@ -482,7 +482,7 @@ long pinstfs_direct_leave_creature(struct PlayerInfo *player, int32_t *n)
   if (is_my_player(player))
   {
       sim_feedback->PaletteSetPlayerPalette(player, engine_palette);
-      player->palette_fade_step_possession = 11;
+      local_info.palette_fade_step_possession = 11;
       sim_feedback->turn_off_all_window_menus();
       sim_feedback->turn_off_query_menus();
       sim_feedback->turn_on_main_panel_menu();
@@ -524,7 +524,7 @@ long pinstfs_passenger_leave_creature(struct PlayerInfo *player, int32_t *n)
   if (is_my_player(player))
   {
     sim_feedback->PaletteSetPlayerPalette(player, engine_palette);
-    player->palette_fade_step_possession = 11;
+    local_info.palette_fade_step_possession = 11;
     sim_feedback->turn_off_all_window_menus();
     sim_feedback->turn_off_query_menus();
     sim_feedback->turn_off_all_panel_menus();
@@ -740,14 +740,14 @@ long pinstfe_control_creature_fade(struct PlayerInfo *player, int32_t *n)
 long pinstfs_fade_to_map(struct PlayerInfo *player, int32_t *n)
 {
     struct Camera* cam = get_player_active_camera(player);
-    player->palette_fade_step_map = 0;
     player->allocflags |= PlaF_MouseInputDisabled;
     player->view_mode_restore = cam->view_mode;
     if (is_my_player(player))
     {
-        player->tooltips_restore = settings.tooltips_on; // store tooltips setting before starting the fade
+        local_info.palette_fade_step_map = 0;
+        local_info.tooltips_restore = settings.tooltips_on; // store tooltips setting before starting the fade
         settings.tooltips_on = false; // don't show tooltips during the fade
-        player->status_menu_restore = sim_feedback->toggle_status_menu(0); // store current status menu visibility, and hide the status menu (when the map is visible)
+        local_info.status_menu_restore = sim_feedback->toggle_status_menu(0); // store current status menu visibility, and hide the status menu (when the map is visible)
   }
   sim_feedback->set_engine_view(player, PVM_ParchFadeIn);
   return 0;
@@ -763,7 +763,7 @@ long pinstfe_fade_to_map(struct PlayerInfo *player, int32_t *n)
 {
   set_player_mode(player, PVT_MapScreen);
   if (is_my_player(player))
-    settings.tooltips_on = player->tooltips_restore; // restore tooltips setting after the fade is completed
+    settings.tooltips_on = local_info.tooltips_restore; // restore tooltips setting after the fade is completed
   player->allocflags &= ~PlaF_MouseInputDisabled;
   return 0;
 }
@@ -773,11 +773,11 @@ long pinstfs_fade_from_map(struct PlayerInfo *player, int32_t *n)
   player->allocflags |= PlaF_MouseInputDisabled;
   if (is_my_player(player))
   {
-    player->tooltips_restore = settings.tooltips_on; // store tooltips setting before starting the fade
+    local_info.tooltips_restore = settings.tooltips_on; // store tooltips setting before starting the fade
     settings.tooltips_on = false; // don't show tooltips during the fade
     kfx_sim_state.operation_flags &= ~GOF_ShowPanel;
+    local_info.palette_fade_step_map = 32;
   }
-  player->palette_fade_step_map = 32;
   set_player_mode(player, PVT_DungeonTop);
   sim_feedback->set_engine_view(player, PVM_ParchFadeOut);
   return 0;
@@ -793,8 +793,8 @@ long pinstfe_fade_from_map(struct PlayerInfo *player, int32_t *n)
     struct PlayerInfo* myplyr = get_player(my_player_number);
     sim_feedback->set_engine_view(player, player->view_mode_restore);
     if (player->id_number == myplyr->id_number) {
-        settings.tooltips_on = player->tooltips_restore; // restore tooltips setting after the fade is completed
-        sim_feedback->toggle_status_menu(player->status_menu_restore); // restore the status menu visiblity now that the map is no longer visible
+        settings.tooltips_on = local_info.tooltips_restore; // restore tooltips setting after the fade is completed
+        sim_feedback->toggle_status_menu(local_info.status_menu_restore); // restore the status menu visiblity now that the map is no longer visible
     }
     player->allocflags &= ~PlaF_MouseInputDisabled;
     return 0;

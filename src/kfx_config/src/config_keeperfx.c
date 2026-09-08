@@ -23,6 +23,7 @@
 #include "bflib_math.h"
 #include "bflib_fileio.h"
 #include "bflib_dernc.h"
+#include "bflib_enet.h"
 #include "bflib_video.h"
 #include "bflib_keybrd.h"
 #include "bflib_datetm.h"
@@ -194,6 +195,7 @@ const struct NamedCommand conf_commands[] = {
   {"ALT_INPUT"                     , 51},
   {"UI_FONT_SCALE"                 , 52},
   {"UI_FONT"                       , 53},
+  {"MULTIPLAYER_PORT"              , 54},
   {NULL,                   0},
   };
 
@@ -746,17 +748,7 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           }
           break;
         case 23: //SKIP_HEART_ZOOM
-          i = recognize_conf_parameter(buf,&pos,len,logicval_type);
-          if (i <= 0)
-          {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
-                COMMAND_TEXT(cmd_num),config_textname);
-            break;
-          }
-          if (i == 1)
-              features_enabled |= Ft_SkipHeartZoom;
-          else
-              features_enabled &= ~Ft_SkipHeartZoom;
+          CONFLOG("The \"%s\" setting is unused. Use the -skipheartzoom command line option instead.", COMMAND_TEXT(cmd_num));
           break;
         case 24: //CURSOR_EDGE_CAMERA_PANNING
           i = recognize_conf_parameter(buf,&pos,len,logicval_type);
@@ -1138,6 +1130,17 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
           }
           break;
+      case 54: // MULTIPLAYER_PORT
+          if (get_conf_parameter_single(buf, &pos, len, word_buf, sizeof(word_buf)) > 0)
+          {
+            i = atoi(word_buf);
+          }
+          if (i > 0 && i <= UINT16_MAX) {
+            enet_port = i;
+          } else {
+            CONFWRNLOG("Invalid MULTIPLAYER_PORT '%s' in %s file.", COMMAND_TEXT(cmd_num), config_textname);
+          }
+          break;
       case ccr_comment:
           break;
       case ccr_endOfFile:
@@ -1262,9 +1265,16 @@ short load_configuration(void)
  */
 void process_cmdline_overrides(void)
 {
+  // 0x02 == GOF_SingleLevel (enum GameOperationFlags, kfx_sim/include/kfx_sim_state.h).
+  // Duplicated as a raw value rather than #include-d: kfx_config sits below
+  // kfx_sim on the dependency ladder (see architecture.md Sec.5/8.2), but
+  // start_params.operation_flags is set from this same flag value by main.cpp
+  // before kfx_config gets a chance to look at it.
+  if (flag_is_set(start_params.operation_flags, 0x02)) {
+    clear_flag(start_params.startup_flags, SFlg_Legal | SFlg_FX | SFlg_Intro);
+  }
   // Use CD for music rather than OGG files
-  if (start_params.overrides[Clo_CDMusic])
-  {
+  if (start_params.overrides[Clo_CDMusic]) {
     features_enabled &= ~Ft_NoCdMusic;
   }
   // "-alex"/"-vidsmooth"/"-altinput" are one-directional "force on" launch

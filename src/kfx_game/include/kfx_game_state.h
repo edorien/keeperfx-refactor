@@ -39,11 +39,8 @@ struct KfxGameState {
     PlayerNumber script_timer_player;
     unsigned char script_timer_id;
     uint32_t script_timer_limit;
-    unsigned char script_value_type;
-    unsigned char script_value_id;
-    PlayerNumber script_variable_player;
-    int32_t script_variable_target;
-    unsigned char script_variable_target_type;
+    struct ScriptVariable script_variables[DISPLAY_VARIABLES_LIMIT];
+    unsigned char active_script_var_count;
 
     char campaign_fname[CAMPAIGN_FNAME_LEN];
     TbBool paused_at_gameturn;

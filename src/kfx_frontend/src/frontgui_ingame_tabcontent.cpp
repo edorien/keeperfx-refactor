@@ -393,7 +393,7 @@ void spell_grid(void)
             choose_spell(k, ps->tooltip_stridx);
         else if (castable && hit == 2)
         {
-            go_to_next_spell_of_type(k, player->id_number);
+            go_to_next_spell_of_type(k);
             set_chosen_power(k, ps->tooltip_stridx);
         }
         slot++;

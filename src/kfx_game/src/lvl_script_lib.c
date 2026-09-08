@@ -32,6 +32,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 struct ScriptValue *allocate_script_value(void)
 {
     if (kfx_game_state.script.values_num >= SCRIPT_VALUES_COUNT)

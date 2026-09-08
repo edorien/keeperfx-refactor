@@ -3632,14 +3632,68 @@ static void display_variable_check(const struct ScriptLine *scline)
 
 static void display_variable_process(struct ScriptContext *context)
 {
-   kfx_game_state.script_variable_player = context->player_idx;
-   kfx_game_state.script_value_type = context->value->bytes[2];
-   kfx_game_state.script_value_id = context->value->longs[1];
-   kfx_game_state.script_variable_target = context->value->longs[2];
-   kfx_game_state.script_variable_target_type = context->value->bytes[1];
-   kfx_game_state.flags_gui |= GGUI_Variable;
+    for (int i = DISPLAY_VARIABLES_LIMIT - 1; i > 0; i--)
+    {
+        memcpy(&kfx_game_state.script_variables[i], &kfx_game_state.script_variables[i-1], sizeof(struct ScriptVariable));
+    }
+    kfx_game_state.script_variables[0].variable_player = context->player_idx;
+    kfx_game_state.script_variables[0].value_type = context->value->bytes[2];
+    kfx_game_state.script_variables[0].value_id = context->value->longs[1];
+    kfx_game_state.script_variables[0].variable_target = context->value->longs[2];
+    kfx_game_state.script_variables[0].variable_target_type = context->value->bytes[1];
+
+    kfx_game_state.script_variables[0].include_icon = false;
+    kfx_game_state.script_variables[0].icon_idx = -1;
+    if (kfx_game_state.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
+        kfx_game_state.active_script_var_count++;
+    }
+
+    kfx_game_state.flags_gui |= GGUI_Variable;
 }
 
+static void display_variable_with_label_check(const struct ScriptLine *scline)
+{
+    int32_t varib_id, varib_type;
+    if (!parse_get_varib(scline->tp[1], &varib_id, &varib_type, level_file_version))
+    {
+        SCRPTERRLOG("Unknown variable, '%s'", scline->tp[1]);
+        return;
+    }
+    ALLOCATE_SCRIPT_VALUE(scline->command, scline->np[0]);
+
+    value->bytes[2] = varib_type;
+    value->longs[1] = varib_id;
+    value->shorts[4] = -1;
+    const char *icon = scline->tp[2];
+
+    if (icon[0] != '\0' && !get_custom_icon_from_value(icon, &value->shorts[4]))
+    {
+        SCRPTERRLOG("Invalid custom icon (%s)", icon);
+        DEALLOCATE_SCRIPT_VALUE
+        return;
+    }
+
+    PROCESS_SCRIPT_VALUE(scline->command);
+}
+
+static void display_variable_with_label_process(struct ScriptContext *context)
+{
+    for (int i = DISPLAY_VARIABLES_LIMIT - 1; i > 0; i--)
+    {
+        memcpy(&kfx_game_state.script_variables[i], &kfx_game_state.script_variables[i-1], sizeof(struct ScriptVariable));
+    }
+
+    kfx_game_state.script_variables[0].variable_player = context->player_idx;
+    kfx_game_state.script_variables[0].value_type = context->value->bytes[2];
+    kfx_game_state.script_variables[0].value_id = context->value->longs[1];
+    kfx_game_state.script_variables[0].include_icon = true;
+    kfx_game_state.script_variables[0].icon_idx = context->value->shorts[4];
+    if (kfx_game_state.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
+        kfx_game_state.active_script_var_count++;
+    }
+
+    kfx_game_state.flags_gui |= GGUI_Variable;
+}
 static void display_countdown_check(const struct ScriptLine *scline)
 {
     if (scline->np[2] <= 0)
@@ -3674,7 +3728,9 @@ static void hide_timer_process(struct ScriptContext *context)
 
 static void hide_variable_process(struct ScriptContext *context)
 {
-   kfx_game_state.flags_gui &= ~GGUI_Variable;
+    memset(kfx_game_state.script_variables, 0, sizeof(kfx_game_state.script_variables));
+    kfx_game_state.active_script_var_count = 0;
+    kfx_game_state.flags_gui &= ~GGUI_Variable;
 }
 
 static void create_effect_check(const struct ScriptLine *scline)
@@ -6558,12 +6614,21 @@ static void set_next_level_check(const struct ScriptLine* scline)
     }
 
     value->shorts[1] = next_level;
+    if (is_bonus_level(kfx_sim_state.loaded_level_number) || is_extra_level(kfx_sim_state.loaded_level_number))
+    {
+        value->shorts[2] = true; // On bonus levels we have to force moving on.
+    }
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void set_next_level_process(struct ScriptContext* context)
 {
+    TbBool force_now = context->value->shorts[2];
     intralvl.next_level = context->value->shorts[1];
+    if (force_now)
+    {
+        set_continue_level_number(intralvl.next_level);
+    }
 }
 
 static void set_level_ensign_check(const struct ScriptLine* scline)
@@ -6925,6 +6990,7 @@ const struct CommandDesc command_desc[] = {
   {"ADD_TO_TIMER",                      "PAN     ", Cmd_ADD_TO_TIMER, &add_to_timer_check, &add_to_timer_process},
   {"ADD_BONUS_TIME",                    "N       ", Cmd_ADD_BONUS_TIME, &add_bonus_time_check, &add_bonus_time_process},
   {"DISPLAY_VARIABLE",                  "PAnn    ", Cmd_DISPLAY_VARIABLE, &display_variable_check, &display_variable_process},
+  {"DISPLAY_VARIABLE_WITH_LABEL",       "PAa    ", Cmd_DISPLAY_VARIABLE_WITH_LABEL, &display_variable_with_label_check, &display_variable_with_label_process},
   {"DISPLAY_COUNTDOWN",                 "PANb    ", Cmd_DISPLAY_COUNTDOWN, &display_countdown_check, &display_timer_process},
   {"HIDE_TIMER",                        "        ", Cmd_HIDE_TIMER, &cmd_no_param_check, &hide_timer_process},
   {"HIDE_VARIABLE",                     "        ", Cmd_HIDE_VARIABLE, &cmd_no_param_check, &hide_variable_process},

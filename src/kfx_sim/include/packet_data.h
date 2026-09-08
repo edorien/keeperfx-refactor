@@ -41,6 +41,7 @@
 
 #include "bflib_basics.h"
 #include "bflib_keybrd.h"
+#include "bflib_netsp.h"
 #include "globals.h"
 
 #ifdef __cplusplus
@@ -330,8 +331,9 @@ extern struct Packet bad_packet;
 extern struct Packet sim_packets[PACKETS_COUNT];
 
 /******************************************************************************/
-struct Packet *get_packet_direct(long pckt_idx);
-struct Packet *get_packet(long plyr_idx);
+struct Packet *get_local_packet(void);
+NetUserId get_local_user(void);
+struct Packet *get_packet(NetUserId user);
 void set_packet_action(struct Packet *pckt, unsigned char pcktype, long par1, long par2, unsigned short par3, unsigned short par4);
 TbBool is_packet_empty(const struct Packet *pckt);
 void set_players_packet_action(struct PlayerInfo *player, unsigned char pcktype, unsigned long par1, unsigned long par2, unsigned short par3, unsigned short par4);

@@ -678,7 +678,7 @@ void get_dungeon_sell_user_roomspace(struct RoomSpace *roomspace, PlayerNumber p
     current_roomspace.plyr_idx = plyr_idx;
     MapSlabCoord drag_start_x = slb_x;
     MapSlabCoord drag_start_y = slb_y;
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet(player->user_id);
     player->one_click_lock_cursor = false;
     player->one_click_mode_exclusive = false;
     if (player->ignore_next_PCtr_LBtnRelease)
@@ -765,7 +765,7 @@ void get_dungeon_build_user_roomspace(struct RoomSpace *roomspace, PlayerNumber 
     best_roomspace.rkind = rkind;
     MapSlabCoord drag_start_x = slb_x;
     MapSlabCoord drag_start_y = slb_y;
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet(player->user_id);
     struct RoomSpace temp_best_room;
     player->one_click_lock_cursor = false;
     if (player->ignore_next_PCtr_LBtnRelease)
@@ -1390,7 +1390,7 @@ void update_roomspaces()
 void process_build_roomspace_inputs(PlayerNumber plyr_idx)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
-    struct Packet* pckt = get_packet(plyr_idx);
+    struct Packet* pckt = get_packet(player->user_id);
     if (room_role_matches(player->chosen_room_kind,RoRoF_PassLava|RoRoF_PassWater|RoRoF_PassAbyss))
     {
         TbBool drag_check = ( ( (sim_feedback->is_best_roomspace_key_pressed()) || (sim_feedback->is_square_roomspace_key_pressed()) ) && (sim_feedback->is_left_button_held()));
@@ -1473,8 +1473,8 @@ void process_build_roomspace_inputs(PlayerNumber plyr_idx)
 
 void process_sell_roomspace_inputs(PlayerNumber plyr_idx)
 {
-    struct Packet* pckt = get_packet(plyr_idx);
     struct PlayerInfo* player = get_player(plyr_idx);
+    struct Packet* pckt = get_packet(player->user_id);
     if (sim_feedback->is_sell_trap_on_subtile_key_pressed())
     {
         set_packet_action(pckt, PckA_SetRoomspaceSubtile, 0, 0, 0, 0);
@@ -1560,7 +1560,7 @@ void process_highlight_roomspace_inputs(PlayerNumber plyr_idx)
             player = get_player(plyr_idx);
             if (player->roomspace_mode != single_subtile_mode)
             {
-                struct Packet* pckt = get_packet(my_player_number);
+                struct Packet* pckt = get_local_packet();
                 set_packet_action(pckt, PckA_SetRoomspaceSubtile, 0, 0, 0, 0);
                 reset_roomspace = true;
             }

@@ -106,6 +106,7 @@
 #include "player_utils.h"
 #include "config_players.h"
 #include "player_computer.h"
+#include "timer.h"
 #include "game_heap.h"
 #include "game_saves.h"
 #include "game_campaign_progress.h" // reset_all_campaign_progress -- Phase E, docs/refactor/gui/05-campaign-progress-and-landview.md §3.5
@@ -982,7 +983,7 @@ static void render_overlay_draw_debug_overlays(void)
     }
     if (display_variable_enabled())
     {
-        draw_script_variable(kfx_game_state.script_variable_player, kfx_game_state.script_value_type, kfx_game_state.script_value_id, kfx_game_state.script_variable_target, kfx_game_state.script_variable_target_type);
+        draw_script_variable(kfx_game_state.script_variables[0].variable_player, kfx_game_state.script_variables[0].value_type, kfx_game_state.script_variables[0].value_id, kfx_game_state.script_variables[0].variable_target, kfx_game_state.script_variables[0].variable_target_type);
     }
     if (timer_enabled())
     {
@@ -1160,7 +1161,11 @@ short setup_game(void)
   features_enabled |= Ft_RelativeMouseMode; // use SDL relative ("raw") mouse mode; set RELATIVE_MOUSE_MODE=OFF for the grab-and-warp scheme
   features_enabled &= ~Ft_PauseMusicOnGamePause; // don't pause the music, if the user pauses the game
   features_enabled &= ~Ft_MuteAudioOnLoseFocus; // don't mute the audio, if the game window loses focus
-  features_enabled &= ~Ft_SkipHeartZoom; // don't skip the dungeon heart zoom in
+  if (start_params.skip_heart_zoom) {
+    features_enabled |= Ft_SkipHeartZoom;
+  } else {
+    features_enabled &= ~Ft_SkipHeartZoom;
+  }
   features_enabled &= ~Ft_DisableCursorCameraPanning; // don't disable cursor camera panning
   features_enabled |= Ft_DeltaTime; // enable delta time
   features_enabled |= Ft_NoCdMusic; // use music files (OGG) rather than CD music
@@ -1498,7 +1503,7 @@ short setup_game(void)
       &render_overlay_get_unpausing_in_progress,
       &can_process_creature_input, &process_first_person_look, &process_camera_controls,
       &process_camera_action,
-      &get_packet, &get_packet_direct, &get_history_packet, &set_packet_control,
+      &get_history_packet, &set_packet_control,
       &frontend_load_data_from_cd, &frontend_load_data_reset, &menu_is_active, &reinit_all_menus,
       &turn_on_menu,
       &sync_render_globals,
@@ -1727,6 +1732,8 @@ short setup_game(void)
 
   if (result == 1)
   {
+      if (flag_is_set(start_params.operation_flags, GOF_SingleLevel) && !(game_flags2 & (GF2_Connect | GF2_Server)))
+          level_load_time_phase(LevelLoadTime_EngineStartup);
       display_loading_screen();
   }
   LbDataFreeAll(legal_load_files);
@@ -1831,6 +1838,10 @@ static short process_command_line(unsigned short argc, char *argv[])
       if (strcasecmp(parstr, "nointro") == 0)
       {
         start_params.no_intro = true;
+      } else
+      if (strcasecmp(parstr, "skipheartzoom") == 0)
+      {
+        start_params.skip_heart_zoom = true;
       } else
       if (strcasecmp(parstr, "nocd") == 0) // kept for legacy reasons
       {

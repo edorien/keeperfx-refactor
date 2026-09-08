@@ -75,10 +75,9 @@ void draw_paused_caption(void)
         return;
 
     const ImGuiIO &io = ImGui::GetIO();
-    const struct PlayerInfo *player = get_my_player();
     // Centre within the 3D viewport (inset by the status panel on the
     // left) like the legacy draw, falling back to full-width centring.
-    const float left = (player != nullptr) ? (float)player->engine_window_x : 0.0f;
+    const float left = (float)local_info.engine_window_x;
     const float cx = left + (io.DisplaySize.x - left) * 0.5f;
     ImGui::SetNextWindowPos(ImVec2(cx, 14.0f), ImGuiCond_Always, ImVec2(0.5f, 0.0f));
     ImGui::SetNextWindowBgAlpha(0.62f);

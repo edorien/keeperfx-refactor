@@ -41,6 +41,7 @@ extern "C" {
 #define MAX_NET_USERS 4
 #define MAX_NET_PEERS (MAX_NET_USERS - 1)
 #define SERVER_ID 0
+#define SOLO_HUMAN_ID 0 /* human player's user id in non-multiplayer, when relevant */
 
 typedef int NetUserId;
 

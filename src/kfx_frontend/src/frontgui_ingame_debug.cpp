@@ -102,11 +102,14 @@ bool script_variable_line(char *buf, size_t n)
 {
     if (!display_variable_enabled())
         return false;
-    long value = get_condition_value(kfx_game_state.script_variable_player,
-                                     kfx_game_state.script_value_type,
-                                     kfx_game_state.script_value_id);
-    const long target = kfx_game_state.script_variable_target;
-    const unsigned char tt = kfx_game_state.script_variable_target_type;
+    if (kfx_game_state.active_script_var_count == 0)
+        return false;
+    const struct ScriptVariable *scvar = &kfx_game_state.script_variables[0];
+    long value = get_condition_value(scvar->variable_player,
+                                     scvar->value_type,
+                                     scvar->value_id);
+    const long target = scvar->variable_target;
+    const unsigned char tt = scvar->variable_target_type;
     if (target != 0)
     {
         if (tt == 0 || tt == 2) value = target - value;

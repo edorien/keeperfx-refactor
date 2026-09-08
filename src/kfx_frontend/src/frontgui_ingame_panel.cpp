@@ -266,7 +266,6 @@ long s_mm_diag = 0, s_mm_px = 0, s_mm_py = 0;
 
 void render_minimap(void)
 {
-    const struct PlayerInfo *player = get_my_player();
     const long mm_upp = (s_menu_rect.w * 16 + 140 / 2) / 140;
     if (mm_upp < 1)
         return;
@@ -284,12 +283,12 @@ void render_minimap(void)
     }
     long mmzoom;
     if (16 / mm_upp < 3)
-        mmzoom = player->minimap_zoom / scale_value_for_resolution_with_upp(2, mm_upp);
+        mmzoom = local_info.minimap_zoom / scale_value_for_resolution_with_upp(2, mm_upp);
     else
-        mmzoom = player->minimap_zoom;
+        mmzoom = local_info.minimap_zoom;
 
-    s_mm_px = scale_value_for_resolution_with_upp(player->minimap_pos_x, mm_upp);
-    s_mm_py = scale_value_for_resolution_with_upp(player->minimap_pos_y, mm_upp);
+    s_mm_px = scale_value_for_resolution_with_upp(local_info.minimap_pos_x, mm_upp);
+    s_mm_py = scale_value_for_resolution_with_upp(local_info.minimap_pos_y, mm_upp);
 
     // Buffer generously covers [0 .. px + diamond]. Fixed slack (512) so a
     // stale MapDiagonalLength never makes it too small (which showed as
@@ -325,8 +324,8 @@ void render_minimap(void)
         RendererPaletteSet(engine_palette);
     }
     TbPixel *prev = RendererSwapFramebufferTarget(s_mm_pixels.data(), dim, dim);
-    panel_map_draw_slabs(player->minimap_pos_x, player->minimap_pos_y, mm_upp, mmzoom);
-    panel_map_draw_overlay_things(mm_upp, mmzoom, player->minimap_zoom);
+    panel_map_draw_slabs(local_info.minimap_pos_x, local_info.minimap_pos_y, mm_upp, mmzoom);
+    panel_map_draw_overlay_things(mm_upp, mmzoom, local_info.minimap_zoom);
     RendererRestoreFramebufferTarget(prev);
     if (forced_pal)
         RendererPaletteSet(prev_pal);
