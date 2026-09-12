@@ -894,6 +894,7 @@ static int lua_Display_variable(lua_State *L)
     kfx_game_state.script_variables[0].value_id = varib_id;
     kfx_game_state.script_variables[0].variable_target = target;
     kfx_game_state.script_variables[0].variable_target_type = target_type;
+    kfx_game_state.script_variables[0].is_active = true;
 
     kfx_game_state.script_variables[0].include_icon = false;
     kfx_game_state.script_variables[0].icon_idx = -1;
@@ -924,6 +925,7 @@ static int lua_DISPLAY_VARIABLE_WITH_LABEL(lua_State *L)
     kfx_game_state.script_variables[0].value_type = varib_type;
     kfx_game_state.script_variables[0].value_id = varib_id;
     kfx_game_state.script_variables[0].include_icon = true;
+    kfx_game_state.script_variables[0].is_active = true;
     kfx_game_state.script_variables[0].icon_idx = id;
     if (kfx_game_state.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
         kfx_game_state.active_script_var_count++;
@@ -936,9 +938,34 @@ static int lua_DISPLAY_VARIABLE_WITH_LABEL(lua_State *L)
 
 static int lua_Hide_variable(lua_State *L)
 {
-    memset(kfx_game_state.script_variables, 0, sizeof(kfx_game_state.script_variables));
-    kfx_game_state.active_script_var_count = 0;
-    kfx_game_state.flags_gui &= ~GGUI_Variable;
+    int32_t varib_id, varib_type;
+    PlayerNumber player   = luaL_checkPlayerSingle(L, 1);
+    varib_id = -1;
+    varib_type = -1;
+    const char* variable = luaL_checkstring(L, 2);
+    if(variable[0] != '\0'){
+        luaL_checkVariable(L, 1, &varib_id, &varib_type);
+    }
+
+    if(varib_id > -1 && varib_type > -1)
+    {
+        for (int i = 0; i < DISPLAY_VARIABLES_LIMIT; i++)
+        {
+            if(kfx_game_state.script_variables[i].value_id == varib_id && kfx_game_state.script_variables[i].value_type == varib_type && kfx_game_state.script_variables[i].variable_player == player){
+                for (int j = i; j < kfx_game_state.active_script_var_count - 1; j++)
+                {
+                    kfx_game_state.script_variables[j] = kfx_game_state.script_variables[j+1];
+                }
+                kfx_game_state.active_script_var_count--;
+                break;
+            }
+        }
+    } else {
+        memset(kfx_game_state.script_variables, 0, sizeof(kfx_game_state.script_variables));
+        kfx_game_state.active_script_var_count = 0;
+    }
+    if(kfx_game_state.active_script_var_count == 0)
+        kfx_game_state.flags_gui &= ~GGUI_Variable;
     return 0;
 }
 

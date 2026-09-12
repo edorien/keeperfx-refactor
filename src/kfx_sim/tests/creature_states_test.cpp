@@ -28,7 +28,17 @@
 
 namespace {
 struct ResetConfigState {
-    ResetConfigState() { std::memset(&kfx_config_state, 0, sizeof(kfx_config_state)); }
+    // states_count now gates get_thing_state_info_num()/get_thing_active_
+    // state_info()/get_thing_continue_state_info()'s bounds check (upstream
+    // #5237 replaced the old compile-time CREATURE_STATES_COUNT macro with
+    // this runtime, config-driven count) -- a fresh memset leaves it 0,
+    // which would make every non-zero state id look "out of range". Set to
+    // CrSt_ListEnd, the same bound CREATURE_STATES_COUNT used to be defined
+    // as, so existing in-range/out-of-range test expectations still hold.
+    ResetConfigState() {
+        std::memset(&kfx_config_state, 0, sizeof(kfx_config_state));
+        kfx_config_state.conf.crtr_conf.states_count = CrSt_ListEnd;
+    }
 };
 
 struct CreatureStateFixture : ResetConfigState {
@@ -45,7 +55,16 @@ TEST_CASE_METHOD(ResetConfigState, "state_info_invalid accepts an in-range state
 }
 
 TEST_CASE_METHOD(ResetConfigState, "get_thing_state_info_num falls back to slot 0 for an out-of-range id", "[kfx_sim][creature_states]") {
-    CHECK(get_thing_state_info_num(CREATURE_STATES_COUNT) == get_thing_state_info_num(0));
+    CHECK(get_thing_state_info_num(CrSt_ListEnd) == get_thing_state_info_num(0));
+}
+
+TEST_CASE_METHOD(ResetConfigState, "get_thing_state_info_num respects a runtime states_count narrower than CrSt_ListEnd", "[kfx_sim][creature_states]") {
+    // Upstream #5237's whole point: the bound is config-driven, not the old
+    // fixed CREATURE_STATES_COUNT -- a state id that's in-range for the enum
+    // but at/beyond the loaded config's actual states_count still falls back.
+    kfx_config_state.conf.crtr_conf.states_count = 2;
+    CHECK_FALSE(state_info_invalid(get_thing_state_info_num(1)));
+    CHECK(get_thing_state_info_num(2) == get_thing_state_info_num(0));
 }
 
 TEST_CASE_METHOD(CreatureStateFixture, "can_change_from_state_to: a controlled creature can only move to an idle-type state", "[kfx_sim][creature_states]") {

@@ -904,4 +904,5 @@ variants — which the current setup already supports.
 | How to build (all three build paths)              | [`docs/build_instructions.txt`](../build_instructions.txt) §7                             |
 | How to write a functional test                    | [`src/ftests/README.md`](../../src/ftests/README.md)                                      |
 | How the `KFX_BUILD_TESTS` unit-test/coverage harness works | [`testing-harness.md`](testing-harness.md)                                       |
+| How to merge upstream (dkfans/keeperfx) into this fork | [`upstream-merge-workflow.md`](upstream-merge-workflow.md)                          |
 |                                                   |                                                                                           |

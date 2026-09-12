@@ -213,6 +213,9 @@ short checksums_different(void)
         if (!player_exists(player)) {
             continue;
         }
+        if ((player->allocflags & PlaF_CompCtrl) != 0) {
+            continue;
+        }
         struct Packet* packet = get_packet(i);
         if (is_packet_empty(packet)) {
             ERRORLOG("Missing checksum packet for user %d; host turn: %d", i, host_packet->turn);

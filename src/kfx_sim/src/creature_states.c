@@ -516,6 +516,7 @@ const struct NamedCommand move_check_func_commands[] = {
     {"move_check_attack_any_door",        12},
     {"move_check_can_damage_wall",        13},
     {"move_check_persuade",               14},
+    {NULL,                                 0},
 };
 
 const CreatureStateCheck move_check_func_list[] = {
@@ -550,21 +551,21 @@ long const state_type_to_gui_state[STATE_TYPES_COUNT] = {
 /******************************************************************************/
 struct CreatureStateConfig *get_thing_active_state_info(struct Thing *thing)
 {
-  if (thing->active_state >= CREATURE_STATES_COUNT)
+  if (thing->active_state >= kfx_config_state.conf.crtr_conf.states_count)
     return &kfx_config_state.conf.crtr_conf.states[0];
   return &kfx_config_state.conf.crtr_conf.states[thing->active_state];
 }
 
 struct CreatureStateConfig *get_thing_continue_state_info(struct Thing *thing)
 {
-    if (thing->continue_state >= CREATURE_STATES_COUNT)
+    if (thing->continue_state >= kfx_config_state.conf.crtr_conf.states_count)
         return &kfx_config_state.conf.crtr_conf.states[0];
     return &kfx_config_state.conf.crtr_conf.states[thing->continue_state];
 }
 
 struct CreatureStateConfig *get_thing_state_info_num(CrtrStateId state_id)
 {
-    if (state_id >= CREATURE_STATES_COUNT)
+    if (state_id >= kfx_config_state.conf.crtr_conf.states_count)
         return &kfx_config_state.conf.crtr_conf.states[0];
     return &kfx_config_state.conf.crtr_conf.states[state_id];
 }
@@ -629,7 +630,7 @@ long get_creature_state_type_f(const struct Thing *thing, const char *func_name)
 {
   long state_type;
   unsigned long state = thing->active_state;
-  if ( (state > 0) && (state < CREATURE_STATES_COUNT) )
+  if ( (state > 0) && (state < kfx_config_state.conf.crtr_conf.states_count) )
   {
       state_type = kfx_config_state.conf.crtr_conf.states[state].state_type;
   } else
@@ -641,7 +642,7 @@ long get_creature_state_type_f(const struct Thing *thing, const char *func_name)
   if (state_type == CrStTyp_Move)
   {
       state = thing->continue_state;
-      if ( (state > 0) && (state < CREATURE_STATES_COUNT) )
+      if ( (state > 0) && (state < kfx_config_state.conf.crtr_conf.states_count) )
       {
           state_type = kfx_config_state.conf.crtr_conf.states[state].state_type;
       } else

@@ -146,10 +146,10 @@ const struct SettingOption *find_option_by_label(unsigned short label_stridx)
 }
 }
 
-TEST_CASE("setting_options covers all four categories and both apply-classes", "[kfx_config][config_settingschema]") {
+TEST_CASE("setting_options covers all five categories and both apply-classes", "[kfx_config][config_settingschema]") {
     REQUIRE(setting_options_count > 0);
 
-    bool saw_game = false, saw_graphics = false, saw_sound = false, saw_input = false;
+    bool saw_game = false, saw_graphics = false, saw_gui = false, saw_sound = false, saw_input = false;
     bool saw_live = false, saw_needs_restart = false;
     for (int i = 0; i < setting_options_count; i++) {
         const struct SettingOption &opt = setting_options[i];
@@ -160,14 +160,21 @@ TEST_CASE("setting_options covers all four categories and both apply-classes", "
         // config_settingschema.h).
         if ((opt.type != SOptT_Action) && !opt.persist_via_save_settings)
             REQUIRE(opt.cfg_key != nullptr);
-        REQUIRE(opt.label_stridx != 0);
+        // label_stridx == 0 is fine for a row that instead carries a
+        // label_literal (KeeperFX-only rows added after gtext_eng.pot's
+        // guitext numbering was frozen -- label_literal's own doc comment,
+        // config_settingschema.h).
+        REQUIRE(((opt.label_stridx != 0) || (opt.label_literal != nullptr)));
         // Phase G §6.3: every row now carries help text (get_string(0) isn't
         // "no help text" in its own id space, so a row must say so via 0
-        // explicitly rather than accidentally leaving this unset).
-        CHECK(opt.help_stridx != 0);
+        // explicitly rather than accidentally leaving this unset) -- either
+        // via help_stridx or, for the same label_literal rows above, a
+        // help_literal.
+        CHECK(((opt.help_stridx != 0) || (opt.help_literal != nullptr)));
         switch (opt.category) {
             case SCat_Game: saw_game = true; break;
             case SCat_Graphics: saw_graphics = true; break;
+            case SCat_GUI: saw_gui = true; break;
             case SCat_Sound: saw_sound = true; break;
             case SCat_Input: saw_input = true; break;
         }
@@ -219,6 +226,7 @@ TEST_CASE("setting_options covers all four categories and both apply-classes", "
     }
     CHECK(saw_game);
     CHECK(saw_graphics);
+    CHECK(saw_gui);
     CHECK(saw_sound);
     CHECK(saw_input);
     CHECK(saw_live);
@@ -781,7 +789,7 @@ TEST_CASE_METHOD(ResetSchemaState, "UI_FONT_SCALE is a curated enum of standard 
     const struct SettingOption *opt = find_option("UI_FONT_SCALE");
     REQUIRE(opt != nullptr);
     CHECK(opt->type == SOptT_Enum);
-    CHECK(opt->category == SCat_Graphics);
+    CHECK(opt->category == SCat_GUI);
     CHECK(opt->apply_class == SApply_Live); // FeStylePushFont reads it fresh every call
     REQUIRE(setting_option_enum_count(opt) == 6);
 

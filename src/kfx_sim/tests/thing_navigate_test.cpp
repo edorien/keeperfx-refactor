@@ -29,6 +29,7 @@ struct NavigateFixture {
     static constexpr MapSubtlCoord kStlX = 4;
     static constexpr MapSubtlCoord kStlY = 4;
     static constexpr long kLavaCubeId = 5;
+    static constexpr long kAbyssCubeId = 6;
 
     struct Thing *creatng;
 
@@ -49,6 +50,16 @@ struct NavigateFixture {
         kfx_sim_state.columns_data[1].bitfields = 0x10; // floor_filled_subtiles == 1
         kfx_sim_state.columns_data[1].cubes[0] = kLavaCubeId;
         kfx_config_state.conf.cube_conf.cube_cfgstats[kLavaCubeId].properties_flags = CPF_IsLava;
+    }
+
+    // Makes (kStlX, kStlY)'s top cube resolve to an abyss-flagged cube
+    // (subtile_has_abyss_on_top -> true), same shape as make_lava_subtile
+    // but with CPF_IsAbyss on a distinct cube id.
+    void make_abyss_subtile() {
+        set_mapblk_column_index(get_map_block_at(kStlX, kStlY), 1);
+        kfx_sim_state.columns_data[1].bitfields = 0x10; // floor_filled_subtiles == 1
+        kfx_sim_state.columns_data[1].cubes[0] = kAbyssCubeId;
+        kfx_config_state.conf.cube_conf.cube_cfgstats[kAbyssCubeId].properties_flags = CPF_IsAbyss;
     }
 };
 }
@@ -115,5 +126,26 @@ TEST_CASE_METHOD(NavigateFixture, "terrain_toxic_for_creature_at_position is fal
     CHECK(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
 
     kfx_config_state.conf.crtr_conf.model[0].flying = true;
+    CHECK_FALSE(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
+}
+
+// Upstream #5235/#5241 ("Fixed creatures being able to walk on Abyss" /
+// "Prevent creatures from voluntarily walking onto lava/abyss subtiles")
+// make terrain_toxic_for_creature_at_position also reject abyss subtiles
+// (via thing_can_traverse_abyss_at()) for a non-flying creature,
+// regardless of hurt_by_lava -- a grounded creature standing on a
+// non-lava abyss subtile is now correctly reported as toxic.
+TEST_CASE_METHOD(NavigateFixture, "terrain_toxic_for_creature_at_position is true on an abyss subtile for a grounded creature, regardless of hurt_by_lava", "[kfx_sim][thing_navigate]") {
+    make_abyss_subtile();
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 0; // abyss isn't lava-hurt-gated
+
+    CHECK(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
+}
+
+TEST_CASE_METHOD(NavigateFixture, "terrain_toxic_for_creature_at_position is false on an abyss subtile for a flying creature", "[kfx_sim][thing_navigate]") {
+    make_abyss_subtile();
+    kfx_config_state.conf.crtr_conf.model[0].hurt_by_lava = 0;
+    creatng->movement_flags |= TMvF_Flying;
+
     CHECK_FALSE(terrain_toxic_for_creature_at_position(creatng, kStlX, kStlY));
 }

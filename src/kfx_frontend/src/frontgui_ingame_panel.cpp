@@ -328,12 +328,12 @@ void render_minimap(void)
     }
     long mmzoom;
     if (16 / mm_upp < 3)
-        mmzoom = local_info.minimap_zoom / scale_value_for_resolution_with_upp(2, mm_upp);
+        mmzoom = local_state.minimap_zoom / scale_value_for_resolution_with_upp(2, mm_upp);
     else
-        mmzoom = local_info.minimap_zoom;
+        mmzoom = local_state.minimap_zoom;
 
-    s_mm_px = scale_value_for_resolution_with_upp(local_info.minimap_pos_x, mm_upp);
-    s_mm_py = scale_value_for_resolution_with_upp(local_info.minimap_pos_y, mm_upp);
+    s_mm_px = scale_value_for_resolution_with_upp(local_state.minimap_pos_x, mm_upp);
+    s_mm_py = scale_value_for_resolution_with_upp(local_state.minimap_pos_y, mm_upp);
 
     // Buffer generously covers [0 .. px + diamond]. Fixed slack (512) so a
     // stale MapDiagonalLength never makes it too small (which showed as
@@ -363,8 +363,8 @@ void render_minimap(void)
     // engine_palette for the capture, exactly like FeGuiPanelTexture.
     {
         FeOffscreenTarget cap(s_mm_pixels.data(), dim, dim, engine_palette);
-        panel_map_draw_slabs(local_info.minimap_pos_x, local_info.minimap_pos_y, mm_upp, mmzoom);
-        panel_map_draw_overlay_things(mm_upp, mmzoom, local_info.minimap_zoom);
+        panel_map_draw_slabs(local_state.minimap_pos_x, local_state.minimap_pos_y, mm_upp, mmzoom);
+        panel_map_draw_overlay_things(mm_upp, mmzoom, local_state.minimap_zoom);
     }
     s_mm_diag = MapDiagonalLength;
 
@@ -422,8 +422,8 @@ void draw_minimap_and_compass(void)
 
     // Compass -- N/S/E/W letters rotated by the camera angle around the
     // minimap centre (mirrors draw_overlay_compass()).
-    const struct PlayerInfo *player = get_my_player();
-    const struct Camera *cam = get_local_camera(get_player_active_camera((struct PlayerInfo *)player));
+    struct PlayerInfo *player = get_my_player();
+    const struct Camera *cam = get_local_active_camera(player);
     if (cam == nullptr)
         return;
     const float r = d * 0.5f - 21.0f; // pulled in from the bezel toward the centre

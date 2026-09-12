@@ -679,8 +679,8 @@ void set_player_cameras_position(struct PlayerInfo *player, int32_t pos_x, int32
 
 void change_engine_window_relative_size(long w_delta, long h_delta)
 {
-    setup_engine_window(local_info.engine_window_x, local_info.engine_window_y,
-        local_info.engine_window_width+w_delta, local_info.engine_window_height+h_delta);
+    setup_engine_window(local_state.engine_window_x, local_state.engine_window_y,
+        local_state.engine_window_width+w_delta, local_state.engine_window_height+h_delta);
 }
 
 void centre_engine_window(void)
@@ -689,12 +689,12 @@ void centre_engine_window(void)
     long window_center_y;
     if ((kfx_sim_state.operation_flags & GOF_ShowGui) != 0) {
       long status_panel_width = render_overlay->get_status_panel_width();
-      window_center_x = (MyScreenWidth-local_info.engine_window_width-status_panel_width) / 2 + status_panel_width;
+      window_center_x = (MyScreenWidth-local_state.engine_window_width-status_panel_width) / 2 + status_panel_width;
     }
     else
-      window_center_x = (MyScreenWidth-local_info.engine_window_width) / 2;
-    window_center_y = (MyScreenHeight-local_info.engine_window_height) / 2;
-    setup_engine_window(window_center_x, window_center_y, local_info.engine_window_width, local_info.engine_window_height);
+      window_center_x = (MyScreenWidth-local_state.engine_window_width) / 2;
+    window_center_y = (MyScreenHeight-local_state.engine_window_height) / 2;
+    setup_engine_window(window_center_x, window_center_y, local_state.engine_window_width, local_state.engine_window_height);
 }
 
 TbBool any_player_close_enough_to_see(const struct Coord3d *pos)

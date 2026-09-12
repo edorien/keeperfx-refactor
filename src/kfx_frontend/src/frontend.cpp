@@ -592,6 +592,23 @@ short game_is_busy_doing_gui(void)
     return true;
 }
 
+// force finish text entry
+// (if text field is empty, reverts as though esc was pressed.)
+void finish_button_area_input(void)
+{
+    if (input_button == NULL)
+        return;
+    TbKeyCode prev_key = lbInkey;
+    lbInkey = KC_RETURN;
+    get_button_area_input(input_button, input_button->id_num);
+    if (input_button != NULL)
+    {
+        lbInkey = KC_ESCAPE;
+        get_button_area_input(input_button, input_button->id_num);
+    }
+    lbInkey = prev_key;
+}
+
 TbBool get_button_area_input(struct GuiButton *gbtn, int modifiers)
 {
     if (input_button == NULL)
@@ -2176,6 +2193,7 @@ int create_button(struct GuiMenu *gmnu, struct GuiButtonInit *gbinit, int units_
     gbtn->gbtype = gbinit->gbtype;
     gbtn->id_num = gbinit->id_num;
     gbtn->flags ^= (gbtn->flags ^ LbBtnF_Clickable * (gbinit->button_flags & 0xff)) & LbBtnF_Clickable;
+    gbtn->flags ^= (gbtn->flags ^ LbBtnF_NoClickAway * ((gbinit->button_flags >> 1) & 1)) & LbBtnF_NoClickAway;
     gbtn->click_event = gbinit->click_event;
     gbtn->rclick_event = gbinit->rclick_event;
     gbtn->ptover_event = gbinit->ptover_event;
@@ -2249,7 +2267,7 @@ long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
       pos = GetMouseX() - (scaled_width >> 1);
       break;
   case POS_GAMECTR: // Player-based positioning
-      pos = (local_info.engine_window_x) + (local_info.engine_window_width >> 1) - (scaled_width >> 1);
+      pos = (local_state.engine_window_x) + (local_state.engine_window_width >> 1) - (scaled_width >> 1);
       break;
   case POS_MOUSPRV: // Place menu centered over previous mouse position
       pos = old_menu_mouse_x - (scaled_width >> 1);
@@ -2275,8 +2293,8 @@ long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
   {
     if (pos+scaled_width > MyScreenWidth)
       pos = MyScreenWidth-scaled_width;
-    if (pos < local_info.engine_window_x)
-      pos = local_info.engine_window_x;
+    if (pos < local_state.engine_window_x)
+      pos = local_state.engine_window_x;
   } else
   {
     if (pos+scaled_width > MyScreenWidth)
@@ -2298,7 +2316,7 @@ long compute_menu_position_y(long desired_pos,int menu_height, int units_per_px)
         pos = GetMouseY() - (scaled_height >> 1);
         break;
     case POS_GAMECTR: // Player-based positioning
-        pos = (local_info.engine_window_height >> 1) - ((scaled_height+20*units_per_px/16) >> 1);
+        pos = (local_state.engine_window_height >> 1) - ((scaled_height+20*units_per_px/16) >> 1);
         break;
     case POS_MOUSPRV: // Place menu centered over previous mouse position
         pos = old_menu_mouse_y - (scaled_height >> 1);

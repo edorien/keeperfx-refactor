@@ -489,6 +489,11 @@ list(REVERSE KFX_STATIC_LIBS_STD)
 set(KFX_STATIC_LIBS_HVLOG ${KFX_OBJECT_LIBS_HVLOG})
 list(REVERSE KFX_STATIC_LIBS_HVLOG)
 
+# Window icon: generated as part of kfx_platform (src/kfx_platform/
+# CMakeLists.txt), the only consumer of kfx_window_icon_png -- not here,
+# so kfx_platform doesn't reach up to app_entry-level generated code for
+# it (check_layering_symbols.py --strict).
+
 add_executable(keeperfx ${KFX_SOURCES_REMAINING})
 target_link_libraries(keeperfx PRIVATE ${KFX_STATIC_LIBS_STD} kfx_bfdebug_std kfx_common_opts)
 

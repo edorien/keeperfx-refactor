@@ -133,6 +133,7 @@ static TbBool noop_activate_bonus_level_for_singleplayer(struct PlayerInfo *play
 static void noop_sync_local_camera(struct PlayerInfo *player) {}
 static void noop_set_local_camera_destination(struct PlayerInfo *player) {}
 static struct Camera *noop_get_local_camera(struct Camera *cam) { return cam; }
+static void noop_move_local_camera_to_position(MapCoord x, MapCoord y) {}
 static long noop_get_camera_zoom(struct Camera *cam) { return 0; }
 static void noop_set_camera_zoom(struct Camera *cam, long val) {}
 static void noop_view_zoom_camera_in(struct Camera *cam, long limit_max, long limit_min) {}
@@ -231,6 +232,7 @@ static const struct SimFeedbackCallbacks default_sim_feedback = {
     &noop_sync_local_camera,
     &noop_set_local_camera_destination,
     &noop_get_local_camera,
+    &noop_move_local_camera_to_position,
     &noop_get_camera_zoom,
     &noop_set_camera_zoom,
     &noop_view_zoom_camera_in,

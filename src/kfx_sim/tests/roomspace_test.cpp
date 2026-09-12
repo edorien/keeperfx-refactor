@@ -1,17 +1,19 @@
 // kfx_sim "room" cluster: the first test that actually exercises
-// kfx_sim's get_packet accepted-residual stub (docs/refactor/testing/
-// stage-04c-kfx-sim.md / kfx_sim/tests/packet_test_stubs.cpp) by calling
-// a code path that uses it, not just linking against it -- flagged as
-// open in docs/refactor/testing/comprehensive/stage-08b-kfx-sim-clusters.md.
+// kfx_sim's get_packet() (packet_data.c -- real implementation, not a
+// stub; the old kfx_packet_test_stubs residual was removed once
+// get_packet/get_packet_direct/set_packet_action/set_players_packet_action
+// moved down into kfx_sim itself, see c817a9c77) by calling a code path
+// that uses it, not just linking against it -- flagged as open in
+// docs/refactor/testing/comprehensive/stage-08b-kfx-sim-clusters.md.
 //
 // get_dungeon_sell_user_roomspace()'s single_subtile_mode branch is the
 // simplest of its four roomspace_mode branches: it calls
-// get_packet_direct(player->packet_num) (the stub, returning a shared
-// dummy struct Packet) but doesn't read any of the returned packet's
-// fields in this particular branch -- only drag_placement_mode does that
-// (needs a fuller PCtr_* control-flags setup, not attempted here). Still
-// a real exercise of the stub's call path, and a legitimate behavior to
-// assert on: this mode just copies player->render_roomspace through.
+// get_packet(player->user_id) (index 0 by default after ResetSimState's
+// memset) but doesn't read any of the returned packet's fields in this
+// particular branch -- only drag_placement_mode does that (needs a
+// fuller PCtr_* control-flags setup, not attempted here). Still a real
+// exercise of that call path, and a legitimate behavior to assert on:
+// this mode just copies player->render_roomspace through.
 #include <catch2/catch_test_macros.hpp>
 
 #include "globals.h"
@@ -26,7 +28,7 @@ namespace {
 struct ResetSimState {
     ResetSimState() {
         std::memset(&kfx_sim_state, 0, sizeof(kfx_sim_state));
-        get_packet_direct(0)->control_flags = 0; // the shared stub packet persists across tests
+        get_packet(0)->control_flags = 0; // the shared stub packet persists across tests
     }
 };
 }
@@ -36,16 +38,15 @@ TEST_CASE_METHOD(ResetSimState, "get_dungeon_sell_user_roomspace copies render_r
     player->roomspace_mode = single_subtile_mode;
     player->ignore_next_PCtr_LBtnRelease = false;
     player->render_roomspace.slab_count = 7;
-    player->packet_num = 0;
 
     struct RoomSpace result{};
     get_dungeon_sell_user_roomspace(&result, 0, 10, 10);
 
     CHECK(result.slab_count == 7);
-    CHECK(player->boxsize == 7);
+    CHECK(get_player_user_state(player)->boxsize == 7);
 }
 
-// box_placement_mode: same call to get_packet_direct() as every other
+// box_placement_mode: same call to get_packet() as every other
 // mode, but doesn't read any of its fields -- unlike single_subtile_mode
 // it does real geometry work (create_box_roomspace +
 // check_roomspace_for_sellable_slabs), still safe against a fully-zeroed
@@ -59,7 +60,6 @@ TEST_CASE_METHOD(ResetSimState, "get_dungeon_sell_user_roomspace builds a box of
     player->ignore_next_PCtr_LBtnRelease = false;
     player->roomspace_width = 3;
     player->roomspace_height = 3;
-    player->packet_num = 0;
 
     struct RoomSpace result{};
     get_dungeon_sell_user_roomspace(&result, 0, 30, 30); // slab (10, 10)
@@ -68,7 +68,7 @@ TEST_CASE_METHOD(ResetSimState, "get_dungeon_sell_user_roomspace builds a box of
     CHECK(result.height == 3);
     CHECK(result.slab_count == 0); // nothing sellable on an empty map
     CHECK(result.is_roomspace_a_box); // still true -- the "empty red box" case
-    CHECK(player->boxsize == 0);
+    CHECK(get_player_user_state(player)->boxsize == 0);
 }
 
 // drag_placement_mode: the one branch that actually reads
@@ -85,8 +85,7 @@ TEST_CASE_METHOD(ResetSimState, "get_dungeon_sell_user_roomspace collapses to a 
     player->roomspace_mode = drag_placement_mode;
     player->ignore_next_PCtr_LBtnRelease = false;
     player->render_roomspace.drag_mode = true; // otherwise drag_start gets reset to the current slab anyway
-    player->packet_num = 0;
-    get_packet_direct(0)->control_flags = 0; // no button held
+    get_packet(0)->control_flags = 0; // no button held
 
     struct RoomSpace result{};
     get_dungeon_sell_user_roomspace(&result, 0, 30, 30); // slab (10, 10)
@@ -104,8 +103,7 @@ TEST_CASE_METHOD(ResetSimState, "get_dungeon_sell_user_roomspace drags from the 
     player->render_roomspace.drag_mode = true;
     player->render_roomspace.drag_start_x = 5;
     player->render_roomspace.drag_start_y = 5;
-    player->packet_num = 0;
-    get_packet_direct(0)->control_flags = PCtr_LBtnHeld;
+    get_packet(0)->control_flags = PCtr_LBtnHeld;
 
     struct RoomSpace result{};
     get_dungeon_sell_user_roomspace(&result, 0, 30, 30); // slab (10, 10)

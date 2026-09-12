@@ -56,6 +56,14 @@ struct ResetSimAndConfig {
         kfx_sim_state.map_tiles_x = 4;
         kfx_sim_state.map_tiles_y = 4;
         kfx_config_state.neutral_player_num = PLAYER_NEUTRAL;
+        // states_count gates get_thing_active_state_info/get_thing_continue_
+        // state_info/get_thing_state_info_num/get_creature_state_type_f's
+        // bounds checks (upstream #5237 replaced the old compile-time
+        // CREATURE_STATES_COUNT macro with this runtime, config-driven
+        // count) -- left at CrSt_ListEnd, the same bound CREATURE_STATES_COUNT
+        // used to be defined as, so every state id a test sets up stays
+        // "in range" by default.
+        kfx_config_state.conf.crtr_conf.states_count = CrSt_ListEnd;
     }
 };
 

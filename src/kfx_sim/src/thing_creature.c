@@ -62,6 +62,7 @@
 #include "map_blocks.h"
 #include "map_utils.h"
 #include "player_instances.h"
+#include "player_utils.h"
 #include "config_players.h"
 #include "power_hand.h"
 #include "power_process.h"
@@ -363,13 +364,13 @@ TbBool load_swipe_graphic_for_creature(const struct Thing *thing)
 /**
  * Randomise the draw direction of the swipe sprite in the first-person possession view.
  *
- * Sets local_info.swipe_sprite_drawLR to either TRUE or FALSE.
+ * Sets local_state.swipe_sprite_drawLR to either TRUE or FALSE.
  *
  * Draw direction is either: left-to-right (TRUE) or right-to-left (FALSE)
  */
 void randomise_swipe_graphic_direction()
 {
-    local_info.swipe_sprite_drawLR = UNSYNC_RANDOM(2); // equal chance to be left-to-right or right-to-left
+    local_state.swipe_sprite_drawLR = UNSYNC_RANDOM(2); // equal chance to be left-to-right or right-to-left
 }
 
 void draw_swipe_graphic(void)
@@ -404,13 +405,13 @@ void draw_swipe_graphic(void)
             int scrpos_y = (MyScreenHeight * 16 / units_per_px - (startspr->SHeight + endspr->SHeight)) / 2;
             const struct TbSprite *spr;
             int scrpos_x;
-            if (local_info.swipe_sprite_drawLR)
+            if (local_state.swipe_sprite_drawLR)
             {
                 int delta_y = sprlist[1].SHeight;
                 for (i=0; i < SWIPE_SPRITES_X*SWIPE_SPRITES_Y; i+=SWIPE_SPRITES_X)
                 {
                     spr = &startspr[i];
-                    scrpos_x = ((MyScreenWidth + (2 * local_info.engine_window_x)) * 16 / units_per_px - allwidth)/ 2;
+                    scrpos_x = ((MyScreenWidth + (2 * local_state.engine_window_x)) * 16 / units_per_px - allwidth)/ 2;
                     for (n=0; n < SWIPE_SPRITES_X; n++)
                     {
                         LbSpriteDrawResized(scrpos_x * units_per_px / 16, scrpos_y * units_per_px / 16, units_per_px, spr);
@@ -1677,9 +1678,13 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
                 }
                 case 16: // Fight
                 {
-                    if (active_battle_exists(thing->owner))
+                    // visible_battles[] is battle panel state, refilled by
+                    // maintain_my_battle_list() only for the local client's own player;
+                    // for every other player it stays zeroed. Ask the battle list itself.
+                    if (find_first_battle_of_mine(thing->owner) != 0)
                     {
                         long count = 0;
+                        TbBool battle_found = false;
                         if (player->battleid > BATTLES_COUNT)
                         {
                             player->battleid = 1;
@@ -1702,6 +1707,7 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
                                     pos.x.val = tng->mappos.x.val;
                                     pos.y.val = tng->mappos.y.val;
                                     player->battleid = i + 1;
+                                    battle_found = true;
                                     break;
                                 }
                             }
@@ -1716,6 +1722,13 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
                                 player->battleid = 1;
                                 continue;
                             }
+                        }
+                        if (!battle_found)
+                        {
+                            // No battle could be reached; fall back to the default
+                            // destination instead of keeping the unset position,
+                            // which would teleport the creature into the map border.
+                            allowed = false;
                         }
                     }
                     else
@@ -2562,7 +2575,7 @@ TngUpdateRet process_creature_state(struct Thing *thing)
             process_obey_leader(thing);
         }
     }
-    if ((thing->active_state < 1) || (thing->active_state >= CREATURE_STATES_COUNT))
+    if ((thing->active_state < 1) || (thing->active_state >= kfx_config_state.conf.crtr_conf.states_count))
     {
         ERRORLOG("The %s index %d has illegal state[1], S=%d, TCS=%d, reset", thing_model_name(thing), (int)thing->index, (int)thing->active_state, (int)thing->continue_state);
         set_start_state(thing);
@@ -3308,9 +3321,9 @@ void prepare_to_controlled_creature_death(struct Thing *thing)
         sim_feedback->turn_on_main_panel_menu();
         set_flag_value(kfx_sim_state.operation_flags, GOF_ShowPanel, (kfx_sim_state.operation_flags & GOF_ShowGui) != 0);
         sim_feedback->PaletteSetPlayerPalette(player, engine_palette);
-        local_info.palette_fade_step_possession = 11;
+        local_state.palette_fade_step_possession = 11;
     }
-    sim_feedback->light_turn_light_on(player->cursor_light_idx);
+    turn_user_cursor_light(player->user_id, true);
 }
 
 void delete_armour_effects_attached_to_creature(struct Thing *thing)
@@ -4365,10 +4378,10 @@ void draw_creature_view(struct Thing *thing)
   // Draw swipe into buffer BEFORE lens effects (so overlay renders on top of swipe)
   draw_swipe_graphic();
   // Get the actual viewport dimensions (accounts for sidebar)
-  long view_width = local_info.engine_window_width / pixel_size;
-  long view_height = local_info.engine_window_height / pixel_size;
-  long view_x = local_info.engine_window_x / pixel_size;
-  long view_y = local_info.engine_window_y / pixel_size;
+  long view_width = local_state.engine_window_width / pixel_size;
+  long view_height = local_state.engine_window_height / pixel_size;
+  long view_x = local_state.engine_window_x / pixel_size;
+  long view_y = local_state.engine_window_y / pixel_size;
   // Restore original graphics settings
   RendererRestoreFramebufferTarget(wscr_cp);
   LbScreenLoadGraphicsWindow(&grwnd);
@@ -5683,8 +5696,7 @@ void go_to_next_creature_of_model_and_gui_job(long crmodel, long job_idx, unsign
     struct Thing* creatng = find_players_next_creature_of_breed_and_gui_job(crmodel, job_idx, my_player_number, pick_flags);
     if (!thing_is_invalid(creatng))
     {
-        struct PlayerInfo* player = get_my_player();
-        set_players_packet_action(player, PckA_ZoomToPosition, creatng->mappos.x.val, creatng->mappos.y.val, 0, 0);
+        sim_feedback->move_local_camera_to_position(creatng->mappos.x.val, creatng->mappos.y.val);
     }
 }
 
@@ -6368,6 +6380,30 @@ long update_creature_levels(struct Thing *thing)
     return -1;
 }
 
+// process_keeper_spell_aura lives in thing_effects.c (declared in
+// thing_effects.h, already #included above) -- this fork relocated it
+// there during an earlier refactor; not duplicated here.
+static void block_voluntary_move_onto_toxic_terrain(struct Thing *thing, struct CreatureControl *cctrl)
+{
+    const struct Coord3d *pos = &thing->mappos;
+    if (flag_is_set(thing->alloc_flags, TAlF_IsControlled) || terrain_toxic_for_creature_at_position(thing, pos->x.stl.num, pos->y.stl.num)) {
+        return;
+    }
+    struct Coord3d nextpos;
+    nextpos.x.val = pos->x.val + cctrl->moveaccel.x.val;
+    nextpos.y.val = pos->y.val + cctrl->moveaccel.y.val;
+    if (terrain_toxic_for_creature_at_position(thing, nextpos.x.stl.num, pos->y.stl.num)) {
+        cctrl->moveaccel.x.val = 0;
+    }
+    if (terrain_toxic_for_creature_at_position(thing, pos->x.stl.num, nextpos.y.stl.num)) {
+        cctrl->moveaccel.y.val = 0;
+    }
+    if ((cctrl->moveaccel.x.val != 0) && (cctrl->moveaccel.y.val != 0) && terrain_toxic_for_creature_at_position(thing, nextpos.x.stl.num, nextpos.y.stl.num)) {
+        cctrl->moveaccel.x.val = 0;
+        cctrl->moveaccel.y.val = 0;
+    }
+}
+
 TngUpdateRet update_creature(struct Thing *thing)
 {
     SYNCDBG(19,"Starting for %s index %d",thing_model_name(thing),(int)thing->index);
@@ -6476,6 +6512,7 @@ TngUpdateRet update_creature(struct Thing *thing)
     {
         SYNCDBG(19,"The %s index %d acceleration is (%d,%d,%d)",thing_model_name(thing),
             (int)thing->index,(int)cctrl->moveaccel.x.val,(int)cctrl->moveaccel.y.val,(int)cctrl->moveaccel.z.val);
+        block_voluntary_move_onto_toxic_terrain(thing, cctrl);
         thing->velocity.x.val += cctrl->moveaccel.x.val;
         thing->velocity.y.val += cctrl->moveaccel.y.val;
         thing->velocity.z.val += cctrl->moveaccel.z.val;
@@ -7116,11 +7153,12 @@ void direct_control_pick_up_or_drop(PlayerNumber plyr_idx, struct Thing *creatng
     struct CreatureControl* cctrl = creature_control_get_from_thing(creatng);
     struct Thing* dragtng = thing_get(cctrl->dragtng_idx);
     struct PlayerInfo* player = get_player(plyr_idx);
+    struct UserState* ustate = get_player_user_state(player);
     if (!thing_is_invalid(dragtng))
     {
         if (thing_is_trap_crate(dragtng))
         {
-            struct Thing *traptng = thing_get(player->selected_fp_thing_pickup);
+            struct Thing *traptng = thing_get(ustate->selected_fp_thing_pickup);
             if (!thing_is_invalid(traptng))
             {
                 if (traptng->class_id == TCls_Trap)
@@ -7135,7 +7173,7 @@ void direct_control_pick_up_or_drop(PlayerNumber plyr_idx, struct Thing *creatng
     }
     else
     {
-        struct Thing* picktng = thing_get(player->selected_fp_thing_pickup);
+        struct Thing* picktng = thing_get(ustate->selected_fp_thing_pickup);
         struct Room* room;
         if (!thing_is_invalid(picktng))
         {

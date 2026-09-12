@@ -73,6 +73,9 @@ Two separate test mechanisms:
 
 - **`src/ftests/`** — in-game functional tests (CUnit-based scaffolding), for reproducing bugs / exercising gameplay logic against a real running game. Enabled via the `FUNCTESTING` build define. Run with `-ftests` (optionally `-ftests <test_name>` for a single test) as a game launch argument; `-exitonfailedtest` makes the process exit with code 0/-1 on success/failure, for automation. Results are logged to `keeperfx.log`, lines prefixed `FTest:`. New tests: copy `src/ftests/tests/ftest_template.{h,c}`, rename, implement actions, register in `src/ftests/ftest_list.c`. Full guide: [src/ftests/README.md](src/ftests/README.md).
 - **`tests/`** — standalone CUnit test programs (`tst_main`, `tst_enet_client`, `tst_enet_server`, `001_test`), built via `mingw32-make tests`.
+- **`src/kfx_*/tests/`** — Catch2 unit tests, one binary per `kfx_*` library (`KFX_BUILD_TESTS=ON`, native Linux only). Full guide: [docs/refactor/testing/00-overview.md](docs/refactor/testing/00-overview.md).
+
+When merging new commits from upstream (`origin`, dkfans/keeperfx) into this fork's refactored tree, use the coverage-first procedure in [docs/Architecture/upstream-merge-workflow.md](docs/Architecture/upstream-merge-workflow.md) — upstream has no test harness of its own, so this fork's `src/ftests/` and Catch2 suite are what catch a merge-introduced regression.
 
 ## Architecture
 

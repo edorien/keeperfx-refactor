@@ -35,7 +35,7 @@ struct ftest_net_enet_loopback_join__variables
     // See ftest_net_enet_loopback_host.c's matching field comment --
     // LbNetwork_Init() stores this array's address for the lifetime of
     // the network session.
-    struct TbNetworkPlayerInfo net_player_info[MAX_NET_USERS];
+    struct TbNetworkUserInfo net_player_info[MAX_NET_USERS];
 
     char ping_buffer[64];
     unsigned char extra_messages_received;

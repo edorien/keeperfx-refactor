@@ -53,7 +53,7 @@ struct ftest_net_enet_loopback_host__variables
     // local_player_info) and later net.c code (e.g. UpdateLocalPlayerInfo(),
     // called from OnDroppedUser()) dereferences it -- needs to outlive the
     // action that calls LbNetwork_Init(), not just that function's own stack.
-    struct TbNetworkPlayerInfo net_player_info[MAX_NET_USERS];
+    struct TbNetworkUserInfo net_player_info[MAX_NET_USERS];
 
     TbBool sent_ping;
     char reply_buffer[64];

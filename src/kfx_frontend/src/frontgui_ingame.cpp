@@ -273,7 +273,7 @@ void apply_pending_save(void)
     // Same as gui_save_game(): restore whatever pause state init_save_menu
     // recorded before it forced the pause.
     set_players_packet_action(get_my_player(), PckA_UpdatePause,
-                              local_info.paused_state_restore ? 1 : 0, 0, 0, 0);
+                              local_state.paused_state_restore ? 1 : 0, 0, 0, 0);
 }
 
 void loadmenu_frame(void)

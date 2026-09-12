@@ -10,7 +10,7 @@
 #include "globals.h"
 #include "frontend.h"                  // activate_room_build_mode, choose_spell, choose_workshop_item
 #include "gui_draw.h"                  // gui_room_type_highlighted
-#include "frontmenu_ingame_tabs.h"     // go_to_my_next_room_of_type_and_select, go_to_next_spell/trap_of_type,
+#include "frontmenu_ingame_tabs.h"     // go_to_my_next_room_of_type, go_to_next_spell/trap_of_type,
                                         // find_room_type_capacity_total_percentage, gui_trap_type_highlighted
 #include "player_data.h"               // get_my_player, my_player_number
 #include "packet_data.h"               // set_players_packet_action, PckA_SetPlyrState, PSt_Sell
@@ -209,7 +209,7 @@ void room_grid(void)
             activate_room_build_mode(k, rs->tooltip_stridx);
         else if (hit == 2)
         {
-            go_to_my_next_room_of_type_and_select(k);
+            go_to_my_next_room_of_type(k);
             kfx_sim_state.chosen_room_kind = k;
             kfx_sim_state.chosen_room_spridx = rs->bigsym_sprite_idx;
             kfx_sim_state.chosen_room_tooltip = rs->tooltip_stridx;

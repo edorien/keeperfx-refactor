@@ -227,6 +227,7 @@ struct SimFeedbackCallbacks {
     void (*sync_local_camera)(struct PlayerInfo *player);
     void (*set_local_camera_destination)(struct PlayerInfo *player);
     struct Camera *(*get_local_camera)(struct Camera *cam);
+    void (*move_local_camera_to_position)(MapCoord x, MapCoord y);
 
     /* engine_camera.h -- camera zoom/movement is kfx_render's concern,
        but kfx_sim triggers it as a side effect of simulation events

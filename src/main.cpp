@@ -1418,6 +1418,7 @@ short setup_game(void)
       &refresh_active_button_sprites_for_player,
       &find_next_room_of_type,
       &sync_local_camera, &set_local_camera_destination, &get_local_camera,
+      &move_local_camera_to_position,
       &get_camera_zoom, &set_camera_zoom, &view_zoom_camera_in, &view_zoom_camera_out,
       &view_set_camera_move_to_position, &view_move_camera_to_position,
       &init_player_cameras, &any_player_close_enough_to_see, &lightning_is_close_to_player,

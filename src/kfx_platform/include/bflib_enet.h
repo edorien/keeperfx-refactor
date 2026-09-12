@@ -68,6 +68,7 @@ struct EnetConnectivityServices {
     TbBool (*attempting_to_join_cancel_requested)(void);
     uint16_t (*holepunch_stun_query)(struct _ENetHost *host, char *output_ip, size_t output_ip_buffer_size);
     void (*holepunch_punch_to)(struct _ENetHost *host, const struct _ENetAddress *target);
+    int (*holepunch_receive)(struct _ENetHost *host, struct _ENetAddress *expected, size_t expected_count);
     int (*matchmaking_punch)(const char *lobby_id, int udp_ipv4_port, int udp_ipv6_port, struct EnetPunchAddresses *output);
     int (*matchmaking_poll_punch)(struct EnetPunchAddresses *output);
     int (*port_forward_add_mapping)(uint16_t port);

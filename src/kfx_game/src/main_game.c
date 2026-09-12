@@ -198,8 +198,8 @@ void reinit_level_after_load(void)
     SYNCDBG(6,"Starting");
     // Reinit structures from within the game
     player = get_my_player();
-    local_info.lens_palette = 0;
-    local_info.main_palette = engine_palette;
+    local_state.lens_palette = 0;
+    local_state.main_palette = engine_palette;
     init_navigation();
     reinit_packets_after_load();
     kfx_sim_state.easter_eggs_enabled = start_params.easter_egg;
@@ -574,6 +574,8 @@ TbBool startup_saved_packet_game(void)
         return false;
     setup_zombie_players();//TODO GUI What about packet file from network game? No zombies there..
     init_players();
+    get_my_player()->user_id = SOLO_HUMAN_ID;
+    init_user_state(get_my_player()->user_id);
     if (kfx_net_state.active_players_count == 1)
         kfx_sim_state.game_kind = GKind_LocalGame;
     if (kfx_net_state.turns_stored < kfx_net_state.turns_fastforward)

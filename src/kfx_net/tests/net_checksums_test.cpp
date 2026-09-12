@@ -19,7 +19,7 @@
 #include "thing_data.h"
 #include "kfx_sim_state.h"
 #include "kfx_net_state.h"
-#include "net_game.h" // net_player_info[]/MAX_NET_USERS, for checksums_different's network_player_active check
+#include "net_game.h" // net_user_info[]/MAX_NET_USERS/setup_network_player_numbers(), for checksums_different's network_user_active/get_net_user_player_number checks
 
 #include <cstring>
 
@@ -29,22 +29,33 @@ struct ResetSimState {
 };
 
 // checksums_different() also touches kfx_net_state (packets) and
-// net_player_info (network_player_active); get_host_player_id() is
-// hardcoded to 0, so kfx_sim_state.players[0] is always "the host" here.
+// net_user_info (network_user_active); SERVER_ID is hardcoded to 0, so
+// kfx_sim_state.players[0] is always "the host" here. Resolving a
+// non-host NetUserId to a PlayerNumber goes through
+// get_net_user_player_number(), which only returns anything but -1 once
+// network_is_active() is set AND setup_network_player_numbers() (net_game.c
+// -- the same compaction init_players_network_game() calls) has run, so
+// the fixture drives that real entry point rather than poking
+// net_game.c's otherwise-private net_user_player_number[] directly.
 struct ResetChecksumState {
     ResetChecksumState() {
         std::memset(&kfx_sim_state, 0, sizeof(kfx_sim_state));
         std::memset(&kfx_net_state, 0, sizeof(kfx_net_state));
-        std::memset(net_player_info, 0, sizeof(net_player_info));
-        kfx_sim_state.players[0].packet_num = 0;
+        std::memset(net_user_info, 0, sizeof(net_user_info));
+        kfx_sim_state.system_flags |= GSF_NetworkActive;
+        net_user_info[SERVER_ID].network_user_active = 1;
+        setup_network_player_numbers(); // claims player number 0 for the host
     }
 
     // Makes player i (1 <= i < MAX_NET_USERS) an active, non-computer
-    // network client with its own packet slot equal to its player index.
+    // network client. setup_network_player_numbers() compacts active
+    // net_user_info slots in NetUserId order, and the host (id 0) already
+    // claimed player number 0 above, so the i-th client lands on player
+    // number i too.
     void make_active_client(int i) {
         kfx_sim_state.players[i].allocflags |= PlaF_Allocated;
-        kfx_sim_state.players[i].packet_num = i;
-        net_player_info[i].network_user_active = 1;
+        net_user_info[i].network_user_active = 1;
+        setup_network_player_numbers();
     }
 };
 
@@ -130,8 +141,7 @@ TEST_CASE_METHOD(ResetChecksumState, "checksums_different skips a player marked 
 TEST_CASE_METHOD(ResetChecksumState, "checksums_different skips a player whose network slot isn't active", "[kfx_net][net_checksums]") {
     sim_packets[0].checksum = 0xAABBCCDD;
     kfx_sim_state.players[1].allocflags |= PlaF_Allocated;
-    kfx_sim_state.players[1].packet_num = 1;
-    // net_player_info[1].network_user_active left at 0 -- not an active network slot.
+    // net_user_info[1].network_user_active left at 0 -- not an active network slot.
     sim_packets[1].checksum = 0x11223344;
     sim_packets[1].action = 1;
     CHECK_FALSE(checksums_different());

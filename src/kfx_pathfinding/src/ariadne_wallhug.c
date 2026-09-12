@@ -449,6 +449,9 @@ static long get_map_index_of_first_block_thing_colliding_with_at(struct Thing *c
 
 static long creature_cannot_move_directly_to_with_collide_sub(struct Thing *creatng, struct Coord3d pos, long slab_flags, PlayerBitFlags crt_owner_flags)
 {
+    if (!pathfinding_world->thing_is_flying(creatng) && pathfinding_world->subtile_has_abyss_on_top(pos.x.stl.num, pos.y.stl.num)) {
+        return 4;
+    }
     if (pathfinding_world->thing_in_wall_at(creatng, &pos))
     {
         pos.z.val = subtile_coord(pathfinding_world->get_map_size_z(),COORD_PER_STL-1);

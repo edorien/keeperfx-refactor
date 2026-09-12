@@ -148,9 +148,16 @@ void update_double_click_detection(NetUserId user)
   }
 }
 
+// keeper_build_room lives in kfx_sim's roomspace.c (declared in
+// roomspace.h) -- core room-building logic, not packet handling, and the
+// function actually called from packets_input.c's real input path is
+// keeper_build_roomspace() -> keeper_build_room() there. Upstream's
+// version of this fix (#5229's UserState migration) was ported into that
+// real implementation instead of duplicating it here.
 TbBool process_dungeon_control_packet_spell_overcharge(NetUserId user)
 {
     struct PlayerInfo* player = get_player(get_net_user_player_number(user));
+    struct UserState* ustate = get_player_user_state(player);
     const PlayerNumber plyr_idx = player->id_number;
     struct Dungeon* dungeon = get_players_dungeon(player);
     SYNCDBG(6,"Starting for player %d state %s",(int)plyr_idx,player_state_code_name(player->work_state));
@@ -158,7 +165,7 @@ TbBool process_dungeon_control_packet_spell_overcharge(NetUserId user)
 
     while (kfx_config_state.conf.rules[plyr_idx].magic.allow_instant_charge_up && (pckt->additional_packet_values & PCAdV_SpeedupPressed))
     {
-        struct PowerConfigStats *powerst = get_power_model_stats(player->chosen_power_kind);
+        struct PowerConfigStats *powerst = get_power_model_stats(ustate->chosen_power_kind);
 
         if (powerst->overcharge_check_idx == OcC_CallToArms_expand
             || powerst->overcharge_check_idx == OcC_SightOfEvil_expand
@@ -167,7 +174,7 @@ TbBool process_dungeon_control_packet_spell_overcharge(NetUserId user)
             if (powerst->overcharge_check_idx == OcC_CallToArms_expand && player_uses_power_call_to_arms(plyr_idx))
                 break;
 
-            while(update_power_overcharge(player, player->chosen_power_kind))
+            while(update_power_overcharge(player, ustate->chosen_power_kind))
             {}
 
             return true;
@@ -177,7 +184,7 @@ TbBool process_dungeon_control_packet_spell_overcharge(NetUserId user)
 
     if (flag_is_set(pckt->control_flags,PCtr_LBtnHeld))
     {
-        struct PowerConfigStats *powerst = get_power_model_stats(player->chosen_power_kind);
+        struct PowerConfigStats *powerst = get_power_model_stats(ustate->chosen_power_kind);
 
         switch (powerst->overcharge_check_idx)
         {
@@ -185,11 +192,11 @@ TbBool process_dungeon_control_packet_spell_overcharge(NetUserId user)
                 if (player_uses_power_call_to_arms(plyr_idx))
                     player->cast_expand_level = (dungeon->cta_power_level << 2);
                 else
-                    update_power_overcharge(player, player->chosen_power_kind);
+                    update_power_overcharge(player, ustate->chosen_power_kind);
                 break;
             case OcC_SightOfEvil_expand:
             case OcC_General_expand:
-                update_power_overcharge(player, player->chosen_power_kind);
+                update_power_overcharge(player, ustate->chosen_power_kind);
                 break;
             case OcC_do_not_expand:
             case OcC_Null:
@@ -337,7 +344,7 @@ void process_camera_controls(struct Camera* cam, const struct Packet* pckt, stru
     if (pckt->additional_packet_values & PCAdV_SpeedupPressed)
       inter_val *= 3;
 
-    if (is_local_camera && !kfx_net_state.packet_load_enable)
+    if (is_local_camera && !kfx_net_state.packet_load_enable && cam->view_mode != PVM_ParchmentView)
     {        
         // Apply same scaling as packet-based movement for consistency
         if (camera_movement_y != 0.0f) {
@@ -350,12 +357,9 @@ void process_camera_controls(struct Camera* cam, const struct Packet* pckt, stru
             long limit = (long)(camera_movement_x * inter_val);
             view_set_camera_x_inertia(cam, delta, limit);
         }
-        camera_movement_x = 0.0f;
-        camera_movement_y = 0.0f;
     }
     else
     {
-        // Packet-based movement for non-local cameras or when local camera is disabled
         if ((pckt->control_flags & PCtr_MoveUp) != 0) {
             view_set_camera_y_inertia(cam, -inter_val/4, -inter_val);
         }
@@ -368,6 +372,10 @@ void process_camera_controls(struct Camera* cam, const struct Packet* pckt, stru
         if ((pckt->control_flags & PCtr_MoveRight) != 0) {
             view_set_camera_x_inertia(cam, inter_val/4, inter_val);
         }
+    }
+    if (is_local_camera) {
+        camera_movement_x = 0.0f;
+        camera_movement_y = 0.0f;
     }
 
     const TbBool use_rotate_pos = flag_is_set(pckt->control_flags, PCtr_ViewRotatePos | PCtr_MapCoordsValid);
@@ -513,7 +521,7 @@ void process_user_dungeon_control_packet_control(NetUserId user)
         update_box_lag_compensation(player);
     }
     process_dungeon_control_packet_clicks(user);
-    update_mouse_light(player);
+    update_mouse_light(user);
 }
 
 static void set_all_cameras_position(struct Camera *cams, int32_t pos_x, int32_t pos_y)
@@ -549,6 +557,11 @@ void process_camera_action(struct Camera *cams, const struct Packet *pckt)
     case PckA_ZoomFromMap:
         set_all_cameras_position(cams, subtile_coord_center(pckt->actn_par1), subtile_coord_center(pckt->actn_par2));
         set_all_cameras_rotation(cams, 0);
+        for (int i = 0; i < CamIV_EndList; i++) {
+            cams[i].inertia_x = 0;
+            cams[i].inertia_y = 0;
+            cams[i].inertia_rotation = 0;
+        }
         break;
     }
 }
@@ -686,8 +699,8 @@ TbBool process_user_global_packet_action(NetUserId user)
   case PckA_SetMinimapConf:
       if (is_my_player(player))
       {
-        local_info.minimap_zoom = pckt->actn_par1;
-        settings.minimap_zoom = local_info.minimap_zoom;
+        local_state.minimap_zoom = pckt->actn_par1;
+        settings.minimap_zoom = local_state.minimap_zoom;
         save_settings();
       }
       return 0;
@@ -900,7 +913,6 @@ TbBool process_user_global_packet_action(NetUserId user)
     }
   case PckA_LoadViewType:
       set_player_mode(player, pckt->actn_par1);
-      set_engine_view(player, player->view_mode_restore);
       return false;
     case PckA_SetRoomspaceAuto:
     case PckA_SetRoomspaceMan:
@@ -934,7 +946,7 @@ TbBool process_user_global_packet_action(NetUserId user)
             // exit out of click and drag mode
             if (player->render_roomspace.drag_mode)
             {
-                player->cursor_button_down = 0;
+                get_player_user_state(player)->cursor_button_down = 0;
                 player->one_click_lock_cursor = false;
                 if ((pckt->control_flags & PCtr_LBtnHeld) == PCtr_LBtnHeld)
                 {
@@ -990,7 +1002,7 @@ void process_user_map_packet_control(NetUserId user)
     process_map_packet_clicks(user);
     player->cameras[CamIV_Parchment].mappos.x.val = pckt->pos_x;
     player->cameras[CamIV_Parchment].mappos.y.val = pckt->pos_y;
-    update_mouse_light(player);
+    update_mouse_light(user);
     SYNCDBG(8,"Finished");
 }
 
@@ -1020,8 +1032,9 @@ void process_user_packet(NetUserId user)
         return;
     }
     SYNCDBG(6, "Processing user %d packet of type %d.", user, (int)pckt->action);
-    player->input_crtr_control = ((pckt->additional_packet_values & PCAdV_CrtrContrlPressed) != 0);
-    player->input_crtr_query = ((pckt->additional_packet_values & PCAdV_CrtrQueryPressed) != 0);
+    struct UserState* ustate = get_user_state(user);
+    ustate->input_crtr_control = ((pckt->additional_packet_values & PCAdV_CrtrContrlPressed) != 0);
+    ustate->input_crtr_query = ((pckt->additional_packet_values & PCAdV_CrtrQueryPressed) != 0);
 
   if (!process_user_global_packet_action(user))
   {
@@ -1377,6 +1390,7 @@ void process_user_creature_control_packet_action(NetUserId user)
   struct Packet *pckt;
   long i;
   player = get_player(plyr_idx);
+  struct UserState* ustate = get_player_user_state(player);
   pckt = get_packet(user);
   SYNCDBG(6,"Processing player %d action %d",(int)plyr_idx,(int)pckt->action);
   switch (pckt->action)
@@ -1460,7 +1474,7 @@ void process_user_creature_control_packet_action(NetUserId user)
       }
     case PckA_SetFirstPersonDigMode:
     {
-        player->first_person_dig_claim_mode = pckt->actn_par1;
+        ustate->first_person_dig_claim_mode = pckt->actn_par1;
         break;
     }
     case PckA_SwitchTeleportDest:
@@ -1470,7 +1484,7 @@ void process_user_creature_control_packet_action(NetUserId user)
     }
     case PckA_SelectFPPickup:
     {
-        player->selected_fp_thing_pickup = pckt->actn_par1;
+        ustate->selected_fp_thing_pickup = pckt->actn_par1;
         break;
     }
     case PckA_SetNearestTeleport:

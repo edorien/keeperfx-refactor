@@ -92,7 +92,6 @@ void update_room_tab_to_config(void);
 void update_trap_tab_to_config(void);
 void update_powers_tab_to_config(void);
 
-void go_to_my_next_room_of_type_and_select(RoomKind rkind);
 void go_to_next_spell_of_type(PowerKind pwkind);
 void go_to_next_trap_of_type(ThingModel tngmodel, PlayerNumber plyr_idx);
 void go_to_my_next_room_of_type(RoomKind rkind);

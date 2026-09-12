@@ -25,6 +25,7 @@
 
 #include "bflib_basics.h"
 #include "bflib_math.h"
+#include "bflib_netsp.h"
 #include "globals.h"
 #include "map_data.h"
 #include "map_columns.h"
@@ -233,6 +234,13 @@ struct KfxSimState {
 
     /* Player/computer-AI state (stage 6.7 increment 5) */
     struct PlayerInfo players[PLAYERS_COUNT];
+    // Per-human-user state (struct UserState, player_data.h), one slot per
+    // network user id -- not one per PlayerInfo/player slot, since a
+    // computer-controlled player has no user. Upstream (PR #5220/#5229)
+    // keeps this as game.user_states[]; kept here instead, alongside
+    // players[] which it's the per-user counterpart to, per this state
+    // struct's existing per-library-not-struct-Game convention.
+    struct UserState user_states[MAX_NET_USERS];
     struct ComputerTask computer_task[COMPUTER_TASKS_COUNT];
     struct Computer2 computer[PLAYERS_COUNT];
     struct CreaturePool pool;

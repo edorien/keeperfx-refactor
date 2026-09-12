@@ -46,6 +46,12 @@ extern struct TbNetworkUserInfo net_user_info[MAX_NET_USERS];
 short setup_network_service(enum FrontendNetService service);
 int setup_old_network_service(void);
 TbBool init_players_network_game(void);
+// Compacts net_user_info's active slots into net_user_player_number[],
+// including host bookkeeping (my_player_number). Exposed (not just called
+// from init_players_network_game()) so tests can seed a NetUserId <->
+// PlayerNumber mapping via this real production path instead of reaching
+// into net_game.c's otherwise-private net_user_player_number[] directly.
+void setup_network_player_numbers(void);
 void setup_count_players(void);
 void are_disconnect_victories_allowed(void);
 

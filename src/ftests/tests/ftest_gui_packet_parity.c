@@ -141,7 +141,7 @@ static FTestActionResult action004__zoom_is_local_only(struct FTestActionArgs *c
     if (args->times_executed == 0)
     {
         vars->zoom_capture_count_before = ftest_packet_capture_count();
-        vars->minimap_zoom_before = local_info.minimap_zoom;
+        vars->minimap_zoom_before = local_state.minimap_zoom;
         if (!ftest_util_gui_click(BID_MAP_ZOOM_IN))
             return FTRs_Go_To_Next_Action;
         return FTRs_Repeat_Current_Action;
@@ -154,10 +154,10 @@ static FTestActionResult action004__zoom_is_local_only(struct FTestActionArgs *c
         ftest_packet_capture_dump();
         return FTRs_Go_To_Next_Action;
     }
-    if (local_info.minimap_zoom == vars->minimap_zoom_before)
+    if (local_state.minimap_zoom == vars->minimap_zoom_before)
         FTESTLOG("note: minimap_zoom unchanged (%ld) -- at zoom limit, click was a no-op", vars->minimap_zoom_before);
     else
-        FTESTLOG("minimap_zoom %ld -> %ld, no packet (as expected)", vars->minimap_zoom_before, (long)local_info.minimap_zoom);
+        FTESTLOG("minimap_zoom %ld -> %ld, no packet (as expected)", vars->minimap_zoom_before, (long)local_state.minimap_zoom);
 
     return FTRs_Go_To_Next_Action;
 }

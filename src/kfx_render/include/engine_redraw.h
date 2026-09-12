@@ -23,6 +23,7 @@
 #include "bflib_basics.h"
 #include "globals.h"
 #include "bflib_video.h"
+#include "bflib_netsp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,7 +56,7 @@ TbBool players_cursor_is_at_top_of_view(void);
 TbBool engine_point_to_map(struct Camera *camera, long screen_x, long screen_y, int32_t *map_x, int32_t *map_y);
 TbBool screen_to_map(struct Camera *camera, int32_t screen_x, int32_t screen_y, struct Coord3d *mappos);
 void update_local_mouse_light(void);
-void update_mouse_light(struct PlayerInfo *player);
+void update_mouse_light(NetUserId user);
 /******************************************************************************/
 #ifdef __cplusplus
 }
