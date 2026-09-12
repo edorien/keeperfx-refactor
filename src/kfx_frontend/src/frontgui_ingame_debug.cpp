@@ -3,7 +3,7 @@
 
 #include "frontgui_widgets.h"
 #include "frontgui_style.h"
-#include "renderer/RendererManager.h" // RendererImGuiEnabled
+#include "config_keeperfx.h" // ingame_gui_use_classic_hud
 
 #include "globals.h"
 #include "frontmenu_ingame_evnt.h" // *_enabled() predicates, TimerTurns, debug_display_network_stats
@@ -272,7 +272,7 @@ void draw_consolelog_overlay(void)
 
 extern "C" void ingame_debug_overlays_frame(void)
 {
-    if (!RendererImGuiEnabled())
+    if (ingame_gui_use_classic_hud())
         return;
     draw_script_readouts();
     draw_gameturn_overlay();

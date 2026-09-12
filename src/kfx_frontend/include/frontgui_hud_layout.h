@@ -23,12 +23,51 @@ enum HudPanelLayout {
     HudLayout_Minimal,           // icons only, no tab content (not wired yet)
 };
 
+// HorizontalBottom only (docs/refactor/ingame-gui/11-horizontal-layout.md):
+// region B's width isn't one constant -- Room/Spell/Trap want it capped
+// (a wide screen otherwise spread a 6-column grid's cells apart with
+// wasteful gaps, live-tested); the creature strip wants it as wide as
+// possible (more creatures visible without scrolling, live-tested: "only
+// being able to view 5 creatures isn't ideal"); the possession/query
+// panel wants it *narrower* than the default (live-tested: "reduce the
+// whitespace on the right"). The active tab decides which -- see
+// frontgui_ingame_panel.cpp's determine_bottom_width_mode().
+enum HudBottomWidthMode {
+    HudBottomWidth_Normal = 0, // Room/Spell/Trap and anything not called out below
+    HudBottomWidth_Wide,       // the creature strip
+    HudBottomWidth_Narrow,     // possession / creature-query
+};
+
+// Minimal only (docs/refactor/ingame-gui/13-minimal-layout.md): which upper
+// corner the minimap (+ gold + event markers, stacked with it) sits in. The
+// button cluster + pop-up panel always take the diagonally opposite
+// (bottom) corner -- one setting drives both, not two independent choices.
+enum HudMinimalCorner {
+    HudMinimalCorner_UpperLeft = 0,  // default
+    HudMinimalCorner_UpperRight,
+};
+
 enum HudRegion {
     HudRegion_Minimap = 0, // minimap texture + compass
+    // Minimal (docs/refactor/ingame-gui/13-minimal-layout.md): repurposed as
+    // the free-floating button cluster's anchor point (a nominal box, not a
+    // channel-and-plinth strip -- the cluster is an auto-resize window, so
+    // only its corner/pivot point is actually read).
     HudRegion_TabStrip,    // the 5 tab headers + zoom / map / autopilot buttons
+    // Minimal: the pop-up panel's rect (sized off the vertical layout's own
+    // panel width/height math, anchored off HudRegion_TabStrip's corner) --
+    // unlike VerticalRight/HorizontalBottom this *is* read directly (the
+    // popup isn't docked to anything else that already has a rect).
     HudRegion_TabContent,  // the active tab's body (Phase 5)
     HudRegion_Gold,        // the gold counter
+    // Minimal: a vertical stack directly below the minimap, same edge
+    // (live-tested decision -- doc 13 §1.3).
     HudRegion_Events,      // the event-notification markers
+    // HorizontalBottom only (docs/refactor/ingame-gui/11-horizontal-layout.md):
+    // the message queue has its own region there, since it sits in a fixed
+    // place beside the grid rather than floating top-left like it does for
+    // VerticalRight/Left/Right (frontgui_ingame_text.cpp).
+    HudRegion_Messages,
     HudRegion_COUNT,
 };
 
@@ -42,14 +81,22 @@ struct HudLayout {
 };
 
 // Recompute every region rect for `kind` at the given display size.
-// Cheap -- call it on resize / layout switch, not per frame.
-void hud_layout_build(HudLayout *out, HudPanelLayout kind, float display_w, float display_h);
+// `b_width_mode` only matters for HudLayout_HorizontalBottom (see
+// HudBottomWidthMode above); `corner` only matters for HudLayout_Minimal
+// (see HudMinimalCorner above) -- pass HudBottomWidth_Normal /
+// HudMinimalCorner_UpperLeft for every kind they don't apply to. Cheap --
+// call it on resize / layout switch / width-mode / corner change, not per
+// frame.
+void hud_layout_build(HudLayout *out, HudPanelLayout kind, HudBottomWidthMode b_width_mode,
+                      HudMinimalCorner corner, float display_w, float display_h);
 
-// The process-wide current layout, rebuilt by hud_layout_frame() when the
-// display size changes. hud_layout_frame() must run once per ImGui frame
-// before any region is laid out.
+// The process-wide current layout, rebuilt by hud_layout_frame() when
+// `kind`, `b_width_mode`, `corner`, or the display size changes.
+// hud_layout_frame() must run once per ImGui frame before any region is
+// laid out.
 const HudLayout &hud_layout_current(void);
-void hud_layout_frame(float display_w, float display_h);
+void hud_layout_frame(HudPanelLayout kind, HudBottomWidthMode b_width_mode,
+                      HudMinimalCorner corner, float display_w, float display_h);
 inline const HudRect &hud_region_rect(HudRegion r) { return hud_layout_current().region[r]; }
 
 #endif // __cplusplus

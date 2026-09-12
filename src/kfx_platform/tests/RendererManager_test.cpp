@@ -141,24 +141,6 @@ TEST_CASE_METHOD(RendererManagerFixture, "set_renderer_draw_callbacks(nullptr) r
     CHECK(true);
 }
 
-// docs/refactor/renderer/04-imgui-gui-foundation.md §3.5 -- RendererImGuiEnabled
-// is the flag RendererSoftware::PresentFrame() gates the whole ImGui overlay
-// on (`if (RendererImGuiEnabled() && ImGuiContextEnsure(...))`), pushed down
-// once from main.cpp::setup_game() via RendererSetImGuiEnabled(!use_classic_menu()).
-// This is the runtime half of the -classicmenu/-noimgui toggle proof: no
-// active renderer/window is needed to exercise the switch itself, only to
-// see it composite on screen.
-TEST_CASE_METHOD(RendererManagerFixture, "ImGui overlay enabled flag round-trips through RendererSetImGuiEnabled/RendererImGuiEnabled", "[kfx_platform][RendererManager][imgui]") {
-    RendererSetImGuiEnabled(0);
-    CHECK_FALSE(RendererImGuiEnabled());
-
-    RendererSetImGuiEnabled(1);
-    CHECK(RendererImGuiEnabled());
-
-    RendererSetImGuiEnabled(0);
-    CHECK_FALSE(RendererImGuiEnabled());
-}
-
 TEST_CASE_METHOD(RendererManagerFixture, "RendererSetImGuiDemoVisible is safe with no active ImGui context", "[kfx_platform][RendererManager][imgui]") {
     // No SDL window/renderer exists in this test binary, so no ImGui
     // context is active -- must not crash either way.

@@ -41,6 +41,7 @@
 #include "front_input.h"
 #include "frontmenu_ingame_map.h"
 #include "game_legacy.h"
+#include "config_keeperfx.h" // keeperfx_ui_config.hud_position -- GUI_POSITION
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -735,6 +736,20 @@ TbBool mouse_is_over_side_panel_bottom()
     if (!flag_is_set(kfx_sim_state.operation_flags, GOF_ShowGui))
         return false;
     struct GuiMenu* gmnu = get_active_menu(menu_id_to_number(GMnu_MAIN));
+    // GUI_POSITION: the legacy menu itself is always created flush-left
+    // (frontgui_ingame_panel.cpp's own read_menu_rect() mirrors it onto the
+    // right edge purely for its own ImGui draw/hit-test, without touching
+    // gmnu->pos_x) -- so mirror the same test here rather than the panel's
+    // own (unmoved) pos_x.
+    if (keeperfx_ui_config.hud_position == 2) // HudPos_Right
+        return ((GetMouseX() > MyScreenWidth - status_panel_width) && (GetMouseY() > scale_ui_value(185)) && (GetMouseY() < gmnu->height));
+    // Bottom (docs/refactor/ingame-gui/11-horizontal-layout.md) has no
+    // vertical "side panel" at all -- this legacy flush-left rect isn't
+    // drawn there, and falling through to the Left check below wrongly
+    // flagged the empty space where it used to be (same bug class as
+    // point_is_over_gui_menu(), gui_frontmenu.c).
+    if (keeperfx_ui_config.hud_position == 3) // HudPos_Bottom
+        return false;
     return ((GetMouseX() < status_panel_width) && (GetMouseY() > scale_ui_value(185)) && (GetMouseY() < gmnu->height));
 }
 

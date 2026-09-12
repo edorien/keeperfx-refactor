@@ -2225,7 +2225,10 @@ which side owns what.
 
 **Later, separately — retire the toggle.** Once §2's screens have shipped and stabilised, decide to
 remove `-classicmenu` and the legacy frontend menu code. Deliberate, and not part of this plan's
-completion criteria.
+completion criteria. **Done 2026-09-12** (docs/refactor/ingame-gui/00-overview.md §1/§8) — the
+legacy frontend menu code is gone; the in-game HUD's own legacy sprite renderer (a separate
+project, docs/refactor/ingame-gui/) was kept live on purpose, moved onto `GUI_ICON_PACK=CLASSIC`
+rather than deleted with the rest.
 
 ---
 

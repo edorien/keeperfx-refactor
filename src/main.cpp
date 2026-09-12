@@ -956,7 +956,7 @@ static long render_overlay_get_status_panel_width(void)
     // inset the engine window (and a horizontal HUD layout could not be
     // expressed as a left inset at all). The classic sprite GUI keeps its
     // inset.
-    if (RendererImGuiEnabled())
+    if (!ingame_gui_use_classic_hud())
         return 0;
     return status_panel_width;
 }
@@ -964,10 +964,11 @@ static long render_overlay_get_status_panel_width(void)
 static void render_overlay_draw_debug_overlays(void)
 {
     // Phase 2 (docs/refactor/ingame-gui/03-debug-overlays-and-box-menus.md):
-    // when the ImGui HUD is on, ingame_debug_overlays_frame()
+    // when the ImGui in-game HUD is active, ingame_debug_overlays_frame()
     // (frontgui_ingame_debug.cpp) draws all of these instead, from the
-    // FrontendImGuiFrame submission -- same *_enabled() gates.
-    if (RendererImGuiEnabled())
+    // FrontendImGuiFrame submission -- same *_enabled() gates. Only reached
+    // for the classic HUD (ingame_gui_use_classic_hud()).
+    if (!ingame_gui_use_classic_hud())
         return;
     if (bonus_timer_enabled())
     {
@@ -1288,10 +1289,13 @@ short setup_game(void)
   bf_sndlib_set_audio_config(get_language_lwrstr(install_info.lang_id), is_feature_on(Ft_NoCdMusic));
   bf_sound_set_atmos_config(AtmosStart, AtmosEnd, AtmosRepeat, atmos_sounds_enabled());
   // docs/refactor/renderer/04-imgui-gui-foundation.md §3.5/§7 Phase A --
-  // kfx_platform can't call use_classic_menu()/is_feature_on() itself
-  // (kfx_config ranks above kfx_platform), so push the resolved flags down
-  // through RendererManager's setters instead.
-  RendererSetImGuiEnabled(!use_classic_menu());
+  // kfx_platform can't call kfx_config's is_feature_on() itself (kfx_config
+  // ranks above kfx_platform), so push the resolved flags down through
+  // RendererManager's setters instead. ImGui itself is unconditional now
+  // (every frontend menu needs it, and the in-game HUD's own classic-vs-
+  // ImGui choice, GUI_ICON_PACK's "CLASSIC" value, is decided per-draw-call
+  // inside kfx_frontend -- see ingame_gui_use_classic_hud()) -- there is no
+  // longer a session-wide "ImGui enabled" switch to push down here.
   RendererSetImGuiDemoVisible((start_params.debug_flags & DFlg_ImGuiDemo) != 0);
   // Phase C (§7): FrontendImGuiFrame dispatches to the active migrated
   // screen (and still runs the Phase B style-sheet debug overlay),
@@ -1971,15 +1975,6 @@ static short process_command_line(unsigned short argc, char *argv[])
           // §7 Phase B exit criteria: the style-sheet test screen
           // exercising every frontgui_widgets.h wrapper.
           set_flag(start_params.debug_flags, DFlg_ImGuiStyleSheet);
-      } else
-      if ((strcasecmp(parstr, "classicmenu") == 0) || (strcasecmp(parstr, "noimgui") == 0))
-      {
-          // docs/refactor/renderer/04-imgui-gui-foundation.md §3.5: forces
-          // the legacy sprite-drawn frontend menus. Command line beats
-          // config, same overrides[] mechanism as Clo_CDMusic/Clo_GameTurns/
-          // Clo_FramesPerSecond above.
-          features_enabled |= Ft_ClassicMenu;
-          start_params.overrides[Clo_ClassicMenu] = true;
       } else
       if (strcasecmp(parstr, "show_game_turns") == 0)
       {

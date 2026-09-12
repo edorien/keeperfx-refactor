@@ -3,14 +3,16 @@
 
 #include "frontgui_widgets.h"
 #include "frontgui_style.h"
+#include "frontgui_offscreen.h"           // FeOffscreenTarget -- sprite -> texture capture
 
 #include "bflib_guibtns.h"                 // do_sound_menu_click
 #include "bflib_sprite.h"                  // struct TbSprite
 #include "bflib_vidraw.h"                  // LbSpriteDrawImmediate
 #include "bflib_video.h"                   // TbPixel, LbScreen*GraphicsWindow, TbGraphicsWindow
-#include "renderer/RendererManager.h"      // RendererSwapFramebufferTarget, dynamic textures, draw-flag state
+#include "renderer/RendererManager.h"      // dynamic textures, draw-flag state
 #include "custom_sprites.h"                // get_button_sprite, get_panel_sprite
 #include "kfx_sim_state.h"                 // engine_palette (game palette for the sprite decode)
+#include "frontgui_ingame_icon_overrides.h" // FeIconOverrideForStaticIndex -- docs/refactor/ingame-gui/12-png-icon-overrides.md
 
 #include <imgui_internal.h>                // GImGui->NavCursorVisible -- same use as frontgui_widgets.cpp
 #include "post_inc.h"
@@ -48,42 +50,26 @@ bool render_sprite(const struct TbSprite *spr, CachedSprite &out, bool force_eng
 
     std::vector<TbPixel> pixels((size_t)w * (size_t)h, TbPixel{0, 0, 0, 0});
 
-    const unsigned short prev_flags = RendererGetDrawFlags();
-    const unsigned char prev_colour = RendererGetDrawColour();
-    RendererSetDrawFlags(0);
-
     // LbSpriteDrawImmediate decodes the sprite's paletted bytes through
     // RendererGetActivePalette() (LbDrawBufferSolid). At ImGui present
     // time that ambient palette isn't guaranteed to be the one a given
     // sheet was authored against -- found live, "the zoom/close icons are
     // all white": the GUI *panel* sprites came out as bright silhouettes
     // (the button sprites happen to decode fine ambiently). For the panel
-    // path, force the game engine palette (same technique as the ImGui
-    // cursor forcing frontend_palette, frontgui_style.cpp) and restore
-    // whatever was active. engine_palette is null until a level's palette
-    // loads -- bail and retry rather than cache a wrong decode.
-    unsigned char prev_palette[PALETTE_SIZE];
-    bool palette_forced = false;
-    if (force_engine_palette)
-    {
-        if (engine_palette == nullptr)
-            return false;
-        RendererPaletteGet(prev_palette);
-        RendererPaletteSet(engine_palette);
-        palette_forced = true;
-    }
+    // path, force the game engine palette. engine_palette is null until a
+    // level's palette loads -- bail and retry rather than cache a wrong decode.
+    if (force_engine_palette && engine_palette == nullptr)
+        return false;
 
-    TbGraphicsWindow grwnd;
-    LbScreenStoreGraphicsWindow(&grwnd);
-    TbPixel *previous = RendererSwapFramebufferTarget(pixels.data(), w, h);
-    LbScreenSetGraphicsWindow(0, 0, w, h);
-    LbSpriteDrawImmediate(0, 0, spr);
-    RendererRestoreFramebufferTarget(previous);
+    const unsigned short prev_flags = RendererGetDrawFlags();
+    const unsigned char prev_colour = RendererGetDrawColour();
+    RendererSetDrawFlags(0);
+    {
+        FeOffscreenTarget cap(pixels.data(), w, h, force_engine_palette ? engine_palette : nullptr);
+        LbSpriteDrawImmediate(0, 0, spr);
+    }
     RendererSetDrawFlags(prev_flags);
     RendererSetDrawColour(prev_colour);
-    if (palette_forced)
-        RendererPaletteSet(prev_palette);
-    LbScreenLoadGraphicsWindow(&grwnd);
 
     void *tex = RendererCreateDynamicTexture(w, h);
     if (tex == nullptr)
@@ -157,11 +143,20 @@ void *lookup(std::map<short, CachedSprite> &cache, short idx,
 
 void *FeSpriteTexture(short sprite_idx, int *out_w, int *out_h)
 {
+    // Static icon-pack override (docs/refactor/ingame-gui/12-png-icon-overrides.md
+    // §3.1) checked first -- a table hit means every caller of this
+    // sprite_idx gets the pack's PNG with no call-site change of its own.
+    void *ov = FeIconOverrideForStaticIndex(sprite_idx, /*is_button_sheet*/ true, out_w, out_h);
+    if (ov != nullptr)
+        return ov;
     return lookup(s_button_cache, sprite_idx, &get_button_sprite, false, out_w, out_h);
 }
 
 void *FeGuiPanelTexture(short sprite_idx, int *out_w, int *out_h)
 {
+    void *ov = FeIconOverrideForStaticIndex(sprite_idx, /*is_button_sheet*/ false, out_w, out_h);
+    if (ov != nullptr)
+        return ov;
     // Panel sprites need the game engine palette forced (see render_sprite).
     return lookup(s_panel_cache, sprite_idx, &get_panel_sprite, true, out_w, out_h);
 }

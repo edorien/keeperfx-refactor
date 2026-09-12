@@ -2,8 +2,9 @@
 #include "frontgui_widgets.h"
 #include "frontgui_style.h"
 #include "bflib_guibtns.h" // do_sound_menu_click -- menu hover/click sound feedback lives in the wrapper, not per-screen (§5.2)
+#include "fe_noise.h"       // fe::fbm -- procedural marble list background
 #include <imgui_internal.h> // GImGui->NavCursorVisible -- no public getter; the wrapper is the one place ImGui internals are allowed
-#include <cmath>            // std::sin / floor -- procedural marble list background
+#include <cmath>            // std::sin
 #include "post_inc.h"
 
 namespace {
@@ -97,31 +98,6 @@ namespace {
         fe_inset_bevel(wp, ImVec2(wp.x + ws.x, wp.y + ws.y));
     }
 
-    // --- cheap deterministic value-noise fbm, for the marble list bg ----
-    float sb_hash(int x, int y)
-    {
-        unsigned int h = (unsigned int)x * 374761393u + (unsigned int)y * 668265263u;
-        h = (h ^ (h >> 13)) * 1274126177u;
-        h ^= h >> 16;
-        return (float)(h & 0xFFFFu) * (1.0f / 65535.0f);
-    }
-    float sb_vnoise(float x, float y)
-    {
-        const float fx = std::floor(x), fy = std::floor(y);
-        const int xi = (int)fx, yi = (int)fy;
-        const float xf = x - fx, yf = y - fy;
-        const float u = xf * xf * (3.0f - 2.0f * xf);
-        const float v = yf * yf * (3.0f - 2.0f * yf);
-        const float a = sb_hash(xi, yi),     b = sb_hash(xi + 1, yi);
-        const float c = sb_hash(xi, yi + 1), d = sb_hash(xi + 1, yi + 1);
-        return a + (b - a) * u + (c - a) * v + (a - b + d - c) * u * v;
-    }
-    float sb_fbm(float x, float y)
-    {
-        return 0.6f  * sb_vnoise(x, y)
-             + 0.3f  * sb_vnoise(x * 2.1f + 5.2f, y * 2.1f + 1.3f)
-             + 0.15f * sb_vnoise(x * 4.3f + 9.1f, y * 4.3f + 7.7f);
-    }
 
     // Legacy selection lists sit on a dark, mottled parchment-shadow texture
     // rather than a flat fill. A firm dark base plus procedural marble
@@ -149,7 +125,7 @@ namespace {
             for (float x = x0; x < x1; x += cell)
             {
                 const float px = x - p.x, py = y - p.y;
-                const float warp = sb_fbm(px * ns, py * ns) - 0.4f;
+                const float warp = fe::fbm(px * ns, py * ns) - 0.4f;
                 const float m = std::sin(freq * (px + py * 0.4f + amp * warp)); // -1..1
                 const float t = 0.5f + 0.5f * m;
                 const float lightv = t * t * t;

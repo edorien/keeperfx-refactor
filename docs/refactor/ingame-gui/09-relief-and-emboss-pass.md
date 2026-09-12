@@ -1,6 +1,6 @@
 # Phase 8 — procedural relief / emboss pass on the ImGui sidebar
 
-Status: **in progress (2026-09-07).** Cosmetic-only follow-up to
+Status: **landed 2026-09-08** (16 retest passes; committed `a4e4b83c6`). Follow-up to
 [05-sidebar-frame-and-minimap.md](05-sidebar-frame-and-minimap.md) and
 [06-tab-content-panels.md](06-tab-content-panels.md). No gameplay, layout, input or state change —
 this is entirely about how the already-working ImGui HUD *looks*. Rides the existing

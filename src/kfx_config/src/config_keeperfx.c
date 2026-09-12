@@ -70,6 +70,9 @@ struct KeeperFxUiConfig keeperfx_ui_config = {
     .rotate_around_mouse_option = 1, // RotateAroundMouse_Never
     .ui_font_scale_pct = 100,
     .ui_font = "AUTO",
+    .hud_position = 1, // HudPos_Left
+    .gui_icon_pack = "NONE",
+    .minimap_corner = 1, // HudMinimalCorner_UpperLeft
 };
 static NetworkIsActiveFn g_network_is_active_fn = NULL;
 
@@ -142,6 +145,28 @@ const struct NamedCommand atmos_freq[] = {
   {NULL,  0},
   };
 
+// GUI_POSITION -- in-game HUD sidebar position (frontgui_ingame_panel.cpp);
+// no equivalent in original DK, KeeperFX-only.
+// Values start at 1, not 0 -- recognize_conf_parameter() returns 0 for both
+// "not found" and a genuine .num==0 match, so 0 must stay free as its own
+// sentinel (the same reason scrshot_type[] above starts PNG at 1, not 0).
+const struct NamedCommand hud_position_type[] = {
+  {"LEFT",    1}, // HudPos_Left
+  {"RIGHT",   2}, // HudPos_Right
+  {"BOTTOM",  3}, // HudPos_Bottom -- docs/refactor/ingame-gui/11-horizontal-layout.md
+  {"MINIMAL", 4}, // HudPos_Minimal -- docs/refactor/ingame-gui/13-minimal-layout.md
+  {NULL,  0},
+  };
+
+// MINIMAP_CORNER -- Minimal layout only (docs/refactor/ingame-gui/13-minimal-layout.md):
+// which upper corner the minimap+gold+event-marker cluster sits in. Same
+// 1-based-sentinel reasoning as hud_position_type[] above.
+const struct NamedCommand minimap_corner_type[] = {
+  {"UPPER_LEFT",  1}, // HudMinimalCorner_UpperLeft
+  {"UPPER_RIGHT", 2}, // HudMinimalCorner_UpperRight
+  {NULL,  0},
+  };
+
 const struct NamedCommand conf_commands[] = {
   {"INSTALL_PATH",         1},
   {"INSTALL_TYPE",         2},
@@ -189,13 +214,15 @@ const struct NamedCommand conf_commands[] = {
   {"RELATIVE_MOUSE_MODE"           , 45},
   {"CAPTURE_CURSOR"                , 46},
   {"MATCHMAKING_SERVER"            , 47},
-  {"CLASSIC_MENU"                  , 48},
   {"EASTER_EGG"                    , 49},
   {"VID_SMOOTH"                    , 50},
   {"ALT_INPUT"                     , 51},
   {"UI_FONT_SCALE"                 , 52},
   {"UI_FONT"                       , 53},
   {"MULTIPLAYER_PORT"              , 54},
+  {"GUI_POSITION"                  , 55},
+  {"GUI_ICON_PACK"                 , 56},
+  {"MINIMAP_CORNER"                , 57},
   {NULL,                   0},
   };
 
@@ -322,12 +349,18 @@ TbBool use_relative_mouse_mode(void)
 }
 
 /**
- * Returns if the legacy sprite-drawn frontend menus should be used instead
- * of ImGui (docs/refactor/renderer/04-imgui-gui-foundation.md §3.5).
+ * Returns if the in-game HUD's legacy sprite renderer should be used for
+ * this session instead of the ImGui one -- GUI_ICON_PACK's reserved
+ * "CLASSIC" value (config_settingschema.c's ensure_gui_icon_pack_enum(),
+ * docs/refactor/ingame-gui/00-overview.md), the replacement for the old
+ * `-classicmenu` switch now that the frontend menus have no legacy path
+ * left to fall back to. Every in-game HUD draw call checks this instead of
+ * the retired RendererImGuiEnabled(); nothing outside the in-game HUD
+ * (menus, options, load/save) reads it.
  */
-TbBool use_classic_menu(void)
+TbBool ingame_gui_use_classic_hud(void)
 {
-  return ((features_enabled & Ft_ClassicMenu) != 0);
+  return (strcasecmp(keeperfx_ui_config.gui_icon_pack, "CLASSIC") == 0);
 }
 
 /**
@@ -1052,22 +1085,6 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               SYNCLOG("Matchmaking server: %s", matchmaking_config->get_ws_url());
           }
           break;
-      case 48: // CLASSIC_MENU
-          if (!start_params.overrides[Clo_ClassicMenu])
-          {
-              i = recognize_conf_parameter(buf,&pos,len,logicval_type);
-              if (i <= 0)
-              {
-                  CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
-                    COMMAND_TEXT(cmd_num),config_textname);
-                break;
-              }
-              if (i == 1)
-                  features_enabled |= Ft_ClassicMenu;
-              else
-                  features_enabled &= ~Ft_ClassicMenu;
-          }
-          break;
       case 49: // EASTER_EGG -- docs/refactor/renderer/04-imgui-gui-foundation.md §6.2 finding 2
           if (!start_params.overrides[Clo_EasterEgg])
           {
@@ -1139,6 +1156,34 @@ static void load_file_configuration(const char *fname, const char *sname, const 
             enet_port = i;
           } else {
             CONFWRNLOG("Invalid MULTIPLAYER_PORT '%s' in %s file.", COMMAND_TEXT(cmd_num), config_textname);
+          }
+          break;
+      case 55: // GUI_POSITION -- in-game HUD sidebar position
+          i = recognize_conf_parameter(buf, &pos, len, hud_position_type);
+          if (i > 0)
+          {
+              keeperfx_ui_config.hud_position = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
+      case 56: // GUI_ICON_PACK -- "NONE" or a fxdata/gui/ sub-dir name
+                // (docs/refactor/ingame-gui/12-png-icon-overrides.md).
+          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
+          {
+              snprintf(keeperfx_ui_config.gui_icon_pack, sizeof(keeperfx_ui_config.gui_icon_pack), "%s", word_buf);
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
+      case 57: // MINIMAP_CORNER -- Minimal layout only
+                // (docs/refactor/ingame-gui/13-minimal-layout.md).
+          i = recognize_conf_parameter(buf, &pos, len, minimap_corner_type);
+          if (i > 0)
+          {
+              keeperfx_ui_config.minimap_corner = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
           }
           break;
       case ccr_comment:
@@ -1278,8 +1323,8 @@ void process_cmdline_overrides(void)
     features_enabled &= ~Ft_NoCdMusic;
   }
   // "-alex"/"-vidsmooth"/"-altinput" are one-directional "force on" launch
-  // flags (like Clo_ClassicMenu above), so each override only ever pushes
-  // its value to true here -- never restores a config-file "off".
+  // flags, so each override only ever pushes its value to true here --
+  // never restores a config-file "off".
   if (start_params.overrides[Clo_EasterEgg])
   {
     start_params.easter_egg = true;

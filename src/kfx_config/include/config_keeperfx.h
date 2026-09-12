@@ -38,7 +38,7 @@ struct GameCampaign;
 
 // Max length of the command line
 #define CMDLN_MAXLEN 259
-#define CMDLINE_OVERRIDES 8
+#define CMDLINE_OVERRIDES 7
 
 /** Command Line overrides for config settings. Checked after the config file is loaded. */
 enum CmdLineOverrides {
@@ -46,14 +46,12 @@ enum CmdLineOverrides {
     Clo_CDMusic,
     Clo_GameTurns,
     Clo_FramesPerSecond,
-    Clo_ClassicMenu, /**< docs/refactor/renderer/04-imgui-gui-foundation.md §3.5 -- -classicmenu/-noimgui. */
     // docs/refactor/renderer/04-imgui-gui-foundation.md §6.2 finding 2 --
     // these three gained keeperfx.cfg keys (EASTER_EGG/VID_SMOOTH/
     // ALT_INPUT) alongside their pre-existing "-alex"/"-vidsmooth"/
     // "-altinput" launch flags; the flags are one-directional "force on"
-    // switches (same shape as Clo_ClassicMenu), so process_cmdline_
-    // overrides() only ever pushes their value to true, never restores a
-    // config-file "off".
+    // switches, so process_cmdline_overrides() only ever pushes their
+    // value to true, never restores a config-file "off".
     Clo_EasterEgg,
     Clo_VidSmooth,
     Clo_AltInput,
@@ -168,10 +166,11 @@ enum TbFeature {
     Ft_DeltaTime                    = 0x40000,
     Ft_NoCdMusic                    = 0x80000,
     Ft_RelativeMouseMode            = 0x100000,
-    // docs/refactor/renderer/04-imgui-gui-foundation.md §3.5: forces the
-    // legacy sprite-drawn frontend menus, off by default (ImGui is on by
-    // default while both paths ship side by side).
-    Ft_ClassicMenu                  = 0x200000,
+    // 0x200000 was Ft_ClassicMenu (-classicmenu/-noimgui), retired once the
+    // frontend menus had no legacy sprite path left to fall back to -- the
+    // in-game HUD's own classic-vs-ImGui choice lives on GUI_ICON_PACK's
+    // "CLASSIC" value instead (ingame_gui_use_classic_hud()), not a feature
+    // bit. Left unused rather than reassigned, same as 0x10000 above.
 };
 
 // enum TbLanguage moved to globals.h (stage 13.3) -- see there.
@@ -227,6 +226,31 @@ struct KeeperFxUiConfig {
     // bundled Cinzel; "CINZEL"/"EXOCET" force one; anything else is a family
     // sub-directory name under fxdata/font/. KeeperFX-only, needs a restart.
     char ui_font[64];
+    // In-game HUD sidebar position (frontgui_ingame_panel.cpp / config_settingschema.c
+    // GUI_POSITION row): 1 = left edge, 2 = right edge, 3 = bottom strip
+    // (docs/refactor/ingame-gui/11-horizontal-layout.md), 4 = minimal --
+    // free-floating buttons + pop-up panels, no persistent panel
+    // (docs/refactor/ingame-gui/13-minimal-layout.md) -- starts at 1, not
+    // 0, see hud_position_type[]'s own comment (config_keeperfx.c). Plain int
+    // (not a frontend enum type) for the same reason as zoom_to_mouse_option
+    // above. KeeperFX-only.
+    int hud_position;
+    // User PNG icon pack (frontgui_ingame_icon_overrides.cpp / config_settingschema.c
+    // GUI_ICON_PACK row, docs/refactor/ingame-gui/12-png-icon-overrides.md): "NONE"
+    // (default -- legacy sprites only) or a sub-directory name under
+    // fxdata/gui/ whose same-named PNGs replace the matching HUD icon.
+    // KeeperFX-only, live (checked lazily by the icon-override cache, same
+    // poll-and-reload shape as UI_FONT's refresh_fonts_if_changed()).
+    char gui_icon_pack[64];
+    // Minimal layout only (hud_position == 4, config_settingschema.c
+    // MINIMAP_CORNER row, docs/refactor/ingame-gui/13-minimal-layout.md):
+    // which upper corner the minimap+gold+event-marker cluster sits in --
+    // 1 = upper-left (default), 2 = upper-right (same 1-based-sentinel
+    // reasoning as hud_position above; see minimap_corner_type[]'s own
+    // comment, config_keeperfx.c). The button cluster + pop-up panel
+    // always take the diagonally opposite corner -- this one setting
+    // drives both. KeeperFX-only.
+    int minimap_corner;
 };
 extern struct KeeperFxUiConfig keeperfx_ui_config;
 
@@ -251,6 +275,8 @@ extern const struct NamedCommand scrshot_type[];
 extern const struct NamedCommand atmos_volume[];
 extern const struct NamedCommand atmos_freq[];
 extern const struct NamedCommand tag_modes[];
+extern const struct NamedCommand hud_position_type[];
+extern const struct NamedCommand minimap_corner_type[];
 extern char cmd_char;
 extern short api_enabled;
 extern uint16_t api_port;
@@ -300,7 +326,7 @@ TbBool freeze_game_on_focus_lost(void);
 TbBool unlock_cursor_when_game_paused(void);
 TbBool lock_cursor_in_possession(void);
 TbBool use_relative_mouse_mode(void);
-TbBool use_classic_menu(void);
+TbBool ingame_gui_use_classic_hud(void);
 TbBool pause_music_when_game_paused(void);
 TbBool mute_audio_on_focus_lost(void);
 // Had real external linkage but no header declaration at all; added

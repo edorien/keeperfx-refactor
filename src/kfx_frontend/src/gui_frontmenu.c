@@ -108,6 +108,17 @@ int point_is_over_gui_menu(long x, long y)
             continue;
         if (gmnu->is_turned_on == 0)
             continue;
+        // docs/refactor/ingame-gui/ Phase 0: a migrated menu's real screen
+        // rect is wherever ImGui actually drew it this frame, not this
+        // legacy pos_x/pos_y (which create_menu() sets once and never
+        // updates). GUI_POSITION Right/Bottom (10-maintainability-refactors.md,
+        // 11-horizontal-layout.md) move GMnu_MAIN far enough from this
+        // stale rect that hovering the old spot wrongly set busy_doing_gui
+        // and blocked world clicks there. ingame_imgui_wants_mouse()
+        // (front_input.c, called right after update_busy_doing_gui_on_menu())
+        // already covers hover for migrated menus correctly.
+        if (ingame_imgui_menu_active(gmnu->ident))
+            continue;
         short gx = gmnu->pos_x;
         if ((x >= gx) && (x < gx + gmnu->width))
         {

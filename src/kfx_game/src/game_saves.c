@@ -28,7 +28,6 @@
 #include "bflib_dernc.h"
 
 #include "config.h"
-#include "config_keeperfx.h" // use_classic_menu -- Phase D, docs/refactor/gui/05-campaign-progress-and-landview.md §3.4
 #include "config_campaigns.h"
 #include "game_campaign_progress.h" // Phase D, same doc
 #include "config_settings.h"
@@ -751,33 +750,6 @@ TbBool initialise_load_game_slots(void)
     return (count_valid_saved_games() > 0);
 }
 
-short save_continue_game(LevelNumber lvnum)
-{
-    // Update continue level number
-    if (is_singleplayer_like_level(lvnum))
-      set_continue_level_number(lvnum);
-    SYNCDBG(6,"Continue set to level %d (loaded is %d)",(int)get_continue_level_number(),(int)get_loaded_level_number());
-    char* fname = prepare_file_path(FGrp_Save, continue_game_filename);
-    TbFileHandle fh = LbFileOpen(fname,Lb_FILE_MODE_NEW);
-    if (!fh)
-    {
-        WARNMSG("Cannot open continue game file \"%s\".", fname);
-        return false;
-    }
-    char cmpgn_fname[CAMPAIGN_FNAME_LEN];
-    memset(cmpgn_fname, 0, sizeof(cmpgn_fname));
-    snprintf(cmpgn_fname, sizeof(cmpgn_fname), "%s", campaign.fname);
-    LevelNumber continue_level_number = get_continue_level_number();
-    short result = false;
-    if (LbFileWrite(fh, cmpgn_fname, sizeof(cmpgn_fname)) == sizeof(cmpgn_fname))
-    if (LbFileWrite(fh, &continue_level_number, sizeof(continue_level_number)) == sizeof(continue_level_number))
-    // Appending IntralevelData
-    if (LbFileWrite(fh, &intralvl, sizeof(struct IntralevelData)) == sizeof(struct IntralevelData))
-        result = true;
-    LbFileClose(fh);
-    return result;
-}
-
 // No longer static: game_campaign_progress.c's reconcile_fx1contn_into_progress()
 // (docs/refactor/gui/05-campaign-progress-and-landview.md §3.4) reads the
 // same file this way to absorb old progress into save/progress.cfg.
@@ -817,69 +789,17 @@ short read_continue_game_progress(char *cmpgn_fname, LevelNumber *lvnum, struct 
  */
 TbBool continue_game_available(void)
 {
-    // Phase D (docs/refactor/gui/05-campaign-progress-and-landview.md §3.4):
-    // under the new menu, "Continue" means "go to Campaign Select" (see
-    // frontend_load_continue_game_resolve() below), which needs no
-    // specific campaign/level pre-loaded -- it's available the moment
-    // *any* campaign has *any* unlocked level, full stop. fx1contn.sav is
-    // never read or written by this branch.
-    if (!use_classic_menu())
-    {
-        if (!load_campaign_progress_file())
-            return false;
-        reconcile_fx1contn_into_progress();
-        return any_campaign_progress_exists();
-    }
-
-    LevelNumber lvnum;
-    SYNCDBG(6,"Starting");
-    char cmpgn_fname[CAMPAIGN_FNAME_LEN];
-    struct IntralevelData intralevel;
-    if (!read_continue_game_progress(cmpgn_fname, &lvnum, &intralevel)) {
-        WARNLOG("Can't read continue game file head");
+    // docs/refactor/gui/05-campaign-progress-and-landview.md §3.4: "Continue"
+    // means "go to Campaign Select" (frontend_load_continue_game_resolve()),
+    // which needs no specific campaign/level pre-loaded -- it's available
+    // the moment *any* campaign has *any* unlocked level, full stop.
+    // fx1contn.sav is never written any more; read_continue_game_progress()
+    // stays only for reconcile_fx1contn_into_progress()'s one-time migration
+    // of an old save into progress.cfg, below.
+    if (!load_campaign_progress_file())
         return false;
-    }
-    if (!change_campaign(CampgnT_Campaign, cmpgn_fname))
-    {
-        ERRORLOG("Unable to load campaign");
-        return false;
-    }
-    if (!is_singleplayer_like_level(lvnum))
-    {
-        SYNCDBG(7,"Level %d from continue file is not single player",(int)lvnum);
-        return false;
-    }
-    set_continue_level_number(lvnum);
-    SYNCDBG(7,"Continue to level %d is available",(int)lvnum);
-    return true;
-}
-
-short load_continue_game(void)
-{
-    LevelNumber lvnum;
-    char cmpgn_fname[CAMPAIGN_FNAME_LEN];
-    struct IntralevelData intralevel;
-    if (!read_continue_game_progress(cmpgn_fname, &lvnum, &intralevel)) {
-        WARNLOG("Can't read continue game file head");
-        return false;
-    }
-    if (!change_campaign(CampgnT_Campaign, cmpgn_fname))
-    {
-        ERRORLOG("Unable to load campaign");
-        return false;
-    }
-    if (!is_singleplayer_like_level(lvnum))
-    {
-      WARNLOG("Level number in continue file is incorrect");
-      return false;
-    }
-    set_continue_level_number(lvnum);
-    // Restoring intralevel data
-    memcpy(&intralvl, &intralevel, sizeof(struct IntralevelData));
-    snprintf(kfx_game_state.campaign_fname, sizeof(kfx_game_state.campaign_fname), "%s", campaign.fname);
-    update_extra_levels_visibility();
-    JUSTMSG("Continued level %d from %s", lvnum, campaign.name);
-    return true;
+    reconcile_fx1contn_into_progress();
+    return any_campaign_progress_exists();
 }
 
 TbBool add_transfered_creature(PlayerNumber plyr_idx, ThingModel model, CrtrExpLevel exp_level, char *name)

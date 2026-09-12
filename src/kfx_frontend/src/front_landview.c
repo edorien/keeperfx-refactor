@@ -174,12 +174,11 @@ void set_all_ensigns_state(unsigned short nstate)
 }
 
 // docs/refactor/gui/05-campaign-progress-and-landview.md §3.2 (Phase B):
-// under the new menu, every level the player has actually completed stays
-// visible/replayable, not just the single "continue" level -- a deliberate
-// KeeperFX-only departure from original DK's strictly-linear design, which
-// only ever showed the one next level (see this doc's own §2 for the
-// as-shipped behaviour this replaces). `-classicmenu` keeps that original
-// behaviour completely unchanged (§3.4's own gating rule).
+// every level the player has actually completed stays visible/replayable,
+// not just the single "continue" level -- a deliberate KeeperFX-only
+// departure from original DK's strictly-linear design, which only ever
+// showed the one next level (see this doc's own §2 for the as-shipped
+// behaviour this replaces).
 static void mark_ensign_visible_if_present(LevelNumber lvnum)
 {
     struct LevelInformation *lvinfo = get_level_info(lvnum);
@@ -195,36 +194,22 @@ void update_ensigns_visibility(void)
   struct PlayerInfo* player = get_my_player();
   short show_all_sp = false;
   long lvnum = get_continue_level_number();
-  if (use_classic_menu())
+  struct CampaignProgressEntry *progress = get_campaign_progress(campaign.fname, false);
+  if (progress != NULL)
   {
-      if (lvnum > 0)
-      {
-          mark_ensign_visible_if_present(lvnum);
-      } else
-      if (lvnum == SINGLEPLAYER_FINISHED)
-      {
+      for (unsigned long i = 0; i < progress->unlocked_levels_count; i++)
+          mark_ensign_visible_if_present(progress->unlocked_levels[i]);
+      if (progress->intralvl.next_level == SINGLEPLAYER_FINISHED)
           show_all_sp = true;
-      }
+      else if (progress->intralvl.next_level > 0)
+          mark_ensign_visible_if_present((LevelNumber)progress->intralvl.next_level);
   }
-  else
+  else if (lvnum == SINGLEPLAYER_FINISHED)
   {
-      struct CampaignProgressEntry *progress = get_campaign_progress(campaign.fname, false);
-      if (progress != NULL)
-      {
-          for (unsigned long i = 0; i < progress->unlocked_levels_count; i++)
-              mark_ensign_visible_if_present(progress->unlocked_levels[i]);
-          if (progress->intralvl.next_level == SINGLEPLAYER_FINISHED)
-              show_all_sp = true;
-          else if (progress->intralvl.next_level > 0)
-              mark_ensign_visible_if_present((LevelNumber)progress->intralvl.next_level);
-      }
-      else if (lvnum == SINGLEPLAYER_FINISHED)
-      {
-          // No progress.cfg entry yet for this campaign (e.g. reconciliation
-          // hasn't run this session) but fx1contn.sav/get_continue_level_number()
-          // already says finished -- fall back rather than showing nothing.
-          show_all_sp = true;
-      }
+      // No progress.cfg entry yet for this campaign (e.g. reconciliation
+      // hasn't run this session) but fx1contn.sav/get_continue_level_number()
+      // already says finished -- fall back rather than showing nothing.
+      show_all_sp = true;
   }
   lvnum = first_singleplayer_level();
   while (lvnum > 0)
@@ -254,6 +239,31 @@ void update_ensigns_visibility(void)
   lvinfo = get_level_info(lvnum);
   if (lvinfo != NULL)
       lvinfo->state = get_extra_level_kind_visibility(ExLv_NewMoon);
+}
+
+// Same "which level is next" source of truth update_ensigns_visibility()
+// above already uses for which ensign(s) to reveal, exposed as a single
+// accessor so the small land-preview panel (frontmenu_landpreview.c) can
+// centre its initial view on it too (live-tested: "campaign view, when a
+// campaign is first selected, can the landview preview pane center on the
+// next_level ensign"). SINGLEPLAYER_NOTSTARTED means "no single next
+// level to centre on" (finished campaign / no progress yet) -- the panel
+// keeps its own default view in that case.
+LevelNumber get_next_singleplayer_level_for_landview(void)
+{
+    // No progress yet (fresh campaign, never played) used to fall back to
+    // SINGLEPLAYER_NOTSTARTED, i.e. "don't centre at all" -- land_preview_
+    // maintain() then left screen_shift_x/y at their zeroed default, which
+    // reads as the view starting in the map's top corner instead of on any
+    // level at all (live-tested request: "when no levels have been played
+    // in a campaign it should centre on 1st available level"). Centring on
+    // first_singleplayer_level() instead gives a sensible starting view
+    // either way.
+    struct CampaignProgressEntry *progress = get_campaign_progress(campaign.fname, false);
+    if ((progress != NULL) && (progress->intralvl.next_level > 0)
+     && (progress->intralvl.next_level != SINGLEPLAYER_FINISHED))
+        return (LevelNumber)progress->intralvl.next_level;
+    return first_singleplayer_level();
 }
 
 int compute_sound_good_to_bad_factor(void)

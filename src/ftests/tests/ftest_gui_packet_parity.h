@@ -9,9 +9,10 @@
  *
  * These tests pin the *current* (legacy sprite) GUI's packet output for a
  * handful of menu actions. When a menu is migrated to ImGui, the same
- * test must still pass -- run it against the ImGui path (once the
- * -classicmenu runtime toggle lets a test flip it) and assert the trace
- * is byte-identical.
+ * test must still pass -- run it against the ImGui path (flip
+ * GUI_ICON_PACK to CLASSIC to switch a test back to the legacy in-game
+ * HUD, ingame_gui_use_classic_hud()) and assert the trace is
+ * byte-identical.
  */
 #pragma once
 

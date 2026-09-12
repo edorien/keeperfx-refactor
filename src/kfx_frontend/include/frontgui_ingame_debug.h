@@ -3,9 +3,10 @@
 
 // Phase 2 (docs/refactor/ingame-gui/03-debug-overlays-and-box-menus.md):
 // the in-game debug / script-visible overlays as ImGui, replacing
-// render_overlay->draw_debug_overlays() (main.cpp) whenever
-// RendererImGuiEnabled(). Same per-overlay *_enabled() gates as the
-// legacy path -- this only swaps the drawing, never the triggers.
+// render_overlay->draw_debug_overlays() (main.cpp) unless the player has
+// chosen the classic HUD (ingame_gui_use_classic_hud(), config_keeperfx.h).
+// Same per-overlay *_enabled() gates as the legacy path -- this only swaps
+// the drawing, never the triggers.
 
 #ifdef __cplusplus
 extern "C" {

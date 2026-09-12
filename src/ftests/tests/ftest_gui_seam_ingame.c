@@ -15,7 +15,6 @@
 #include "gui_frontmenu.h"      // turn_on_menu
 #include "frontend.h"           // menu_is_active
 #include "frontgui_ingame.h"    // ingame_imgui_menu_active / _modal_active / _quitmenu_confirm
-#include "renderer/RendererManager.h" // RendererImGuiEnabled
 
 #include "post_inc.h"
 
@@ -42,9 +41,9 @@ TbBool ftest_gui_seam_ingame_init()
  * *draw* and *input*, never menu registration. */
 static FTestActionResult action001__seam_predicates(struct FTestActionArgs *const args)
 {
-    if (!RendererImGuiEnabled())
+    if (ingame_gui_use_classic_hud())
     {
-        FTEST_FAIL_TEST("ImGui GUI is not enabled -- run without -classicmenu");
+        FTEST_FAIL_TEST("ImGui in-game HUD is not active -- run without GUI_ICON_PACK=CLASSIC");
         return FTRs_Go_To_Next_Action;
     }
 

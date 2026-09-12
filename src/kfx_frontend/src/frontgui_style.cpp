@@ -1,5 +1,6 @@
 #include "pre_inc.h"
 #include "frontgui_style.h"
+#include "frontgui_offscreen.h" // FeOffscreenTarget -- cursor sprite capture
 #include "globals.h"       // FGrp_FxData
 #include "config.h"        // prepare_file_path
 #include "config_keeperfx.h" // keeperfx_ui_config.ui_font_scale_pct
@@ -526,24 +527,14 @@ namespace {
         // during a fade-to/from-black transition around state changes, the
         // same transitions that make this capture possible in the first
         // place (found live: landed mid-fade once, producing a
-        // significantly-too-dark cursor instead of an outright-black one,
-        // so the all-zero guard above didn't catch it). Force the stable,
-        // un-faded frontend_palette as active for just this draw and
-        // restore whatever was actually active afterward.
-        unsigned char prev_palette[PALETTE_SIZE] = {0};
-        RendererPaletteGet(prev_palette);
-        RendererPaletteSet(frontend_palette);
-
-        TbGraphicsWindow grwnd;
-        LbScreenStoreGraphicsWindow(&grwnd);
-        TbPixel *previous = RendererSwapFramebufferTarget(s_cursor_pixels.data(), s_cursor_w, s_cursor_h);
-        LbScreenSetGraphicsWindow(0, 0, s_cursor_w, s_cursor_h);
-        LbSpriteDrawImmediate(0, 0, spr);
-        RendererRestoreFramebufferTarget(previous);
+        // significantly-too-dark cursor). Force the stable, un-faded
+        // frontend_palette as active for just this draw.
+        {
+            FeOffscreenTarget cap(s_cursor_pixels.data(), s_cursor_w, s_cursor_h, frontend_palette);
+            LbSpriteDrawImmediate(0, 0, spr);
+        }
         RendererSetDrawFlags(prev_flags);
         RendererSetDrawColour(prev_colour);
-        RendererPaletteSet(prev_palette);
-        LbScreenLoadGraphicsWindow(&grwnd);
 
         return true;
     }
@@ -583,15 +574,14 @@ namespace {
         const unsigned short prev_flags = RendererGetDrawFlags();
         const unsigned char prev_colour = RendererGetDrawColour();
         RendererSetDrawFlags(0);
-        TbGraphicsWindow grwnd;
-        LbScreenStoreGraphicsWindow(&grwnd);
-        TbPixel *previous = RendererSwapFramebufferTarget(s_ig_cursor_pixels.data(), dw, dh);
-        LbScreenSetGraphicsWindow(0, 0, dw, dh);
-        LbSpriteDrawScaledImmediate(0, 0, spr, dw, dh);
-        RendererRestoreFramebufferTarget(previous);
+        {
+            // No palette override here -- in-game the ambient / engine
+            // palette is the right one for pointer_sprites.
+            FeOffscreenTarget cap(s_ig_cursor_pixels.data(), dw, dh);
+            LbSpriteDrawScaledImmediate(0, 0, spr, dw, dh);
+        }
         RendererSetDrawFlags(prev_flags);
         RendererSetDrawColour(prev_colour);
-        LbScreenLoadGraphicsWindow(&grwnd);
 
         s_ig_last_spr = spr;
         s_ig_last_scale = (int)units_per_pixel;

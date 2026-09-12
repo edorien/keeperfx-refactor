@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "renderer/RendererManager.h"
+#include "config_keeperfx.h" // ingame_gui_use_classic_hud
 #include "gui_msgs.h"
 #include <stdarg.h>
 
@@ -86,9 +87,10 @@ void message_draw(void)
 {
     SYNCDBG(7,"Starting");
     // Phase 3: the ImGui message overlay (frontgui_ingame_messages.cpp)
-    // draws the queue instead when the ImGui HUD is on -- same
-    // kfx_sim_state.messages[] source, same target-idx filter.
-    if (RendererImGuiEnabled())
+    // draws the queue instead when the ImGui in-game HUD is active -- same
+    // kfx_sim_state.messages[] source, same target-idx filter. Only reached
+    // for the classic HUD (ingame_gui_use_classic_hud()).
+    if (!ingame_gui_use_classic_hud())
         return;
     LbTextSetFont(winfont);
     int ps_units_per_px;

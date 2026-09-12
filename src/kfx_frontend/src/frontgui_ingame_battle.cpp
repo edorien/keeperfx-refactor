@@ -2,6 +2,7 @@
 #include "frontgui_ingame_battle.h"
 
 #include "frontgui_widgets.h"
+#include "frontgui_deferred.h"       // FeDeferredQueue
 #include "frontgui_style.h"
 #include "frontgui_sprite_tex.h"     // FeGuiPanelTexture, FeGuiPanelIconButton
 
@@ -16,7 +17,11 @@
 #include "creature_graphics.h"        // get_creature_model_graphics, CGI_HandSymbol
 #include "thing_data.h"               // thing_get, thing_is_creature
 #include "config_strings.h"           // GUIStr_*
+#include "config_creature.h"          // creature_code_name
 #include "kfx_sim_state.h"
+#include "frontgui_hud_layout.h"       // HudRegion_Gold, hud_layout_current (GUI_POSITION Bottom)
+#include "config_keeperfx.h"           // keeperfx_ui_config.hud_position -- GUI_POSITION
+#include "frontgui_ingame_icon_overrides.h" // FeIconOverrideSingle -- docs/refactor/ingame-gui/12-png-icon-overrides.md
 
 #include "post_inc.h"
 
@@ -37,7 +42,9 @@ void battler_cell(unsigned short thing_idx, float x, float cell, float icon_h)
 
     const short spr_idx = get_creature_model_graphics(thing->model, CGI_HandSymbol);
     int sw = 0, sh = 0;
-    void *tex = FeGuiPanelTexture(spr_idx, &sw, &sh);
+    void *tex = FeIconOverrideSingle("creature_icon", creature_code_name(thing->model), &sw, &sh);
+    if (tex == nullptr)
+        tex = FeGuiPanelTexture(spr_idx, &sw, &sh);
 
     ImGui::SameLine(x + (cell - icon_h) * 0.5f);
     ImGui::PushID((int)thing_idx);
@@ -140,7 +147,9 @@ void do_close_battle(void) { gui_close_objective(nullptr); }
 void do_prev_battle(void)  { gui_previous_battle(nullptr); }
 void do_next_battle(void)  { gui_next_battle(nullptr); }
 
-void (*s_pending_battle)(void) = nullptr;
+// Deferred: gui_close_objective / gui_*_battle turn menus off -- never from
+// inside an open window. See frontgui_deferred.h.
+FeDeferredQueue s_deferred;
 
 } // namespace
 
@@ -148,18 +157,25 @@ void battlemenu_frame(void)
 {
     ImGuiIO &io = ImGui::GetIO();
 
-    if (s_pending_battle != nullptr)
-    {
-        void (*fn)(void) = s_pending_battle;
-        s_pending_battle = nullptr;
-        fn();
-    }
+    s_deferred.drain();
 
     battle_creature_over = 0; // recomputed each frame from hover
 
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y - 10.0f),
-                            ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.48f, io.DisplaySize.y * 0.24f), ImGuiCond_Always);
+    // GUI_POSITION Bottom (docs/refactor/ingame-gui/11-horizontal-layout.md):
+    // see textinfo_frame()'s (frontgui_ingame.cpp) identical fix -- this box
+    // belongs in region C, not floating full-width above the whole strip.
+    if (keeperfx_ui_config.hud_position == 3) // HudPos_Bottom
+    {
+        const HudRect &r = hud_layout_current().region[HudRegion_Messages];
+        ImGui::SetNextWindowPos(ImVec2(r.x0, r.y0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(r.w(), r.h()), ImGuiCond_Always);
+    }
+    else
+    {
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y - 10.0f),
+                                ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+        ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.48f, io.DisplaySize.y * 0.24f), ImGuiCond_Always);
+    }
     ImGui::Begin("##IngameBattleBox", nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings);
 
@@ -170,7 +186,7 @@ void battlemenu_frame(void)
     ImGui::BeginGroup();
     if (FeGuiPanelIconButton("##btl_close", GPS_message_message_btn_accept_std,
                              get_string(GUIStr_CloseWindow), icon_h))
-        s_pending_battle = do_close_battle;
+        s_deferred.push(&do_close_battle);
     ImGui::EndGroup();
     ImGui::SameLine();
 
@@ -182,7 +198,7 @@ void battlemenu_frame(void)
     {
         const float wheel = io.MouseWheel;
         if (wheel != 0.0f && ImGui::IsWindowHovered())
-            s_pending_battle = (wheel < 0.0f) ? &do_next_battle : &do_prev_battle;
+            s_deferred.push(wheel < 0.0f ? &do_next_battle : &do_prev_battle);
 
         for (int i = 0; i < 3; i++)
             battle_row(i, icon_h);

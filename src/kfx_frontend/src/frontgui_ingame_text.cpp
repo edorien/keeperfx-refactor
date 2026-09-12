@@ -4,7 +4,7 @@
 #include "frontgui_widgets.h"
 #include "frontgui_style.h"
 #include "frontgui_sprite_tex.h" // FeGuiPanelTexture -- message-queue icons
-#include "renderer/RendererManager.h" // RendererImGuiEnabled
+#include "frontgui_hud_layout.h" // HudRegion_Messages, hud_layout_current (GUI_POSITION Bottom)
 
 #include "globals.h"
 #include "gui_topmsg.h"       // onscreen_msg_text, onscreen_banner_visible
@@ -13,6 +13,7 @@
 #include "frontend.h"         // status_panel_width
 #include "player_data.h"      // get_my_player, my_player_number
 #include "config_strings.h"   // GUIStr_PausedMsg
+#include "config_keeperfx.h"  // keeperfx_ui_config.hud_position -- GUI_POSITION
 #include "kfx_sim_state.h"    // operation_flags GOF_*, system_flags GSF_*, messages[]
 #include "packets.h"          // unpausing_in_progress
 
@@ -149,9 +150,27 @@ void draw_message_queue(void)
     if (kfx_sim_state.active_messages_count == 0)
         return;
 
-    const float left = (float)status_panel_width + 8.0f;
-    ImGui::SetNextWindowPos(ImVec2(left, 28.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(ImGui::GetIO().DisplaySize.x * 0.55f, FLT_MAX));
+    // GUI_POSITION Bottom (docs/refactor/ingame-gui/11-horizontal-layout.md):
+    // region C's own fixed rect (hud_layout_frame() already ran this frame,
+    // from ingame_panel_frame(), which runs before ingame_text_overlays_frame()
+    // -- see ingame_imgui_frame()) instead of floating top-left offset by
+    // panel *width* (Left/Right don't need this -- confirmed when Right
+    // landed: this window was already independent of panel *position*).
+    float wrap_w;
+    if (keeperfx_ui_config.hud_position == 3) // HudPos_Bottom
+    {
+        const HudRect &r = hud_layout_current().region[HudRegion_Messages];
+        ImGui::SetNextWindowPos(ImVec2(r.x0 + 4.0f, r.y0 + 2.0f), ImGuiCond_Always);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(r.w() - 8.0f, r.h() - 4.0f));
+        wrap_w = r.w() - 8.0f;
+    }
+    else
+    {
+        const float left = (float)status_panel_width + 8.0f;
+        ImGui::SetNextWindowPos(ImVec2(left, 28.0f), ImGuiCond_Always);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(ImGui::GetIO().DisplaySize.x * 0.55f, FLT_MAX));
+        wrap_w = ImGui::GetIO().DisplaySize.x * 0.42f;
+    }
     ImGui::SetNextWindowBgAlpha(0.0f); // text-on-3D, no plate (matches legacy)
     if (ImGui::Begin("##ingame_message_queue", nullptr, kFlags))
     {
@@ -178,7 +197,7 @@ void draw_message_queue(void)
             // Vertically align the text to the icon row; wrap long lines
             // (get_string content may contain '%', so never Text()).
             ImGui::AlignTextToFramePadding();
-            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetIO().DisplaySize.x * 0.42f);
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + wrap_w);
             ImGui::TextUnformatted(m->text);
             ImGui::PopTextWrapPos();
         }
@@ -219,7 +238,7 @@ void draw_tooltip_overlay(void)
 
 extern "C" void ingame_text_overlays_frame(void)
 {
-    if (!RendererImGuiEnabled())
+    if (ingame_gui_use_classic_hud())
         return;
     draw_onscreen_banner();
     draw_paused_caption();
@@ -229,7 +248,7 @@ extern "C" void ingame_text_overlays_frame(void)
 
 extern "C" void ingame_tooltip_frame(void)
 {
-    if (!RendererImGuiEnabled())
+    if (ingame_gui_use_classic_hud())
         return;
     draw_tooltip_overlay();
 }

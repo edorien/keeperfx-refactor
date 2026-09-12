@@ -205,47 +205,38 @@ time). `draw_select_detail_panel()` now falls back to the slider's current level
 separately ensign-hovered, so there is exactly one place the name shows. Moving the slider also now
 preserves the preview's pan position and zoom instead of resetting to the image's own default view.
 
-### 3.4 Continue Game: two independent paths, gated on `-classicmenu`
+### 3.4 Continue Game (history: was two paths gated on `-classicmenu`, now just one)
 
-**Confirmed, and stronger than "not required for `-classicmenu`"**: this isn't a case of the new
-menu getting a feature the old one lacks — the two Continue flows are gated to never interact.
-`use_classic_menu()` (`config_keeperfx.h:297`, already the exact predicate this codebase uses for
-every other new-menu-vs-legacy fork) is the single branch point:
+**Updated 2026-09-12 — `-classicmenu` retired.** This section originally described a permanent
+fork gated on `use_classic_menu()`: the legacy frontend kept reading/writing `fx1contn.sav`
+completely unchanged, while the new menu branched to `progress.cfg` instead, and a player could
+alternate between the two across different launches of the same install. That fork is gone now
+that the frontend has no legacy sprite menus left to fall back to (`-classicmenu` retired outright
+-- see `docs/refactor/ingame-gui/00-overview.md` §1/§8; the in-game HUD's own, unrelated classic
+mode lives on via `GUI_ICON_PACK=CLASSIC` instead, but that's a HUD-rendering choice, not a
+Continue-Game code path).
 
-- **`-classicmenu` active**: every existing function — `frontend_save_continue_game()`,
-  `frontend_load_continue_game_resolve()`, `save_continue_game()`, `load_continue_game()`,
-  `read_continue_game_progress()`, `continue_game_available()` (`frontend.cpp`/`game_saves.c`) —
-  is **completely unchanged**. `fx1contn.sav` keeps being read and written exactly as it is today.
-  Nothing in this doc touches this path's code at all.
-- **New menu (not `-classicmenu`)**: the same call sites branch to new functions instead —
-  `campaign_progress_record_level_completed()` for saving, reading/writing `progress.cfg` (§3.1).
-  `frontend_load_continue_game_resolve()`'s new-menu branch resolves to plain `FeSt_CAMPAIGN_SELECT`
-  instead of `FeSt_LAND_VIEW` — **no pre-selected campaign needed** (corrected during
-  implementation, §10: entering that state already builds its own list fresh
-  (`frontend_campaign_list_load()`), exactly mirroring how the Main Menu's "Campaign" button already
-  works when more than one campaign exists — `frontend_start_new_game_resolve()` returns the same
-  bare `FeSt_CAMPAIGN_SELECT` with no pre-arranged state either). **Corrected in §12**: the Main
-  Menu's "Continue Game" button is removed outright from the new menu's own draw path, not just
-  repointed — once both it and "Campaign" resolve to the exact same `FeSt_CAMPAIGN_SELECT` with no
-  pre-arranged state, a second button for the same destination is pure redundancy.
-  `-classicmenu`'s own main menu (`frontend_main_menu_buttons[]`, `frontend.cpp`) keeps its Continue
-  Game button completely untouched. `continue_game_available()`'s new-menu branch (still computed
-  every Main Menu entry, since its reconciliation side effect is worth keeping even though nothing
-  in the new-menu UI reads its boolean result anymore) is derived from "does `progress.cfg` have at
-  least one campaign with a non-empty `unlocked_levels`" instead of "does `fx1contn.sav` parse."
+Current shape, single path only:
 
-**Consequence for migration (§3.1)**: because a player can genuinely alternate between
-`-classicmenu` and the new menu across different runs of the same install (this is a runtime
-launch flag, not a one-time choice), the `fx1contn.sav → progress.cfg` migration can't be a single
-first-run event — it has to run as a cheap reconciliation check every time the new menu loads
-Campaign Select or saves progress: if `fx1contn.sav` reflects progress `progress.cfg` doesn't have
-yet for that campaign, absorb it. `fx1contn.sav` itself is never written by the new-menu path, so
-this is one-directional (old → new) and never overwrites anything the player did under the new
-menu with stale classic-menu state.
+- `frontend_save_continue_game()` always calls `campaign_progress_record_level_completed()`
+  (`progress.cfg`, §3.1). `save_continue_game()` (the old `fx1contn.sav` writer) is deleted —
+  its only caller was the retired classic-menu branch.
+- `frontend_load_continue_game_resolve()` always returns `FeSt_CAMPAIGN_SELECT` — no pre-selected
+  campaign needed, entering that state already builds its own list fresh
+  (`frontend_campaign_list_load()`), exactly mirroring the Main Menu's "Campaign" button. The
+  Main Menu's own "Continue Game" button was already removed outright in the new menu's own draw
+  path (§12) once both buttons resolved to the same destination. `load_continue_game()` (the old
+  `fx1contn.sav` reader used only to populate gameplay state for `FeSt_LAND_VIEW`) is deleted for
+  the same reason `save_continue_game()` is.
+- `continue_game_available()` (`game_saves.c`) is unconditionally the `progress.cfg`-backed check
+  now: "does `progress.cfg` have at least one campaign with a non-empty `unlocked_levels`."
 
-Since the old path is fully retained (not deleted, not deprecated — a real, permanently supported
-fork per `-classicmenu`'s own existing role in this codebase), there's no "delete the old
-functions" decision to make: they stay, serving `-classicmenu` exactly as they do today.
+**One function survives from the old path on purpose**: `read_continue_game_progress()`
+(`game_saves.c`) still exists, because `reconcile_fx1contn_into_progress()`
+(`game_campaign_progress.c`) still needs it — a player upgrading from before this migration may
+have real progress sitting only in `fx1contn.sav`, and that one-time (well, every-load, cheap,
+idempotent) absorption into `progress.cfg` is still exactly as necessary as it always was. This
+is migration-of-old-saves, not a live dual-path fork — the distinction §3.1 draws.
 
 ### 3.5 Reset Progress action
 
@@ -266,8 +257,9 @@ at once (clears `progress.cfg` entirely) — not a per-campaign reset.
 
 ## 4. Explicitly out of scope for this doc
 
-- `-classicmenu`'s own code — not just "unaffected," but deliberately gated off from every change
-  in this doc (§3.4).
+- `-classicmenu`'s own code — was, at the time this doc was written, deliberately gated off from
+  every change here (§3.4's original text). Retired outright since (§3.4's 2026-09-12 update) —
+  this bullet is historical, not a live constraint any more.
 - Per-level replay unlocking *within* a single mission (secrets, alternate objectives) — out of
   scope; this is about which **levels'** ensigns are visible, not intra-level content.
 - Reworking `IntralevelData`'s own semantics beyond what §3.1's mapping table already settles —

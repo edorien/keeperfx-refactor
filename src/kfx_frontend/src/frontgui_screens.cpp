@@ -2,6 +2,8 @@
 #include "frontgui_screens.h"
 #include "frontgui_ingame.h" // Phase 0: the in-game HUD/menu ImGui arm
 #include "frontgui_widgets.h"
+#include "frontgui_deferred.h" // FeDeferredQueue
+#include "frontgui_offscreen.h" // FeOffscreenTarget -- land-preview raster capture
 #include "frontgui_style.h"
 #include "frontgui_stylesheet_test.h"
 #include "renderer/RendererManager.h"
@@ -77,11 +79,12 @@ namespace {
     // (e.g. "which network service index was clicked") stores it in its
     // own small file-scope holder immediately before requesting the
     // action, and the trampoline function reads it back when it runs.
-    void (*s_pending_action)(void) = nullptr;
+    // (FeDeferredQueue, docs/refactor/ingame-gui/10-maintainability-refactors.md §3.)
+    FeDeferredQueue s_deferred_action;
 
     void request_pending_action(void (*fn)(void))
     {
-        s_pending_action = fn;
+        s_deferred_action.push(fn);
     }
 
     // Holder for frontnet_service_select_by_index()'s parameter -- see
@@ -876,23 +879,19 @@ namespace {
         draw_gbtn.width = (short)w;
         draw_gbtn.height = (short)h;
 
-        TbGraphicsWindow grwnd;
-        LbScreenStoreGraphicsWindow(&grwnd);
-        TbPixel *previous = RendererSwapFramebufferTarget(s_land_preview_pixels.data(), w, h);
-        LbScreenSetGraphicsWindow(0, 0, w, h);
-        // Found live: even after giving this panel most of the right
-        // column (the 0.80/0.16 split above), the ornate corner frame
-        // still read as oversized -- see land_preview_set_frame_extra_scale_den's
-        // own comment for why the frame doesn't respond to this panel's
-        // size on its own. Halved here, reset right after so the legacy
-        // (-classicmenu) screen's own call to land_preview_draw() is
-        // unaffected.
-        land_preview_set_frame_extra_scale_den(kLandPreviewImGuiFrameScaleDen);
-        land_preview_draw(&draw_gbtn);
-        land_preview_set_frame_extra_scale_den(1);
-        RendererRestoreFramebufferTarget(previous);
-        LbScreenLoadGraphicsWindow(&grwnd);
-
+        {
+            FeOffscreenTarget cap(s_land_preview_pixels.data(), w, h);
+            // Found live: even after giving this panel most of the right
+            // column (the 0.80/0.16 split above), the ornate corner frame
+            // still read as oversized -- see land_preview_set_frame_extra_scale_den's
+            // own comment for why the frame doesn't respond to this panel's
+            // size on its own. Halved here, reset right after so the legacy
+            // (-classicmenu) screen's own call to land_preview_draw() is
+            // unaffected.
+            land_preview_set_frame_extra_scale_den(kLandPreviewImGuiFrameScaleDen);
+            land_preview_draw(&draw_gbtn);
+            land_preview_set_frame_extra_scale_den(1);
+        }
         RendererUpdateDynamicTexture(s_land_preview_texture, s_land_preview_pixels.data(), w, h);
         ImGui::GetWindowDrawList()->AddImage((ImTextureID)(intptr_t)s_land_preview_texture,
             screen_pos, ImVec2(screen_pos.x + w, screen_pos.y + h));
@@ -1840,7 +1839,7 @@ namespace {
 
 TbBool frontend_imgui_screen_active(int state)
 {
-    return RendererImGuiEnabled() && state_is_migrated(state);
+    return state_is_migrated(state);
 }
 
 // Runs land_preview_maintain() (Phase E's master-detail screens' preview
@@ -1927,12 +1926,7 @@ void FrontendImGuiFrame(void)
         s_pending_state = -1;
         frontend_set_state(next);
     }
-    if (s_pending_action != nullptr)
-    {
-        void (*fn)(void) = s_pending_action;
-        s_pending_action = nullptr;
-        fn();
-    }
+    s_deferred_action.drain();
 
     FeStyleSheetFrame(); // Phase B debug overlay -- independent of migration state
 

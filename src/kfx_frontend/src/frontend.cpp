@@ -1873,15 +1873,9 @@ short frontend_save_continue_game(short allow_lvnum_grow)
         SYNCDBG(7,"No change in campaign position, victory state %d",(int)player->victory_state);
         lvnum = get_continue_level_number();
     }
-    // docs/refactor/gui/05-campaign-progress-and-landview.md §3.4: mutually
-    // exclusive as of Phase D -- fx1contn.sav is never written by the new
-    // menu (continue_game_available()/frontend_load_continue_game_resolve()
-    // no longer read it either, so writing it would just be dead weight),
-    // and save/progress.cfg is never touched under `-classicmenu`, which
-    // keeps its own original save_continue_game() call untouched. (Phase A
-    // called both, additively, before Phase D made this split possible.)
-    if (use_classic_menu())
-        return save_continue_game(lvnum);
+    // fx1contn.sav is retired (was the `-classicmenu` continue-save format,
+    // now removed) -- progress.cfg via campaign_progress_record_level_completed()
+    // is the only continue-game path left.
     return campaign_progress_record_level_completed(lvnum);
 }
 
@@ -1890,21 +1884,12 @@ short frontend_save_continue_game(short allow_lvnum_grow)
  */
 int frontend_load_continue_game_resolve(void)
 {
-  // Phase D (docs/refactor/gui/05-campaign-progress-and-landview.md §3.4):
-  // under the new menu, Continue Game routes to Campaign Select instead
-  // of loading one specific saved level -- mirrors frontend_start_new_game_resolve()'s
-  // own "more than one campaign -> go to selection screen" case exactly,
-  // needing no pre-selected campaign/level state: entering FeSt_CAMPAIGN_SELECT
+  // Continue Game routes to Campaign Select instead of loading one specific
+  // saved level -- mirrors frontend_start_new_game_resolve()'s own "more
+  // than one campaign -> go to selection screen" case exactly, needing no
+  // pre-selected campaign/level state: entering FeSt_CAMPAIGN_SELECT
   // (frontend_campaign_list_load()) already builds its own list fresh.
-  if (!use_classic_menu())
-      return FeSt_CAMPAIGN_SELECT;
-
-  if (!load_continue_game())
-  {
-    kfx_frontend_state.continue_game_option_available = 0;
-    return -1;
-  }
-  return FeSt_LAND_VIEW;
+  return FeSt_CAMPAIGN_SELECT;
 }
 
 void frontend_load_continue_game(struct GuiButton *gbtn)
@@ -2660,7 +2645,7 @@ void set_gui_visible(TbBool visible)
   // the engine window by the sidebar's width.
   if (((kfx_sim_state.view_mode_flags & GNFldD_StatusPanelDisplay) != 0)
       && ((kfx_sim_state.operation_flags & GOF_ShowGui) != 0)
-      && !RendererImGuiEnabled())
+      && ingame_gui_use_classic_hud())
   {
       setup_engine_window(status_panel_width, 0, MyScreenWidth, MyScreenHeight);
   }
@@ -3585,7 +3570,16 @@ void draw_active_menus_highlights(void)
     for (k=0; k<ACTIVE_MENUS_COUNT; k++)
     {
         gmnu = &active_menus[k];
-        if ((gmnu->visual_state != 0) && (gmnu->ident == GMnu_MAIN))
+        // Missed by the same skip draw_active_menus_buttons() above already
+        // applies: spangle_button() positions itself from the legacy
+        // gbtn->pos_x/pos_y, baked at create_menu() time against GMnu_MAIN's
+        // always-flush-left legacy position -- so with GUI_POSITION set to
+        // Right, this sparkle stayed stranded at the old left-edge spot
+        // while frontgui_ingame_panel.cpp's own ImGui spangle (draw_tabs())
+        // correctly followed the panel. That ImGui spangle is this one's
+        // replacement once GMnu_MAIN is migrated -- skip the legacy draw
+        // rather than fix its position, so the two don't both render.
+        if ((gmnu->visual_state != 0) && (gmnu->ident == GMnu_MAIN) && !ingame_imgui_menu_active(gmnu->ident))
           draw_menu_spangle(gmnu);
     }
 }
@@ -3981,7 +3975,19 @@ FrontendMenuState get_menu_state_based_on_last_level(LevelNumber lvnum)
 {
     if (is_singleplayer_level(lvnum) || is_bonus_level(lvnum) || is_extra_level(lvnum))
     {
-        return FeSt_LAND_VIEW;
+        // FeSt_LAND_VIEW is the old full-screen flying-camera cutscene --
+        // FeSt_CAMPAIGN_SELECT (frontgui_campaignselect_frame(),
+        // frontgui_screens.cpp) is its ImGui replacement, embedding the
+        // same LandPreviewPanel with a clickable "Enter this land" commit
+        // (frontend_land_selection_enter_resolve() launches straight into
+        // FeSt_START_KPRLEVEL, bypassing the cutscene entirely) -- this
+        // helper's callers were still sending players back to the
+        // deprecated screen (live-tested: "win goes to old fullscreen
+        // landview, not the new land selector screen"; the same screen
+        // was also observed rendering black on a loss before the player
+        // escaped out, an old-screen rendering issue this reroute sidesteps
+        // rather than chasing).
+        return FeSt_CAMPAIGN_SELECT;
     } else
     if (is_multiplayer_level(lvnum))
     {
@@ -4040,6 +4046,23 @@ FrontendMenuState get_menu_state_when_back_from_substate(FrontendMenuState subst
     case FeSt_TORTURE:
     case FeSt_CAMPAIGN_INTRO:
         return FeSt_LAND_VIEW;
+    case FeSt_LAND_VIEW:
+        // Not just TORTURE/CAMPAIGN_INTRO's own back-target above -- also
+        // where get_startup_menu_state() now sends a won or lost campaign
+        // level (general issue #4's fix), so this substate has no single
+        // "parent" screen it was entered from. Missing case here meant
+        // frontmap_input()'s own Escape handler (front_landview.c, which
+        // calls this with the *live* frontend_menu_state) fell through to
+        // the `default` below and dropped straight to the true top-level
+        // FeSt_MAIN_MENU -- live-tested: pressing Escape (or the "Return to
+        // Main" button on the FeSt_HIGH_SCORES screen just before it, which
+        // actually routes here, not to Main Menu, despite its label) right
+        // after winning/losing bounced past campaign context entirely
+        // ("black screen, then main menu"; "levelstats->landview rather
+        // than campaign screen"). CAMPAIGN_SELECT keeps that one Escape
+        // press within the campaign, symmetric with TORTURE/CAMPAIGN_INTRO
+        // backing into LAND_VIEW itself above.
+        return FeSt_CAMPAIGN_SELECT;
     case FeSt_OUTRO:
         return FeSt_LEVEL_STATS;
     case FeSt_DRAG:
@@ -4153,7 +4176,19 @@ FrontendMenuState get_startup_menu_state(void)
           return FeSt_MAIN_MENU;
         }
     } else
-    if (((player->display_flags & PlaF6_PlyrHasQuit) != 0) || (player->victory_state == VicS_Undecided))
+    if ((player->display_flags & PlaF6_PlyrHasQuit) != 0)
+    {
+        // Explicit Quit (the in-game GMnu_QUIT confirm, PckA_QuitToMainMenu)
+        // goes straight to the true top-level main menu regardless of game
+        // mode (live-tested request) -- unlike a loss, quitting isn't
+        // "finished with this campaign/skirmish", it's "done with this
+        // session", so get_menu_state_based_on_last_level()'s campaign-
+        // landview / skirmish-select routing (still used by the loss branch
+        // below, unchanged) doesn't apply here.
+        SYNCLOG("Player quit state selected");
+        return FeSt_MAIN_MENU;
+    } else
+    if (player->victory_state == VicS_Undecided)
     {
         SYNCLOG("Undecided victory state selected");
         return get_menu_state_based_on_last_level(lvnum);
@@ -4184,7 +4219,10 @@ FrontendMenuState get_startup_menu_state(void)
         } else
         if (is_bonus_level(lvnum) || is_extra_level(lvnum))
         {
-            return FeSt_LAND_VIEW;
+            // See get_menu_state_based_on_last_level()'s own comment --
+            // FeSt_LAND_VIEW is the deprecated cutscene, FeSt_CAMPAIGN_SELECT
+            // its replacement.
+            return FeSt_CAMPAIGN_SELECT;
         } else
         {
             return FeSt_LEVEL_STATS;

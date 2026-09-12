@@ -143,6 +143,20 @@ static const struct NamedCommand ui_font_scale_enum[] = {
 static long get_ui_font_scale(void) { return keeperfx_ui_config.ui_font_scale_pct; }
 static void set_ui_font_scale(long val) { keeperfx_ui_config.ui_font_scale_pct = (int)val; }
 
+// GUI_POSITION (case 55, config_keeperfx.c): reuses hud_position_type[]
+// (config_keeperfx.c) verbatim, the same way SCREENSHOT reuses scrshot_type[]
+// above -- no alias/legacy-token concerns here to justify a separate table.
+static long get_hud_position(void) { return keeperfx_ui_config.hud_position; }
+static void set_hud_position(long val) { keeperfx_ui_config.hud_position = (int)val; }
+
+// MINIMAP_CORNER (case 57, config_keeperfx.c): reuses minimap_corner_type[]
+// verbatim, same shape as GUI_POSITION above. Only meaningful when
+// GUI_POSITION is MINIMAL -- is_enabled shows the row but greys it out
+// otherwise (docs/refactor/ingame-gui/13-minimal-layout.md).
+static long get_minimap_corner(void) { return keeperfx_ui_config.minimap_corner; }
+static void set_minimap_corner(long val) { keeperfx_ui_config.minimap_corner = (int)val; }
+static TbBool minimap_corner_enabled(void) { return keeperfx_ui_config.hud_position == 4; }
+
 // UI_FONT (case 53, config_keeperfx.c): the ImGui-frontend typeface. Like
 // INGAME_RES, its list can't be a compile-time constant -- it's "AUTO",
 // "Cinzel" (bundled), "Exocet" (only when the DK2 files are present in
@@ -218,6 +232,95 @@ static void set_ui_font(long idx)
         return;
     snprintf(keeperfx_ui_config.ui_font, sizeof(keeperfx_ui_config.ui_font),
              "%s", ui_font_enum[idx].name);
+}
+
+// GUI_ICON_PACK (case 56, config_keeperfx.c,
+// docs/refactor/ingame-gui/12-png-icon-overrides.md): same shape as UI_FONT
+// above -- "NONE" (default, legacy sprites only) plus one entry per
+// sub-directory of fxdata/gui/, each a pack of same-named PNGs overriding
+// the matching HUD icon (frontgui_ingame_icon_overrides.cpp resolves the
+// actual lookups; this row just offers the folder names). Unlike UI_FONT,
+// not frontend_only -- clearing the (cheap) texture cache mid-session is
+// safe, so the icon-override module polls this the same lazy way
+// frontgui_style.cpp's refresh_fonts_if_changed() polls UI_FONT.
+//
+// "CLASSIC" is a second reserved entry (alongside "NONE"), added when the
+// `-classicmenu` switch was retired: that switch used to take the whole
+// session -- frontend menus and in-game HUD together -- to the pre-ImGui
+// sprite path. The frontend side of that is gone for good (every FeSt_*
+// screen is ImGui now), but the in-game HUD's legacy sprite renderer is
+// kept available as a per-session *style* choice instead -- this is a much
+// smaller axis than a full rendering-architecture switch, but the in-game
+// HUD is the one piece of the old sprite GUI actually worth keeping
+// reachable (some players prefer it outright). ingame_gui_use_classic_hud()
+// (config_keeperfx.h/.c) is what every in-game HUD draw call now checks
+// instead of the old RendererImGuiEnabled() to decide which renderer to
+// use for *this one session*; nothing else (menus, options, load/save)
+// reads it. Reserved the same way "NONE" is -- added unconditionally before
+// the folder scan below, not sourced from an actual fxdata/gui/CLASSIC/
+// directory.
+#define GUI_ICON_PACK_MAX_ENTRIES 32
+#define GUI_ICON_PACK_NAME_LEN 48
+static struct NamedCommand gui_icon_pack_enum[GUI_ICON_PACK_MAX_ENTRIES + 1];
+static char gui_icon_pack_names[GUI_ICON_PACK_MAX_ENTRIES][GUI_ICON_PACK_NAME_LEN];
+static TbBool gui_icon_pack_enum_ready = false;
+
+static void gui_icon_pack_add(int *n, const char *name)
+{
+    if (*n >= GUI_ICON_PACK_MAX_ENTRIES)
+        return;
+    // Skip a folder that happens to collide (case-insensitively) with one
+    // of the two reserved names above -- added first, so this only ever
+    // catches the folder-scan loop below trying to add a duplicate.
+    for (int i = 0; i < *n; i++)
+        if (strcasecmp(gui_icon_pack_enum[i].name, name) == 0)
+            return;
+    snprintf(gui_icon_pack_names[*n], GUI_ICON_PACK_NAME_LEN, "%s", name);
+    gui_icon_pack_enum[*n].name = gui_icon_pack_names[*n];
+    gui_icon_pack_enum[*n].num = *n;
+    (*n)++;
+}
+
+static void ensure_gui_icon_pack_enum(void)
+{
+    if (gui_icon_pack_enum_ready)
+        return;
+    gui_icon_pack_enum_ready = true;
+
+    int n = 0;
+    gui_icon_pack_add(&n, "NONE");
+    gui_icon_pack_add(&n, "CLASSIC");
+
+    char *gui_dir = prepare_file_path(FGrp_FxData, "gui");
+    if (gui_dir != NULL)
+    {
+        char subs[GUI_ICON_PACK_MAX_ENTRIES][GUI_ICON_PACK_NAME_LEN];
+        int count = PlatformManager_ListSubdirectories(gui_dir, &subs[0][0],
+                                                       GUI_ICON_PACK_NAME_LEN, GUI_ICON_PACK_MAX_ENTRIES);
+        for (int i = 0; i < count; i++)
+            gui_icon_pack_add(&n, subs[i]);
+    }
+
+    gui_icon_pack_enum[n].name = NULL;
+    gui_icon_pack_enum[n].num = 0;
+}
+
+static long get_gui_icon_pack(void)
+{
+    ensure_gui_icon_pack_enum();
+    for (int i = 0; gui_icon_pack_enum[i].name != NULL; i++)
+        if (strcasecmp(gui_icon_pack_enum[i].name, keeperfx_ui_config.gui_icon_pack) == 0)
+            return i;
+    return 0; // NONE
+}
+
+static void set_gui_icon_pack(long idx)
+{
+    ensure_gui_icon_pack_enum();
+    if ((idx < 0) || (idx >= GUI_ICON_PACK_MAX_ENTRIES) || (gui_icon_pack_enum[idx].name == NULL))
+        return;
+    snprintf(keeperfx_ui_config.gui_icon_pack, sizeof(keeperfx_ui_config.gui_icon_pack),
+             "%s", gui_icon_pack_enum[idx].name);
 }
 
 // Reset Progress (Phase E, docs/refactor/gui/05-campaign-progress-and-landview.md
@@ -832,6 +935,33 @@ const struct SettingOption setting_options[] = {
         .ensure_enum_table = &ensure_ui_font_enum,
     },
     {
+        // Recomputed every frame from the live setting (frontgui_ingame_panel.cpp's
+        // read_menu_rect()/btn_rect() offset), not baked into the legacy
+        // GMnu_MAIN menu's one-time create_menu() positioning -- so, unlike
+        // UI_FONT, this is safe to change mid-match: not frontend_only.
+        .cfg_key = "GUI_POSITION", .type = SOptT_Enum, .category = SCat_GUI, .apply_class = SApply_Live,
+        .label_literal = "Position",
+        .help_literal = "Which edge of the screen the in-game sidebar sits against.",
+        .enum_table = hud_position_type, .get_enum = &get_hud_position, .set_enum = &set_hud_position,
+    },
+    {
+        .cfg_key = "MINIMAP_CORNER", .type = SOptT_Enum, .category = SCat_GUI, .apply_class = SApply_Live,
+        .label_literal = "Minimap Corner",
+        .help_literal = "Minimal layout only: which upper corner the minimap sits in. The button "
+                        "cluster takes the opposite corner.",
+        .enum_table = minimap_corner_type, .get_enum = &get_minimap_corner, .set_enum = &set_minimap_corner,
+        .is_enabled = &minimap_corner_enabled,
+    },
+    {
+        .cfg_key = "GUI_ICON_PACK", .type = SOptT_Enum, .category = SCat_GUI, .apply_class = SApply_Live,
+        .label_literal = "Icon Pack",
+        .help_literal = "Replaces HUD icons with PNGs from a fxdata/gui/ sub-folder (add more by "
+                        "dropping a folder of same-named PNGs in there), or CLASSIC for the "
+                        "original sprite-drawn in-game HUD instead of the modern one.",
+        .enum_table = gui_icon_pack_enum, .get_enum = &get_gui_icon_pack, .set_enum = &set_gui_icon_pack,
+        .ensure_enum_table = &ensure_gui_icon_pack_enum,
+    },
+    {
         // Ported from the in-game Video options menu -- see
         // get_video_shadows/get_view_distance's own doc comment above for
         // why this isn't a keeperfx.cfg-backed row like everything else in
@@ -851,10 +981,7 @@ const struct SettingOption setting_options[] = {
     },
     {
         // No cfg_key -- see enum SettingOptionType's own SOptT_Action
-        // comment (config_settingschema.h). Not required for -classicmenu
-        // (docs/refactor/gui/05-campaign-progress-and-landview.md §3.4) --
-        // the legacy Options screen doesn't read this schema at all, so no
-        // extra gating is needed here for that.
+        // comment (config_settingschema.h).
         .type = SOptT_Action, .category = SCat_Game, .apply_class = SApply_Live,
         .label_stridx = GUIStr_SetResetCampaignProgress,
         .help_stridx = GUIStr_HelpResetCampaignProgress,

@@ -100,8 +100,8 @@ void ImGuiContextSetCursorImageCallback(ImGuiCursorImageFn fn);
 // actual centred menu panel, not the surrounding backdrop area) left the
 // cursor invisible the instant it strayed outside that panel, since there's
 // no legacy cursor path left to fall back to once the legacy blit is
-// skipped for these screens. Defaults to a null callback (never owned),
-// so -classicmenu and any screen not yet migrated behave exactly as before.
+// skipped for these screens. Defaults to a null callback (never owned), so
+// any screen not yet migrated behaves exactly as before.
 typedef TbBool (*ImGuiScreenOwnedFn)(void);
 void ImGuiContextSetScreenOwnedCallback(ImGuiScreenOwnedFn fn);
 TbBool ImGuiContextScreenOwned(void);

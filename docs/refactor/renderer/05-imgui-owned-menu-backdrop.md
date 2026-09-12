@@ -146,11 +146,11 @@ against, because `lbDrawSurface` is never composited at all.
 
 ### 2.5 What stays exactly as it is
 
-- **`-classicmenu`/`-noimgui` mode**: `frontend_imgui_screen_active()` returns false whenever
-  `RendererImGuiEnabled()` is false, which is the case for the entire classic-menu path
-  (`use_classic_menu()`, `config_keeperfx.c`). None of this document's proposal touches that code
-  path at all — `frontend_copy_background()`/`draw_gui()` keep running exactly as today whenever
-  ImGui isn't the thing drawing this screen.
+- **`-classicmenu`/`-noimgui` mode**: retired 2026-09-12 (docs/refactor/ingame-gui/00-overview.md
+  §1/§8) — the frontend has no legacy sprite path left at all, so `frontend_imgui_screen_active()`
+  is now just `state_is_migrated(state)`, no global switch to AND against. The description below
+  of screens genuinely not yet migrated still applies unchanged; only the classic-menu escape
+  hatch is gone.
 - **Screens with genuinely live content**: `FeSt_LAND_VIEW` (`frontmap_draw()`),
   `FeSt_NETLAND_VIEW` (`frontnetmap_draw()`), and `FeSt_TORTURE` (`fronttorture_draw()`) are *not*
   in `state_is_migrated()`'s list (`frontgui_screens.cpp:100`) — they're still fully classic-rendered

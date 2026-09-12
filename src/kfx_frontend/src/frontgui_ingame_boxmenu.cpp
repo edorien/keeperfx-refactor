@@ -3,12 +3,12 @@
 
 #include "frontgui_widgets.h"
 #include "frontgui_style.h"
-#include "renderer/RendererManager.h" // RendererImGuiEnabled
 
 #include "globals.h"
 #include "bflib_guibtns.h" // struct GuiBox / GuiBoxOption
 #include "gui_boxmenu.h"   // gui_get_*_priority_box, cheat_menu_is_active
 #include "gui_soundmsgs.h" // (menu click sound via frontgui_widgets, kept parallel)
+#include "config_keeperfx.h" // ingame_gui_use_classic_hud
 
 #include "post_inc.h"
 
@@ -88,7 +88,7 @@ void draw_one_box(struct GuiBox *gbox, int stack_idx)
 
 extern "C" void ingame_boxmenu_frame(void)
 {
-    if (!RendererImGuiEnabled())
+    if (ingame_gui_use_classic_hud())
         return;
     // Lowest priority first so the top box ends up focused (matches the
     // legacy gui_draw_all_boxes() order).
@@ -103,7 +103,7 @@ extern "C" void ingame_boxmenu_frame(void)
 
 extern "C" TbBool ingame_boxmenu_consumes_mouse(void)
 {
-    if (!RendererImGuiEnabled() || !cheat_menu_is_active())
+    if (ingame_gui_use_classic_hud() || !cheat_menu_is_active())
         return 0;
     return ImGui::GetIO().WantCaptureMouse ? 1 : 0;
 }

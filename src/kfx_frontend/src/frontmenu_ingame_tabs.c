@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "renderer/RendererManager.h"
+#include "config_keeperfx.h" // ingame_gui_use_classic_hud
 #include "frontmenu_ingame_tabs.h"
 #include "globals.h"
 #include "bflib_basics.h"
@@ -2606,7 +2607,7 @@ void draw_whole_status_panel(void)
     // transparent hole the ImGui panel leaves for it (their geometry both
     // derive from status_panel_width). Migrated to a texture in a later
     // sub-chunk.
-    const TbBool imgui_hud = RendererImGuiEnabled();
+    const TbBool imgui_hud = !ingame_gui_use_classic_hud();
     if (!imgui_hud)
     {
         LbTiledSpriteDraw(0, 0, fs_units_per_px, &status_panel, get_panel_sprite);

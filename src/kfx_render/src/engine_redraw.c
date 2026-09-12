@@ -19,6 +19,7 @@
 #include "pre_inc.h"
 #include "renderer/RendererManager.h"
 #include "renderer/software/SwDrawTarget.h"
+#include "config_keeperfx.h" // ingame_gui_use_classic_hud
 #include "engine_redraw.h"
 
 #include "globals.h"
@@ -492,8 +493,9 @@ void set_engine_view(struct PlayerInfo *player, long val)
 void draw_overlay_compass(long base_x, long base_y)
 {
     // Phase 4: drawn by ingame_panel_frame() (frontgui_ingame_panel.cpp)
-    // over the ImGui minimap texture when the ImGui HUD is on.
-    if (RendererImGuiEnabled())
+    // over the ImGui minimap texture when the ImGui in-game HUD is active.
+    // Only reached for the classic HUD (ingame_gui_use_classic_hud()).
+    if (!ingame_gui_use_classic_hud())
         return;
     struct PlayerInfo* player = get_my_player();
     struct Camera* camera = get_player_active_camera(player);
@@ -978,7 +980,7 @@ void redraw_display(void)
     // Phase 3: the MP chat input line moves to ingame_text_overlays_frame()
     // under the ImGui HUD (input handling -- get_players_message_inputs() --
     // is unchanged; only this echo of player->mp_message_text moves).
-    if (((player->allocflags & PlaF_NewMPMessage) != 0) && !RendererImGuiEnabled())
+    if (((player->allocflags & PlaF_NewMPMessage) != 0) && ingame_gui_use_classic_hud())
     {
         char text[sizeof(player->mp_message_text) + 4];
         snprintf(text, sizeof(text), ">%s_", player->mp_message_text);
@@ -1017,7 +1019,7 @@ void redraw_display(void)
     // (frontgui_ingame_text.cpp) draws the "Paused" caption instead, from
     // the FrontendImGuiFrame submission -- same GOF_Paused/WorldInfluence/
     // unpausing gate.
-    if (!RendererImGuiEnabled()
+    if (ingame_gui_use_classic_hud()
      && ((kfx_sim_state.operation_flags & GOF_Paused) != 0) && ((kfx_sim_state.operation_flags & GOF_WorldInfluence) == 0) && !render_overlay->get_unpausing_in_progress())
     {
           render_overlay->set_winfont();

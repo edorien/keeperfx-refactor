@@ -7,7 +7,10 @@
 #include "config_spritecolors.h"     // get_player_colored_icon_idx (event marker room/creature icons)
 #include "frontgui_ingame_tabcontent.h" // ingame_tabcontent_draw
 #include "frontgui_ingame_relief.h"    // relief::plateau / well / ring / ...
-#include "renderer/RendererManager.h" // RendererImGuiEnabled
+#include "frontgui_offscreen.h"       // FeOffscreenTarget -- minimap raster capture
+#include "frontgui_hud_layout.h"      // HudLayout_HorizontalBottom, hud_layout_frame/_current (GUI_POSITION Bottom)
+#include "renderer/RendererManager.h" // dynamic textures
+#include "frontgui_ingame_icon_overrides.h" // FeIconOverrideTexture -- docs/refactor/ingame-gui/12-png-icon-overrides.md
 
 #include "globals.h"
 #include "bflib_guibtns.h"            // struct GuiButton, LbBtnF_*
@@ -23,6 +26,7 @@
 #include "map_events.h"               // kfx_sim_state.event[], event_button_info, EvF_BtnFalling
 #include "kfx_sim_state.h"
 #include "kfx_config_state.h"         // kfx_config_state.gui_blink_rate
+#include "config_keeperfx.h"          // keeperfx_ui_config.hud_position
 #include "kfx_frontend_state.h"       // flash_button_index (tab spangle)
 #include "bflib_video.h"              // scale_value_for_resolution_with_upp, TbPixel
 #include "bflib_math.h"               // LbSinL / LbCosL / LbFPMath_TrigmBits
@@ -33,6 +37,7 @@
 
 #include "post_inc.h"
 
+#include <algorithm> // std::min -- draw_event_markers_horizontal
 #include <cfloat>  // FLT_MAX
 #include <cmath>   // std::sin
 #include <cstdio>
@@ -76,6 +81,16 @@ void apply_pending(void)
 
 // ---- helpers ----------------------------------------------------------
 
+// GUI_POSITION (config_settingschema.c): the legacy GMnu_MAIN menu is
+// always created flush-left (create_menu()'s one-time compute_menu_position_x,
+// never touched). read_menu_rect() below re-decides the live side every
+// frame and writes the horizontal shift needed to mirror the panel onto
+// the right edge here; btn_rect() applies it to every legacy button rect
+// it hands back, so tab-strip hit-testing tracks the redraw exactly.
+// (0 for HudPos_Left -- no-op.)
+float s_panel_offset_x = 0.0f;
+bool s_panel_on_right = false;
+
 const struct GuiButton *find_btn(int id)
 {
     const struct GuiButton *b = get_gui_button(id);
@@ -85,15 +100,16 @@ const struct GuiButton *find_btn(int id)
 }
 
 // Screen rect of a legacy GMnu_MAIN button (create_menu already scaled its
-// scr_pos_*). We only draw + hit-test in ImGui; the legacy sprite draw and
-// input sweep are skipped for GMnu_MAIN (menu_is_migrated).
+// scr_pos_*, shifted here by s_panel_offset_x). We only draw + hit-test in
+// ImGui; the legacy sprite draw and input sweep are skipped for GMnu_MAIN
+// (menu_is_migrated).
 bool btn_rect(int id, ImVec2 *p0, ImVec2 *p1, bool *enabled)
 {
     const struct GuiButton *b = find_btn(id);
     if (b == nullptr)
         return false;
-    *p0 = ImVec2((float)b->scr_pos_x, (float)b->scr_pos_y);
-    *p1 = ImVec2((float)(b->scr_pos_x + b->width), (float)(b->scr_pos_y + b->height));
+    *p0 = ImVec2((float)b->scr_pos_x + s_panel_offset_x, (float)b->scr_pos_y);
+    *p1 = ImVec2((float)(b->scr_pos_x + b->width) + s_panel_offset_x, (float)(b->scr_pos_y + b->height));
     if (enabled != nullptr)
         *enabled = (b->flags & LbBtnF_Enabled) != 0;
     return true;
@@ -211,6 +227,14 @@ int tab_button(const char *id, short spr, bool colorize, const char *glyph, ImU3
 
 struct { long x, y, w, h; } s_menu_rect = {0, 0, 0, 0};
 
+// Minimal only (docs/refactor/ingame-gui/13-minimal-layout.md §2.2): the
+// pop-up panel's own visibility, independent of menu_is_active(GMnu_*)'s
+// existing radio-group selection -- clicking a button always selects that
+// menu (unchanged legacy behaviour), but only this flag decides whether
+// the pop-up actually draws. Read by ingame_tabcontent_draw() (frontgui_
+// ingame_tabcontent.cpp) via ingame_minimal_popup_is_open() below.
+bool s_minimal_popup_open = false;
+
 bool read_menu_rect(void)
 {
     const MenuNumber n = menu_id_to_number(GMnu_MAIN);
@@ -219,11 +243,32 @@ bool read_menu_rect(void)
     const struct GuiMenu *m = get_active_menu(n);
     if (m == nullptr || m->visual_state == 0)
         return false;
-    s_menu_rect.x = m->pos_x;
+    // HudPos_Right (2): shift the flush-left legacy rect so it sits
+    // flush-right instead. See s_panel_offset_x's own comment above.
+    s_panel_on_right = keeperfx_ui_config.hud_position == 2; // HudPos_Right
+    s_panel_offset_x = s_panel_on_right
+        ? ImGui::GetIO().DisplaySize.x - (float)m->width - (float)m->pos_x
+        : 0.0f;
+    s_menu_rect.x = m->pos_x + (long)s_panel_offset_x;
     s_menu_rect.y = m->pos_y;
     s_menu_rect.w = m->width;
     s_menu_rect.h = m->height;
     return true;
+}
+
+// docs/refactor/ingame-gui/12-png-icon-overrides.md §7: a background PNG
+// override (stretch-to-fill, no aspect preservation -- it's a backdrop,
+// not an icon) drawn in place of relief::face()'s procedural marble fill.
+// Structural chrome (edge_frame/groove_h/every widget's own well/bevel)
+// still draws after this, unchanged, whichever branch runs.
+void draw_face_or_override(ImDrawList *dl, const ImVec2 &p0, const ImVec2 &p1, const char *ov_name)
+{
+    int w = 0, h = 0;
+    void *tex = FeIconOverrideTexture(ov_name, &w, &h);
+    if (tex != nullptr)
+        dl->AddImage((ImTextureID)(intptr_t)tex, p0, p1);
+    else
+        relief::face(dl, p0, p1);
 }
 
 void draw_background(void)
@@ -248,7 +293,7 @@ void draw_background(void)
     // A raised outer rim frames the whole column; one engraved groove above
     // the tab strip. The minimap texture (transparent outside its diamond)
     // composites on top of this.
-    relief::face(dl, ImVec2(x0, y0), ImVec2(x1, tab_y0));
+    draw_face_or_override(dl, ImVec2(x0, y0), ImVec2(x1, tab_y0), "background_vertical_head");
     relief::groove_h(dl, x0 + 4.0f, x1 - 4.0f, y0 + 150.0f * sy);
     relief::edge_frame(dl, ImVec2(x0, y0), ImVec2(x1, y0 + (float)s_menu_rect.h));
 }
@@ -316,23 +361,23 @@ void render_minimap(void)
     // NOT the game's engine palette (same gotcha as the panel sprites), so
     // rock/lava/water/fog all decoded to the wrong (reddish) hues. Force
     // engine_palette for the capture, exactly like FeGuiPanelTexture.
-    unsigned char prev_pal[PALETTE_SIZE];
-    const bool forced_pal = (engine_palette != nullptr);
-    if (forced_pal)
     {
-        RendererPaletteGet(prev_pal);
-        RendererPaletteSet(engine_palette);
+        FeOffscreenTarget cap(s_mm_pixels.data(), dim, dim, engine_palette);
+        panel_map_draw_slabs(local_info.minimap_pos_x, local_info.minimap_pos_y, mm_upp, mmzoom);
+        panel_map_draw_overlay_things(mm_upp, mmzoom, local_info.minimap_zoom);
     }
-    TbPixel *prev = RendererSwapFramebufferTarget(s_mm_pixels.data(), dim, dim);
-    panel_map_draw_slabs(local_info.minimap_pos_x, local_info.minimap_pos_y, mm_upp, mmzoom);
-    panel_map_draw_overlay_things(mm_upp, mmzoom, local_info.minimap_zoom);
-    RendererRestoreFramebufferTarget(prev);
-    if (forced_pal)
-        RendererPaletteSet(prev_pal);
     s_mm_diag = MapDiagonalLength;
 
     RendererUpdateDynamicTexture(s_mm_tex, s_mm_pixels.data(), dim, dim);
 }
+
+// The minimap's absolute screen origin, captured here rather than
+// recomputed by callers -- draw_panel_horizontal() aliases s_menu_rect to
+// region A only for the duration of these calls, so front_input.c's
+// minimap click/drag/zoom hit-testing (ingame_panel_minimap_screen_pos())
+// needs the value from *this* frame's actual draw, not whatever
+// s_menu_rect holds afterward.
+long s_mm_abs_x = 0, s_mm_abs_y = 0;
 
 void draw_minimap_and_compass(void)
 {
@@ -340,6 +385,8 @@ void draw_minimap_and_compass(void)
         return;
     const float d = (float)s_mm_diag;
     const float dim = (float)s_mm_tex_dim;
+    s_mm_abs_x = s_menu_rect.x + s_mm_px;
+    s_mm_abs_y = s_menu_rect.y + s_mm_py;
     const ImVec2 org((float)(s_menu_rect.x + s_mm_px), (float)(s_menu_rect.y + s_mm_py));
     const ImVec2 uv0((float)s_mm_px / dim, (float)s_mm_py / dim);
     const ImVec2 uv1(((float)s_mm_px + d) / dim, ((float)s_mm_py + d) / dim);
@@ -596,6 +643,76 @@ void ev_glyph(ImDrawList *dl, const ImVec2 &p0, const ImVec2 &sz, const char *g,
     FeStylePopFont();
 }
 
+// One marker's button + content + border, at an explicit rect -- shared by
+// the vertical (stacked) and horizontal (row, GUI_POSITION Bottom,
+// docs/refactor/ingame-gui/11-horizontal-layout.md) layouts, which only
+// differ in where they place each slot.
+void draw_one_event_marker(int slot, const ImVec2 &p0, const ImVec2 &sz, ImDrawFlags outer_round)
+{
+    const EventIndex evidx = get_my_event_button_index(slot);
+    if (evidx == 0)
+        return;
+    const struct Event *ev = &kfx_sim_state.event[evidx];
+    const ImVec2 p1(p0.x + sz.x, p0.y + sz.y);
+
+    char sid[16]; std::snprintf(sid, sizeof(sid), "ev%d", slot);
+    ImGui::SetCursorScreenPos(p0);
+    ImGui::PushID(sid);
+    const bool pressed = ImGui::InvisibleButton("e", sz,
+        ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    const bool hovered = ImGui::IsItemHovered();
+    const bool rclick  = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
+    ImGui::PopID();
+
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    const bool sel    = (evidx == my_visible_event_idx);
+    const bool unread = !(my_event_button_state[evidx] & EvBtnS_Read);
+    const EvStyle st  = event_style(ev->kind);
+
+    dl->AddRectFilled(p0, p1, IM_COL32(30, 22, 13, 240), 5.0f, outer_round);
+    relief::bevel(dl, p0, p1, 1.5f, true); // slim raised edge -- reads as a token, not a sticker
+
+    // Content pulled ~2px toward the sidebar (the marker mostly sits
+    // off-panel), sized to nearly fill the cell.
+    const ImVec2 c0(p0.x + 1.0f, p0.y + 1.0f);
+    const ImVec2 csz(sz.x - 4.0f, sz.y - 2.0f);
+    if (st.icon_spr != 0)
+    {
+        const short spr = (st.colorize && !st.button_spr)
+            ? get_player_colored_icon_idx(st.icon_spr, my_player_number) : st.icon_spr;
+        int w = 0, h = 0;
+        void *tex = st.button_spr ? FeSpriteTexture(spr, &w, &h)
+                                  : FeGuiPanelTexture(spr, &w, &h);
+        if (tex != nullptr && w > 0 && h > 0)
+        {
+            float iw = csz.x, ih = csz.y;
+            const float ar = (float)w / (float)h;
+            if (iw / ih > ar) iw = ih * ar; else ih = iw / ar;
+            const ImVec2 i0(c0.x + (csz.x - iw) * 0.5f, c0.y + (csz.y - ih) * 0.5f);
+            dl->AddImage((ImTextureID)(intptr_t)tex, i0, ImVec2(i0.x + iw, i0.y + ih));
+        }
+    }
+    else
+    {
+        ev_glyph(dl, c0, csz, st.glyph, st.col, st.grad_top);
+    }
+
+    ImU32 bcol = IM_COL32(90, 70, 42, 200);
+    float bth = 1.0f;
+    if (sel) { bcol = IM_COL32(255, 219, 102, 255); bth = 2.0f; }
+    else if (unread)
+    {
+        const float pulse = 0.35f + 0.45f * (float)std::sin(ImGui::GetTime() * 7.0);
+        bcol = ImGui::GetColorU32(ImVec4(1.0f, 0.9f, 0.5f, pulse));
+        bth = 2.0f;
+    }
+    if (hovered) { bcol = IM_COL32(220, 62, 40, 255); bth = 2.0f; }
+    dl->AddRect(p0, p1, bcol, 5.0f, outer_round, bth);
+
+    if (pressed)      request_btn(&gui_open_event, 0, slot);
+    else if (rclick)  request_btn(&gui_kill_event, 0, slot);
+}
+
 void draw_event_markers(void)
 {
     // Anchor the column to slot 0's legacy rect, then stack the markers at a
@@ -608,12 +725,22 @@ void draw_event_markers(void)
     const struct GuiButton *b0 = find_btn(BID_MSG_EV01);
     if (b0 == nullptr)
         return;
-    const float edge   = (float)(s_menu_rect.x + s_menu_rect.w);
-    const float mx     = edge + 3.0f;
     const float mw     = 40.0f;
+    // GUI_POSITION: the markers sit just outside the panel, on whichever
+    // side is away from it -- past the right edge when the panel is on
+    // the left (today's default), past the left edge when it's mirrored
+    // onto the right. RoundCornersLeft/Right (below, at the fill + border)
+    // flip with it so the token's rounded side always faces outward.
+    const float mx = s_panel_on_right
+        ? (float)s_menu_rect.x - mw - 3.0f
+        : (float)(s_menu_rect.x + s_menu_rect.w) + 3.0f;
     const float mh     = 40.0f;
     const float pitch  = mh + 1.0f;                                // 1px hairline, no floaty gap
     const float base_y = (float)b0->scr_pos_y + (float)b0->height; // bottom of slot 0
+    // The outer (away-from-panel) corner is the rounded one; the inner
+    // corner sits square against the panel edge -- flips with the side.
+    const ImDrawFlags outer_round = s_panel_on_right
+        ? ImDrawFlags_RoundCornersLeft : ImDrawFlags_RoundCornersRight;
 
     for (int slot = 0; slot < 13; slot++)
     {
@@ -623,104 +750,417 @@ void draw_event_markers(void)
         const EventIndex evidx = get_my_event_button_index(slot);
         if (evidx == 0)
             continue;
-        const struct Event *ev = &kfx_sim_state.event[evidx];
-
         float my = base_y - (float)(slot + 1) * pitch;
-        if (flag_is_set(ev->flags, EvF_BtnFalling))
+        if (flag_is_set(kfx_sim_state.event[evidx].flags, EvF_BtnFalling))
             my = interpolate_synced(my - pitch, my);
-        const ImVec2 p0(mx, my);
-        const ImVec2 p1(mx + mw, my + mh);
-        const ImVec2 sz(mw, mh);
-
-        char sid[16]; std::snprintf(sid, sizeof(sid), "ev%d", slot);
-        ImGui::SetCursorScreenPos(p0);
-        ImGui::PushID(sid);
-        const bool pressed = ImGui::InvisibleButton("e", sz,
-            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
-        const bool hovered = ImGui::IsItemHovered();
-        const bool rclick  = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
-        ImGui::PopID();
-
-        ImDrawList *dl = ImGui::GetWindowDrawList();
-        const bool sel    = (evidx == my_visible_event_idx);
-        const bool unread = !(my_event_button_state[evidx] & EvBtnS_Read);
-        const EvStyle st  = event_style(ev->kind);
-
-        dl->AddRectFilled(p0, p1, IM_COL32(30, 22, 13, 240), 5.0f, ImDrawFlags_RoundCornersRight);
-        relief::bevel(dl, p0, p1, 1.5f, true); // slim raised edge -- reads as a token, not a sticker
-
-        // Content pulled ~2px toward the sidebar (the marker mostly sits
-        // off-panel), sized to nearly fill the cell.
-        const ImVec2 c0(p0.x + 1.0f, p0.y + 1.0f);
-        const ImVec2 csz(sz.x - 4.0f, sz.y - 2.0f);
-        if (st.icon_spr != 0)
-        {
-            const short spr = (st.colorize && !st.button_spr)
-                ? get_player_colored_icon_idx(st.icon_spr, my_player_number) : st.icon_spr;
-            int w = 0, h = 0;
-            void *tex = st.button_spr ? FeSpriteTexture(spr, &w, &h)
-                                      : FeGuiPanelTexture(spr, &w, &h);
-            if (tex != nullptr && w > 0 && h > 0)
-            {
-                float iw = csz.x, ih = csz.y;
-                const float ar = (float)w / (float)h;
-                if (iw / ih > ar) iw = ih * ar; else ih = iw / ar;
-                const ImVec2 i0(c0.x + (csz.x - iw) * 0.5f, c0.y + (csz.y - ih) * 0.5f);
-                dl->AddImage((ImTextureID)(intptr_t)tex, i0, ImVec2(i0.x + iw, i0.y + ih));
-            }
-        }
-        else
-        {
-            ev_glyph(dl, c0, csz, st.glyph, st.col, st.grad_top);
-        }
-
-        ImU32 bcol = IM_COL32(90, 70, 42, 200);
-        float bth = 1.0f;
-        if (sel) { bcol = IM_COL32(255, 219, 102, 255); bth = 2.0f; }
-        else if (unread)
-        {
-            const float pulse = 0.35f + 0.45f * (float)std::sin(ImGui::GetTime() * 7.0);
-            bcol = ImGui::GetColorU32(ImVec4(1.0f, 0.9f, 0.5f, pulse));
-            bth = 2.0f;
-        }
-        if (hovered) { bcol = IM_COL32(220, 62, 40, 255); bth = 2.0f; }
-        dl->AddRect(p0, p1, bcol, 5.0f, ImDrawFlags_RoundCornersRight, bth);
-
-        if (pressed)      request_btn(&gui_open_event, 0, slot);
-        else if (rclick)  request_btn(&gui_kill_event, 0, slot);
+        draw_one_event_marker(slot, ImVec2(mx, my), ImVec2(mw, mh), outer_round);
     }
 }
 
-} // namespace
-
-void ingame_panel_frame(void)
+// GUI_POSITION Bottom (docs/refactor/ingame-gui/11-horizontal-layout.md):
+// a row along region C's top edge instead of a stack past the panel's
+// edge -- newest closest to region B (the grid), oldest trailing toward
+// the screen edge. No falling-slide animation yet (open question §11.1/2:
+// order + overflow past 13 slots aren't tuned either) -- markers just snap
+// into place; token size shrinks first, so as many as fit at typical
+// widths still show before any would need to be dropped.
+void draw_event_markers_horizontal(const HudRect &r)
 {
-    apply_pending();
+    const struct GuiButton *b0 = find_btn(BID_MSG_EV01);
+    if (b0 == nullptr)
+        return;
+    const float mh = std::min(r.h() - 2.0f, 40.0f);
+    const float mw = mh;
+    const float pitch = mw + 1.0f;
+    const int max_slots = pitch > 0.0f ? (int)(r.w() / pitch) : 0;
 
-    if (!RendererImGuiEnabled())
-        return;
-    // Tab / Ctrl+Tab (toggle_gui -> GOF_ShowGui) hides the whole sidebar.
-    // set_menu_visible_off leaves GMnu_MAIN's visual_state non-zero, so
-    // read_menu_rect() alone won't catch this.
-    if ((kfx_sim_state.operation_flags & GOF_ShowGui) == 0)
-        return;
-    // The parchment / overhead map is a full-screen view -- no sidebar over it.
-    const struct PlayerInfo *lp = get_my_player();
-    if (lp != nullptr && lp->view_mode == PVM_ParchmentView)
-        return;
-    if (!read_menu_rect())
-        return;
-    if (s_menu_rect.w <= 0 || s_menu_rect.h <= 0)
-        return;
+    int shown = 0;
+    for (int slot = 0; slot < 13 && shown < max_slots; slot++)
+    {
+        const struct GuiButton *b = find_btn(BID_MSG_EV01 + slot);
+        if (b == nullptr)
+            continue;
+        if (get_my_event_button_index(slot) == 0)
+            continue;
+        const float mx = r.x0 + (float)shown * pitch;
+        draw_one_event_marker(slot, ImVec2(mx, r.y0), ImVec2(mw, mh), ImDrawFlags_RoundCornersTop);
+        shown++;
+    }
+}
 
+// Minimal (docs/refactor/ingame-gui/13-minimal-layout.md §1.3): a vertical
+// stack directly below the minimap, same edge as it, rather than an
+// independent fixed screen edge -- the two clusters read as one group.
+// Same "shrink the token first, then just crowd" overflow treatment as
+// draw_event_markers_horizontal() -- no scrolling. `r` shares the
+// minimap's own (much wider) column, so the marker -- narrower than that
+// column -- must hug whichever of `r`'s two edges is the actual screen
+// edge (`right`): the left edge when the minimap is upper-left, the right
+// edge when upper-right, never always `r.x0` (live-tested: "when minimap
+// is in upper-right, the event-markers aren't pinned to side" -- they were
+// left-aligned within the column regardless of which side of the screen
+// that column was actually on).
+void draw_event_markers_minimal(const HudRect &r, bool right)
+{
+    const struct GuiButton *b0 = find_btn(BID_MSG_EV01);
+    if (b0 == nullptr)
+        return;
+    const float mw = std::min(r.w() - 2.0f, 40.0f);
+    const float mh = mw;
+    const float pitch = mh + 1.0f;
+    const int max_slots = pitch > 0.0f ? (int)(r.h() / pitch) : 0;
+    const float mx = right ? (r.x1 - mw) : r.x0;
+
+    int shown = 0;
+    for (int slot = 0; slot < 13 && shown < max_slots; slot++)
+    {
+        const struct GuiButton *b = find_btn(BID_MSG_EV01 + slot);
+        if (b == nullptr)
+            continue;
+        if (get_my_event_button_index(slot) == 0)
+            continue;
+        const float my = r.y0 + (float)shown * pitch;
+        draw_one_event_marker(slot, ImVec2(mx, my), ImVec2(mw, mh), ImDrawFlags_RoundCornersBottom);
+        shown++;
+    }
+}
+
+// ==== GUI_POSITION Bottom (docs/refactor/ingame-gui/11-horizontal-layout.md) ====
+// A strip along the bottom of the screen, three regions from
+// frontgui_hud_layout.h: gold+minimap+nav (region A, reusing the vertical
+// layout's own head drawing verbatim against region A's own rect via the
+// s_menu_rect-aliasing trick below), tab-header row + the 2-column grid
+// (region B, frontgui_ingame_cells.cpp's grid_begin() already branches on
+// GUI_POSITION for the column count), then event markers + the message
+// queue (region C -- the queue itself moves in frontgui_ingame_text.cpp).
+
+// Gold counter, but sized to a rect instead of derived from s_menu_rect's
+// own (very different, for a whole vertical panel) proportions -- see
+// draw_gold()'s 67/200 constant, which only makes sense against a panel
+// tall enough that gold is a thin sliver at the very top of it.
+void draw_gold_horizontal(const HudRect &r)
+{
+    const struct PlayerInfo *player = get_my_player();
+    const struct Dungeon *dungeon = get_players_dungeon(player);
+    char buf[24];
+    std::snprintf(buf, sizeof(buf), "%lld", (long long)dungeon->total_money_owned);
+
+    FeStylePushFont(FeFont_Body); // region A's gold strip is thin -- FeFont_Heading overflowed it
+    const ImVec2 tsz = ImGui::CalcTextSize(buf);
+    const ImVec2 c((r.x0 + r.x1) * 0.5f, (r.y0 + r.y1) * 0.5f);
+    ImGui::GetWindowDrawList()->AddText(ImVec2(c.x - tsz.x * 0.5f, c.y - tsz.y * 0.5f),
+        ImGui::GetColorU32(ImVec4(1.0f, 0.86f, 0.4f, 1.0f)), buf);
+    FeStylePopFont();
+}
+
+// The 5 tab headers as a row across region B's top edge, instead of
+// btn_rect()'s legacy-button rects (those are baked from GMnu_MAIN's own
+// flush-left vertical creation -- meaningless here). tab_button() itself
+// is pure geometry, so it's reused unchanged; only the rect it's handed
+// differs. Spangle-flash kept (cheap, and it's the same visual language
+// the vertical tab strip uses).
+void draw_tabs_horizontal(const HudRect &r)
+{
+    struct TabSpec {
+        int id; MenuID target; short spr; bool colorize; const char *glyph; ImU32 glyph_col;
+    };
+    const TabSpec tabs[] = {
+        { BID_INFO_TAB,   GMnu_QUERY,    0, false, "?", IM_COL32(168, 224, 168, 255) },
+        { BID_ROOM_TAB,   GMnu_ROOM,     (short)GPS_plyrsym_symbol_room_red_std_a,   true,  nullptr, 0 },
+        { BID_SPELL_TAB,  GMnu_SPELL,    (short)GPS_room_research_std_s,             false, nullptr, 0 },
+        { BID_MNFCT_TAB,  GMnu_TRAP,     (short)GPS_room_workshop_std_s,             false, nullptr, 0 },
+        { BID_CREATR_TAB, GMnu_CREATURE, (short)GPS_plyrsym_symbol_player_red_std_a, true,  nullptr, 0 },
+    };
+    const int flash_tab = (kfx_frontend_state.flash_button_index != 0)
+        ? button_designation_to_tab_designation(kfx_frontend_state.flash_button_index) : 0;
+    ImVec2 flash_p0(0, 0), flash_p1(0, 0);
+    bool have_flash = false;
+
+    const float slot_w = (r.x1 - r.x0) / 5.0f;
+    for (int i = 0; i < 5; i++)
+    {
+        const TabSpec &t = tabs[i];
+        const ImVec2 p0(r.x0 + (float)i * slot_w, r.y0);
+        const ImVec2 p1(r.x0 + (float)(i + 1) * slot_w, r.y1);
+        const bool sel = menu_is_active(t.target);
+        char sid[16]; std::snprintf(sid, sizeof(sid), "htab%d", t.id);
+        if (tab_button(sid, t.spr, t.colorize, t.glyph, t.glyph_col, p0, p1, sel) == 1)
+            request_btn(&gui_set_menu_mode, (unsigned short)t.target, 0);
+        if (t.id == flash_tab && !sel)
+        {
+            flash_p0 = p0; flash_p1 = p1; have_flash = true;
+        }
+    }
+    if (have_flash)
+    {
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        const float t = (float)ImGui::GetTime();
+        const float pulse = 0.45f + 0.45f * std::sin(t * 6.0f);
+        dl->AddRect(flash_p0, flash_p1,
+                    ImGui::GetColorU32(ImVec4(1.0f, 0.93f, 0.4f, pulse)), 2.0f, 0, 3.0f);
+        const float rad = 2.0f + 1.5f * std::sin(t * 9.0f);
+        const ImU32 spark = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 0.75f, 0.9f));
+        dl->AddCircleFilled(flash_p0, rad, spark);
+        dl->AddCircleFilled(ImVec2(flash_p1.x, flash_p0.y), rad, spark);
+        dl->AddCircleFilled(ImVec2(flash_p0.x, flash_p1.y), rad, spark);
+        dl->AddCircleFilled(flash_p1, rad, spark);
+    }
+}
+
+// Which HudBottomWidthMode the active tab wants (frontgui_hud_layout.h's
+// own comment) -- read before hud_layout_frame() runs, so region B's
+// width is right for this tab before ingame_tabcontent_draw() gets its
+// rect. Mirrors ingame_tabcontent_draw()'s own possession/query check
+// (frontgui_ingame_tabcontent.cpp) -- duplicated rather than shared,
+// since that logic lives downstream of the layout decision this makes.
+HudBottomWidthMode determine_bottom_width_mode(void)
+{
+    const struct PlayerInfo *me = get_my_player();
+    const bool in_possession = me != nullptr
+        && (me->view_type == PVT_CreatureContrl || me->view_type == PVT_CreaturePasngr);
+    if (in_possession
+     || menu_is_active(GMnu_CREATURE_QUERY1) || menu_is_active(GMnu_CREATURE_QUERY2)
+     || menu_is_active(GMnu_CREATURE_QUERY3) || menu_is_active(GMnu_CREATURE_QUERY4))
+        return HudBottomWidth_Narrow;
+    if (menu_is_active(GMnu_CREATURE))
+        return HudBottomWidth_Wide;
+    return HudBottomWidth_Normal;
+}
+
+// One raised, mottled stone plate under the whole strip -- no per-region
+// grooves yet (open for polish once the composition itself is confirmed).
+void draw_background_horizontal(const HudRect &whole)
+{
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    const ImVec2 p0(whole.x0, whole.y0), p1(whole.x1, whole.y1);
+    draw_face_or_override(dl, p0, p1, "background_horizontal");
+    relief::edge_frame(dl, p0, p1);
+}
+
+void draw_panel_horizontal(const HudLayout &hl)
+{
+    const HudRect &mm_r = hl.region[HudRegion_Minimap];
+    const HudRect whole = { hl.region[HudRegion_Gold].x0, hl.region[HudRegion_Gold].y0,
+                            hl.region[HudRegion_Messages].x1, mm_r.y1 };
+
+    // Framebuffer-swap raster -- must run before any ImGui window is open.
+    // Alias s_menu_rect to region A's minimap rect so render_minimap()
+    // (unchanged) scales/positions against it instead of a whole vertical
+    // panel's width.
+    const auto saved_menu_rect = s_menu_rect;
+    s_menu_rect = { (long)mm_r.x0, (long)mm_r.y0, (long)mm_r.w(), (long)mm_r.h() };
+    render_minimap();
+    s_menu_rect = saved_menu_rect;
+
+    ImGui::SetNextWindowPos(ImVec2(whole.x0, whole.y0), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(whole.w(), whole.h()), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::Begin("##IngameSidebarHorizontal", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
+                 | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavInputs
+                 | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    draw_background_horizontal(whole);
+
+    s_menu_rect = { (long)mm_r.x0, (long)mm_r.y0, (long)mm_r.w(), (long)mm_r.h() };
+    draw_minimap_and_compass();
+    draw_nav_buttons();
+    s_menu_rect = saved_menu_rect;
+
+    draw_gold_horizontal(hl.region[HudRegion_Gold]);
+    draw_tabs_horizontal(hl.region[HudRegion_TabStrip]);
+    // Phase 5's active-tab body, region B's grid slice only (excludes the
+    // tab-header row above it) -- see ingame_tabcontent_draw()'s own Bottom
+    // branch (frontgui_ingame_tabcontent.cpp).
+    const HudRect &tc = hl.region[HudRegion_TabContent];
+    ingame_tabcontent_draw(tc.x0, tc.y0, tc.w(), tc.h());
+    draw_event_markers_horizontal(hl.region[HudRegion_Events]);
+
+    ImGui::End();
+}
+
+// ==== GUI_POSITION Minimal (docs/refactor/ingame-gui/13-minimal-layout.md) ====
+// No persistent panel at all: a corner-pinned minimap+gold+event cluster
+// (HudRegion_Minimap/Gold/Events, upper-left or upper-right per
+// MINIMAP_CORNER) and a free-floating Room/Spell/Trap/Creature/Query
+// button cluster in the diagonally opposite corner
+// (HudRegion_TabStrip -- nominal, only its anchor point is read) that
+// toggles a pop-up panel (HudRegion_TabContent; the pop-up window itself
+// is owned by ingame_tabcontent_draw(), frontgui_ingame_tabcontent.cpp).
+
+// Same icon set draw_tabs()/draw_tabs_horizontal() use, but icons only --
+// no recessed channel or plinth fill, matching the layout's own
+// no-chrome aesthetic. Returns true on left-click.
+bool minimal_cluster_button(const char *sid, short spr, bool colorize, const char *glyph,
+                            ImU32 glyph_col, const ImVec2 &p0, float sz, bool selected)
+{
+    ImGui::SetCursorScreenPos(p0);
+    ImGui::PushID(sid);
+    const bool pressed = ImGui::InvisibleButton("b", ImVec2(sz, sz), ImGuiButtonFlags_MouseButtonLeft);
+    const bool hovered = ImGui::IsItemHovered();
+    ImGui::PopID();
+
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    const ImVec2 p1(p0.x + sz, p0.y + sz);
+    if (glyph != nullptr)
+    {
+        FeStylePushFont(FeFont_Heading);
+        ImFont *f = ImGui::GetFont();
+        const float fs = sz * 0.60f;
+        const ImVec2 ts = f->CalcTextSizeA(fs, FLT_MAX, 0.0f, glyph);
+        dl->AddText(f, fs, ImVec2(p0.x + (sz - ts.x) * 0.5f, p0.y + (sz - ts.y) * 0.5f), glyph_col, glyph);
+        FeStylePopFont();
+    }
+    else
+    {
+        const short s = colorize ? get_player_colored_icon_idx(spr, my_player_number) : spr;
+        int sw = 0, sh = 0;
+        void *tex = FeGuiPanelTexture(s, &sw, &sh);
+        if (tex != nullptr && sw > 0 && sh > 0)
+        {
+            float iw = sz * 0.8f, ih = sz * 0.8f;
+            const float ar = (float)sw / (float)sh;
+            if (iw / ih > ar) iw = ih * ar; else ih = iw / ar;
+            const ImVec2 ic(p0.x + sz * 0.5f, p0.y + sz * 0.5f);
+            dl->AddImage((ImTextureID)(intptr_t)tex, ImVec2(ic.x - iw * 0.5f, ic.y - ih * 0.5f),
+                         ImVec2(ic.x + iw * 0.5f, ic.y + ih * 0.5f));
+        }
+    }
+    if (selected)      dl->AddRect(p0, p1, relief::accents().sel, 4.0f, 0, 2.0f);
+    else if (hovered)  dl->AddRect(p0, p1, relief::accents().hover, 4.0f, 0, 2.0f);
+    return pressed;
+}
+
+// `anchor` is HudRegion_TabStrip's nominal rect -- both its corners are
+// the same point (build_minimal()'s own construction), read as the
+// auto-resize window's pivot: bottom-right if the cluster is in the
+// bottom-right (minimap upper-left), bottom-left if upper-right.
+void draw_button_cluster_minimal(const HudRect &anchor, bool cluster_on_right)
+{
+    struct TabSpec {
+        MenuID target; short spr; bool colorize; const char *glyph; ImU32 glyph_col;
+    };
+    const TabSpec tabs[] = {
+        { GMnu_QUERY,    0, false, "?", IM_COL32(168, 224, 168, 255) },
+        { GMnu_ROOM,     (short)GPS_plyrsym_symbol_room_red_std_a,   true,  nullptr, 0 },
+        { GMnu_SPELL,    (short)GPS_room_research_std_s,             false, nullptr, 0 },
+        { GMnu_TRAP,     (short)GPS_room_workshop_std_s,             false, nullptr, 0 },
+        { GMnu_CREATURE, (short)GPS_plyrsym_symbol_player_red_std_a, true,  nullptr, 0 },
+    };
+
+    const float sz = 40.0f; // keep in sync with build_minimal()'s cluster_sz
+    const float gap = 4.0f;
+    const int   count = (int)(sizeof(tabs) / sizeof(tabs[0]));
+    const float cluster_w = (float)count * (sz + gap) - gap;
+
+    // Explicit size, not ImGuiWindowFlags_AlwaysAutoResize -- that flag
+    // sizes the window from the *previous* frame's content (a one-frame
+    // lag), so its true on-screen size could still drift a pixel or two
+    // from what build_minimal()'s cluster_sz assumes. An explicit size
+    // computed from the exact same sz/gap/count is deterministic; padding
+    // forced to zero so the content actually fills it edge to edge rather
+    // than being inset and overflowing the last button off the window's
+    // own clip rect. No residual gap with the pop-up above it (live-tested
+    // twice now: "not possible to select a different one, once one is
+    // open", then "the pop-up panels still overlap slightly with the
+    // buttons" after the first fix).
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::SetNextWindowPos(ImVec2(anchor.x0, anchor.y0), ImGuiCond_Always,
+                            ImVec2(cluster_on_right ? 1.0f : 0.0f, 1.0f));
+    ImGui::SetNextWindowSize(ImVec2(cluster_w, sz), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::Begin("##IngameMinimalButtons", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
+                 | ImGuiWindowFlags_NoNavInputs);
+    ImVec2 p0 = ImGui::GetCursorScreenPos();
+    int i = 0;
+    for (const TabSpec &t : tabs)
+    {
+        const bool sel = menu_is_active(t.target);
+        char sid[16]; std::snprintf(sid, sizeof(sid), "mcl%d", (int)t.target);
+        const ImVec2 bp(p0.x + (float)i * (sz + gap), p0.y);
+        if (minimal_cluster_button(sid, t.spr, t.colorize, t.glyph, t.glyph_col, bp, sz, sel))
+        {
+            request_btn(&gui_set_menu_mode, (unsigned short)t.target, 0);
+            // Toggle: re-clicking the already-active+open button closes the
+            // pop-up; any other click (new selection, or reopening the
+            // current one) opens/keeps it open (docs/refactor/ingame-gui/
+            // 13-minimal-layout.md §2.2).
+            s_minimal_popup_open = !(sel && s_minimal_popup_open);
+        }
+        i++;
+    }
+
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
+void draw_panel_minimal(const HudLayout &hl)
+{
+    const HudRect &mm_r = hl.region[HudRegion_Minimap];
+    const HudRect &gold_r = hl.region[HudRegion_Gold];
+    const HudRect &ev_r = hl.region[HudRegion_Events];
+    // mm_r is the topmost region now (minimap moved above gold -- see
+    // build_minimal()'s own comment), so the window's bounding box must
+    // start at mm_r.y0, not gold_r.y0 -- using gold_r.y0 here left the
+    // minimap's own draw calls entirely above this window's top edge,
+    // clipped away by its scissor rect (live-tested: "the minimap has
+    // disappeared entirely" -- gold/events, both below that edge, still
+    // drew fine, which is what made this specific bug non-obvious).
+    const HudRect whole = { mm_r.x0, mm_r.y0, mm_r.x1, ev_r.y1 };
+    const bool corner_on_right = (keeperfx_ui_config.minimap_corner == 2); // HudMinimalCorner_UpperRight
+
+    // Framebuffer-swap raster -- must run before any ImGui window is open.
+    const auto saved_menu_rect = s_menu_rect;
+    s_menu_rect = { (long)mm_r.x0, (long)mm_r.y0, (long)mm_r.w(), (long)mm_r.h() };
+    render_minimap();
+    s_menu_rect = saved_menu_rect;
+
+    ImGui::SetNextWindowPos(ImVec2(whole.x0, whole.y0), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(whole.w(), whole.h()), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::Begin("##IngameMinimapCluster", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
+                 | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavInputs
+                 | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    // No draw_nav_buttons() here -- the M/+/-/cpu triangular corner-pocket
+    // buttons read as too busy against Minimal's own no-chrome aesthetic
+    // (live-tested: "the bevel/icon triangle near the minimap should be
+    // removed"). Left/Right/Bottom keep them; Minimal is deliberately
+    // sparser.
+    s_menu_rect = { (long)mm_r.x0, (long)mm_r.y0, (long)mm_r.w(), (long)mm_r.h() };
+    draw_minimap_and_compass();
+    s_menu_rect = saved_menu_rect;
+
+    draw_gold_horizontal(gold_r);
+    draw_event_markers_minimal(ev_r, corner_on_right);
+
+    ImGui::End();
+
+    // Diagonally opposite (bottom) corner -- own window, own pivot.
+    draw_button_cluster_minimal(hl.region[HudRegion_TabStrip], !corner_on_right);
+
+    const HudRect &tc = hl.region[HudRegion_TabContent];
+    ingame_tabcontent_draw(tc.x0, tc.y0, tc.w(), tc.h());
+}
+
+// The always-on sidebar frame, VerticalRight/Left/Right shape (05-sidebar-
+// frame-and-minimap.md / 10-maintainability-refactors.md's GUI_POSITION).
+// read_menu_rect() must already have populated s_menu_rect.
+void draw_panel_vertical(void)
+{
     // Framebuffer-swap raster -- must run before any ImGui window is open.
     render_minimap();
 
-    // Window == the panel strip (+ a right margin for event markers that
-    // overhang the 140-grid edge). Sized to the panel so io.WantCaptureMouse
-    // -- hence busy_doing_gui via ingame_imgui_wants_mouse() -- is only set
-    // while the pointer is actually over the sidebar, not the 3D view.
-    ImGui::SetNextWindowPos(ImVec2((float)s_menu_rect.x, (float)s_menu_rect.y), ImGuiCond_Always);
+    // Window == the panel strip (+ a margin on whichever side the event
+    // markers overhang the 140-grid edge toward -- away from the panel:
+    // right when it's on the left edge, left when it's mirrored onto the
+    // right edge). Sized to the panel so io.WantCaptureMouse -- hence
+    // busy_doing_gui via ingame_imgui_wants_mouse() -- is only set while
+    // the pointer is actually over the sidebar, not the 3D view.
+    const float overhang_x = s_panel_on_right ? (float)s_menu_rect.x - 44.0f : (float)s_menu_rect.x;
+    ImGui::SetNextWindowPos(ImVec2(overhang_x, (float)s_menu_rect.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2((float)s_menu_rect.w + 44.0f, (float)s_menu_rect.h), ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.0f);
     ImGui::Begin("##IngameSidebar", nullptr,
@@ -740,3 +1180,59 @@ void ingame_panel_frame(void)
 
     ImGui::End();
 }
+
+} // namespace
+
+extern "C" void ingame_panel_minimap_screen_pos(long *x, long *y)
+{
+    if (x != nullptr) *x = s_mm_abs_x;
+    if (y != nullptr) *y = s_mm_abs_y;
+}
+
+void ingame_panel_frame(void)
+{
+    apply_pending();
+
+    if (ingame_gui_use_classic_hud())
+        return;
+    // Tab / Ctrl+Tab (toggle_gui -> GOF_ShowGui) hides the whole sidebar.
+    // set_menu_visible_off leaves GMnu_MAIN's visual_state non-zero, so
+    // read_menu_rect() alone won't catch this.
+    if ((kfx_sim_state.operation_flags & GOF_ShowGui) == 0)
+        return;
+    // The parchment / overhead map is a full-screen view -- no sidebar over it.
+    const struct PlayerInfo *lp = get_my_player();
+    if (lp != nullptr && lp->view_mode == PVM_ParchmentView)
+        return;
+    if (!read_menu_rect())
+        return;
+    if (s_menu_rect.w <= 0 || s_menu_rect.h <= 0)
+        return;
+
+    // GUI_POSITION Bottom (docs/refactor/ingame-gui/11-horizontal-layout.md):
+    // an entirely different composition -- three regions from
+    // frontgui_hud_layout.h instead of one vertical column. Left/Right stay
+    // on draw_panel_vertical() unchanged (they're mirror images of the same
+    // composition, not a different one).
+    if (keeperfx_ui_config.hud_position == 3) // HudPos_Bottom
+    {
+        const ImGuiIO &io = ImGui::GetIO();
+        hud_layout_frame(HudLayout_HorizontalBottom, determine_bottom_width_mode(),
+                         HudMinimalCorner_UpperLeft, io.DisplaySize.x, io.DisplaySize.y);
+        draw_panel_horizontal(hud_layout_current());
+    }
+    else if (keeperfx_ui_config.hud_position == 4) // HudPos_Minimal
+    {
+        const ImGuiIO &io = ImGui::GetIO();
+        const HudMinimalCorner corner = (keeperfx_ui_config.minimap_corner == 2)
+            ? HudMinimalCorner_UpperRight : HudMinimalCorner_UpperLeft;
+        hud_layout_frame(HudLayout_Minimal, HudBottomWidth_Normal, corner, io.DisplaySize.x, io.DisplaySize.y);
+        draw_panel_minimal(hud_layout_current());
+    }
+    else
+    {
+        draw_panel_vertical();
+    }
+}
+
+bool ingame_minimal_popup_is_open(void) { return s_minimal_popup_open; }

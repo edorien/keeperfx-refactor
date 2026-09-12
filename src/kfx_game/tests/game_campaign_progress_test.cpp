@@ -13,37 +13,30 @@
 // graceful-rejection path is tested for that key, matching this codebase's
 // established convention for real game-data-dependent lookups (see
 // game_saves_transfer_test.cpp's own header comment for a similar case).
-// Phase D's continue_game_available() (game_saves.c) new-menu branch is
-// also covered here, not in game_saves_transfer_test.cpp -- it's a thin
-// composition of load_campaign_progress_file()/reconcile_fx1contn_into_progress()/
+// Phase D's continue_game_available() (game_saves.c) is also covered here,
+// not in game_saves_transfer_test.cpp -- it's a thin composition of
+// load_campaign_progress_file()/reconcile_fx1contn_into_progress()/
 // any_campaign_progress_exists(), all already covered above, so it belongs
 // with the rest of this feature's own tests.
 #include <catch2/catch_test_macros.hpp>
 
 #include "game_campaign_progress.h"
 #include "config_campaigns.h" // campaign, campaigns_list
-#include "config_keeperfx.h"  // features_enabled/Ft_ClassicMenu -- use_classic_menu()
-#include "game_saves.h"       // continue_game_filename, save_continue_game, continue_game_available
+#include "game_saves.h"       // continue_game_filename, continue_game_available
 
 #include <cstring>
 
 namespace {
 struct ResetCampaignProgress {
-    unsigned long saved_features_enabled;
-    ResetCampaignProgress() : saved_features_enabled(features_enabled) {
+    ResetCampaignProgress() {
         reset_all_campaign_progress(); // clears the in-memory table (file write fails harmlessly, no save/ dir)
         std::memset(&campaign, 0, sizeof(campaign));
         std::memset(&campaigns_list, 0, sizeof(campaigns_list));
-        // use_classic_menu() == false for every test in this file -- none
-        // of them exercise the classic-menu branch of anything, and the
-        // continue_game_available() tests below specifically need it off.
-        features_enabled &= ~Ft_ClassicMenu;
     }
     ~ResetCampaignProgress() {
         reset_all_campaign_progress();
         std::memset(&campaign, 0, sizeof(campaign));
         std::memset(&campaigns_list, 0, sizeof(campaigns_list));
-        features_enabled = saved_features_enabled;
     }
 };
 
@@ -238,10 +231,9 @@ TEST_CASE_METHOD(ResetCampaignProgress, "any_campaign_progress_exists is true on
     CHECK(any_campaign_progress_exists());
 }
 
-TEST_CASE_METHOD(ResetCampaignProgress, "continue_game_available's new-menu branch is false with no progress and no fx1contn.sav", "[kfx_game][game_campaign_progress]") {
-    // use_classic_menu() == false, forced by the fixture. No save/
-    // directory in this environment (this file's own header comment), so
-    // load_campaign_progress_file() finds nothing and
+TEST_CASE_METHOD(ResetCampaignProgress, "continue_game_available is false with no progress and no fx1contn.sav", "[kfx_game][game_campaign_progress]") {
+    // No save/ directory in this environment (this file's own header
+    // comment), so load_campaign_progress_file() finds nothing and
     // reconcile_fx1contn_into_progress() has no fx1contn.sav to absorb --
     // an honest "nothing to continue" rather than a crash either way.
     CHECK_FALSE(continue_game_available());

@@ -119,8 +119,6 @@ LevelNumber move_campaign_to_next_level(void);
 LevelNumber move_campaign_to_prev_level(void);
 /******************************************************************************/
 TbBool continue_game_available(void);
-short load_continue_game(void);
-short save_continue_game(LevelNumber lv_num);
 // Exposed for game_campaign_progress.c's reconcile_fx1contn_into_progress()
 // -- see that function's own comment.
 short read_continue_game_progress(char *cmpgn_fname, LevelNumber *lvnum, struct IntralevelData *intralevel);

@@ -1,6 +1,6 @@
 #include "pre_inc.h"
 #include "renderer/RendererSoftware.h"
-#include "renderer/RendererManager.h" // RendererImGuiEnabled
+#include "renderer/RendererManager.h" // RendererScreenOwned, RendererRunImGuiFrameCallback
 #include "bflib_video.h"       // PALETTE_COLORS, lbWindow, SDL, vsync_enabled
 #include "bflib_vidsurface.h"  // lbDrawSurface
 #include "bflib_mouse.h"       // LbMouseOnBeginSwap/EndSwap (software cursor around present)
@@ -178,7 +178,7 @@ void RendererSoftware::PresentFrame()
     // rather than removed sight unseen; revisit once live testing confirms
     // nothing else re-enters this function the same way.
     static bool s_presenting_imgui_frame = false;
-    if (!s_presenting_imgui_frame && RendererImGuiEnabled() && ImGuiContextEnsure(lbWindow, m_renderer))
+    if (!s_presenting_imgui_frame && ImGuiContextEnsure(lbWindow, m_renderer))
     {
         s_presenting_imgui_frame = true;
         ImGuiContextNewFrame();

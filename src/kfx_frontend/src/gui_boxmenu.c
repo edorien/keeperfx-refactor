@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "renderer/RendererManager.h"
+#include "config_keeperfx.h" // ingame_gui_use_classic_hud
 #include "gui_boxmenu.h"
 
 #include "globals.h"
@@ -364,10 +365,12 @@ long gfa_is_creature(struct GuiBox *gbox, struct GuiBoxOption *goptn, int32_t *t
 void gui_draw_all_boxes(void)
 {
   SYNCDBG(5,"Starting");
-  // Phase 2: with the ImGui HUD on, ingame_boxmenu_frame()
+  // Phase 2: with the ImGui in-game HUD active, ingame_boxmenu_frame()
   // (frontgui_ingame_boxmenu.cpp) draws these from the FrontendImGuiFrame
-  // submission instead -- the GuiBox list itself is unchanged.
-  if (RendererImGuiEnabled())
+  // submission instead -- the GuiBox list itself is unchanged. Only reached
+  // when the player has chosen the classic HUD (GUI_ICON_PACK=CLASSIC,
+  // ingame_gui_use_classic_hud()).
+  if (!ingame_gui_use_classic_hud())
     return;
   RendererSetDrawFlags(Lb_TEXT_ONE_COLOR);
   LbTextSetFont(font_sprites);
@@ -894,8 +897,9 @@ short gui_process_inputs(void)
     // hit-tests the boxes itself. Here we only swallow a click that landed
     // on one of its windows, so the world underneath doesn't also act on
     // it -- the legacy body below did the equivalent via its own hit-test.
-    // (The return value is ignored by the sole caller, front_input.c.)
-    if (RendererImGuiEnabled())
+    // (The return value is ignored by the sole caller, front_input.c.) Only
+    // the classic HUD (ingame_gui_use_classic_hud()) still runs that body.
+    if (!ingame_gui_use_classic_hud())
     {
         if (ingame_boxmenu_consumes_mouse())
         {

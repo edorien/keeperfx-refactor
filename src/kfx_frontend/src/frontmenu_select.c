@@ -50,6 +50,8 @@
 #include "config_keeperfx.h" // features_enabled, Ft_AdvAmbSound
 #include "post_inc.h"
 
+#include <string.h> // strcmp
+
 /******************************************************************************/
 static long frontend_level_select_count(void);
 static long frontend_campaign_select_count(void);
@@ -953,7 +955,9 @@ void frontend_draw_mp_mappack_scroll_tab(struct GuiButton *gbtn)
 void frontend_campaign_list_load(void)
 {
     frontend_selectlist_set_visible(&campaign_select_list);
-    // Highlight the first campaign so the land preview/detail panel isn't
+    land_selection_highlighted_campaign = NULL;
+    land_preview.loaded = false;
+    // Default to the first campaign so the land preview/detail panel isn't
     // empty on entry, same as an implicit first row click -- delegating to
     // frontend_campaign_select_by_index() itself (rather than duplicating
     // its body here) also means the first campaign's theme preview starts
@@ -961,10 +965,30 @@ void frontend_campaign_list_load(void)
     // every entry into FeSt_CAMPAIGN_SELECT (frontend_setup_state calls it
     // unconditionally), not just the menu's first-ever creation, so it's
     // the right place for this rather than the GuiMenu's create_cb.
-    land_selection_highlighted_campaign = NULL;
-    land_preview.loaded = false;
+    //
+    // BUT: get_menu_state_based_on_last_level() now sends a just-won/lost
+    // campaign level straight back here (this screen replaces the old
+    // FeSt_LAND_VIEW cutscene) -- always defaulting to index 0 would
+    // silently swap the player to whichever campaign happens to load
+    // first any time they're not actually playing that one (found while
+    // wiring that reroute up). Re-highlight the campaign already active
+    // (is_campaign_loaded()/campaign.fname) if it's still in this list,
+    // so the screen picks up exactly where gameplay left off; only fall
+    // back to index 0 when there's genuinely nothing loaded yet.
+    long idx = 0;
+    if (is_campaign_loaded() && campaign.fname[0] != '\0')
+    {
+        for (long i = 0; i < campaigns_list.items_num; i++)
+        {
+            if (strcmp(campaigns_list.items[i].fname, campaign.fname) == 0)
+            {
+                idx = i;
+                break;
+            }
+        }
+    }
     if (campaigns_list.items_num > 0)
-        frontend_campaign_select_by_index(0);
+        frontend_campaign_select_by_index(idx);
 }
 
 void frontend_draw_variable_mappack_exit_button(struct GuiButton *gbtn)

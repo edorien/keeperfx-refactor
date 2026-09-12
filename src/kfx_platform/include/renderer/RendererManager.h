@@ -71,19 +71,8 @@ void RendererRestoreFramebufferTarget(TbPixel *previous_target);
 // Save the current frame to a file via the active backend (fmt: 1=PNG, 2=BMP).
 TbBool RendererScheduleScreenshot(const char* path, int fmt);
 
-// ImGui overlay control (docs/refactor/renderer/04-imgui-gui-foundation.md).
-// Global switch for whether the active backend stands up an ImGui context
-// and composites it over the frame at all. Pushed down once from resolved
-// config/cmdline state (main.cpp::setup_game(), the same "push resolved
-// state into bflib_*" spot bf_sprfnt_set_language_lwrstr and friends use) --
-// kfx_platform can't call kfx_config's use_classic_menu() directly, since
-// kfx_config is ranked above kfx_platform.
-TbBool RendererImGuiEnabled(void);
-void RendererSetImGuiEnabled(TbBool enabled);
-
-// Phase A proof-of-concept only: show imgui_demo.cpp's demo window whenever
-// the overlay is enabled, so the backend wiring can be exercised
-// interactively before any real screen migrates (§7 Phase A exit criteria).
+// Phase A proof-of-concept only: show imgui_demo.cpp's demo window so the
+// backend wiring can be exercised interactively (§7 Phase A exit criteria).
 void RendererSetImGuiDemoVisible(TbBool visible);
 
 // Per-frame ImGui content submission, for callers above kfx_platform.

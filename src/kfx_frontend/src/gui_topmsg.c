@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "renderer/RendererManager.h"
+#include "config_keeperfx.h" // ingame_gui_use_classic_hud
 #include "gui_topmsg.h"
 
 #include <stdarg.h>
@@ -144,7 +145,7 @@ TbBool draw_onscreen_direct_messages(void)
     // but the erstat_check() poll and the render_onscreen_msg_time decay
     // still run here (unchanged cadence), and the verdict is stashed for
     // the ImGui side to read.
-    const TbBool imgui = RendererImGuiEnabled();
+    const TbBool imgui = !ingame_gui_use_classic_hud();
     RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
     if ((render_onscreen_msg_time > 0.0) || erstat_check())
     {

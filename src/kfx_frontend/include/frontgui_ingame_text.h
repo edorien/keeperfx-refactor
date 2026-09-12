@@ -4,9 +4,10 @@
 // Phase 3 (docs/refactor/ingame-gui/04-messages-tooltips-infobox.md):
 // the loose in-engine status text -- the "Paused" caption and the
 // top-of-screen warning banner / out-of-sync lines -- on the ImGui font
-// engine when RendererImGuiEnabled(). The legacy draws (engine_redraw.c,
-// gui_topmsg.c) early-return under ImGui; their state / timer side effects
-// still run.
+// engine unless the player has chosen the classic HUD
+// (ingame_gui_use_classic_hud(), config_keeperfx.h). The legacy draws
+// (engine_redraw.c, gui_topmsg.c) early-return otherwise; their state /
+// timer side effects still run.
 
 #ifdef __cplusplus
 extern "C" {

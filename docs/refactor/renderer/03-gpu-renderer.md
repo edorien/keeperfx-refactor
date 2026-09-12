@@ -270,8 +270,12 @@ the `SDL_Renderer` that class already has* — not a swap to a parallel backend 
   value. Add the `RendererType` value and the `create_renderer()` case *then*, scoped to the 3D
   path, not now. Keep the CPU 3D path selectable (via `RendererInit`) as the diff target and the
   fallback for driver combinations the GPU 3D path doesn't handle.
-- `-classicmenu` already provides a "no ImGui, CPU-composite frontend" mode for bisecting 2D-layer
-  regressions — it is the de-facto software reference for Phase B and needs no new plumbing.
+- `-classicmenu` provided a "no ImGui, CPU-composite frontend" mode for bisecting 2D-layer
+  regressions -- **retired 2026-09-12** (docs/refactor/ingame-gui/00-overview.md §1/§8), the
+  frontend has no legacy path left to fall back to at all, so this specific bisect mode no longer
+  exists. `GUI_ICON_PACK=CLASSIC` (`ingame_gui_use_classic_hud()`) still forces the *in-game HUD*
+  to its legacy sprite renderer, which may or may not be a close enough substitute for whatever
+  Phase B needed this for -- revisit when Phase B is actually picked up.
 
 Update [architecture.md](../../Architecture/architecture.md) §2.1/§2.4 if/when Phase C adds the
 `RendererType` value and changes `IRenderer`'s framebuffer contract.

@@ -80,6 +80,7 @@
 #include "packets.h"
 #include "console_cmd.h"
 #include "engine_redraw.h"
+#include "frontgui_ingame_panel.h" // ingame_panel_minimap_screen_pos -- GUI_POSITION minimap hit-test
 
 
 #include <math.h>
@@ -899,7 +900,9 @@ static TbBool get_level_lost_inputs(void)
                   mmzoom = (local_info.minimap_zoom) / (3-16/mm_units_per_px);
               else
                   mmzoom = (local_info.minimap_zoom);
-              inp_done = get_small_map_inputs(local_info.minimap_pos_x*mm_units_per_px/16, local_info.minimap_pos_y*mm_units_per_px/16, mmzoom);
+              long mm_x, mm_y;
+              ingame_panel_minimap_screen_pos(&mm_x, &mm_y);
+              inp_done = get_small_map_inputs(mm_x, mm_y, mmzoom);
               if ( !inp_done )
                 get_bookmark_inputs();
               get_dungeon_control_nonaction_inputs();
@@ -1280,7 +1283,9 @@ static TbBool get_dungeon_control_action_inputs(void)
     }
     else
         mmzoom = (local_info.minimap_zoom);
-    if (get_small_map_inputs(local_info.minimap_pos_x * mm_units_per_px / 16, local_info.minimap_pos_y * mm_units_per_px / 16, mmzoom))
+    long mm_x, mm_y;
+    ingame_panel_minimap_screen_pos(&mm_x, &mm_y);
+    if (get_small_map_inputs(mm_x, mm_y, mmzoom))
         return 1;
 
     if (player->work_state == PSt_CtrlDungeon)
@@ -2412,6 +2417,18 @@ static void get_dungeon_control_nonaction_inputs(void)
     local_thing_under_hand = 0;
   }
   unset_packet_control(pckt, PCtr_MapCoordsValid);
+  // screen_to_map()/get_player_coords_and_context() are pure screen->world
+  // geometry -- they know nothing about an ImGui panel drawn on top, so a
+  // wheel-scroll over e.g. the room/spell/trap tab still resolves to a
+  // "valid" map position underneath it and PCtr_MapCoordsValid gets set,
+  // which get_isometric_or_front_view_mouse_inputs() then reads to zoom the
+  // 3D view (live-tested: "scrolling the panel also zooms the view").
+  // game_is_busy_doing_gui() is already up to date for this frame -- set by
+  // get_gui_inputs()'s own ingame_imgui_wants_mouse() check, which runs
+  // earlier in get_inputs() -- so skip setting the flag entirely while the
+  // pointer is over GUI.
+  if (!game_is_busy_doing_gui())
+  {
   if (player->work_state == PSt_CtrlDungeon)
   {
       unsigned char context;
@@ -2458,6 +2475,7 @@ static void get_dungeon_control_nonaction_inputs(void)
             }
         }
     }
+  }
   }
   if (is_game_key_pressed(Gkey_ExitGame, true, false))
   {

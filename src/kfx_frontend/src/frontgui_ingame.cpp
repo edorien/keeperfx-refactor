@@ -2,6 +2,7 @@
 #include "frontgui_ingame.h"
 
 #include "frontgui_widgets.h"
+#include "frontgui_deferred.h" // FeDeferredQueue
 #include "frontgui_style.h"
 #include "frontgui_sprite_tex.h" // FeSpriteButton -- classic GUI sprite icons
 #include "frontgui_ingame_debug.h" // Phase 2: debug / script overlays
@@ -10,7 +11,7 @@
 #include "frontgui_ingame_battle.h" // Phase 3: battle-participants box
 #include "frontgui_ingame_panel.h" // Phase 4: the sidebar frame (also drives Phase 5 tab bodies)
 #include "frontgui_ingame_parchment.h" // Phase 7: the parchment / overhead map
-#include "renderer/RendererManager.h" // RendererImGuiEnabled
+#include "frontgui_hud_layout.h" // HudRegion_Gold, hud_layout_current (GUI_POSITION Bottom)
 #include "sprites.h" // GBS_options_button_*
 
 #include "globals.h"
@@ -25,6 +26,7 @@
 #include "packet_data.h" // set_players_packet_action, PckA_*
 #include "kfx_sim_state.h" // kfx_sim_state.game_kind, GOF_Paused
 #include "game_saves.h" // save_game_catalogue, load_game, save_game, fill_game_catalogue_slot
+#include "config_keeperfx.h" // keeperfx_ui_config.hud_position -- GUI_POSITION
 
 #include "post_inc.h"
 
@@ -35,28 +37,16 @@
 namespace {
 
 // ---------------------------------------------------------------------------
-// Deferred actions -- same reasoning as frontgui_screens.cpp's s_pending_action:
-// turn_off_menu() / packet sends / anything heavy must never run from inside an
-// active ImGui window's Begin()/End() scope. Requested from a widget callback,
-// applied at the very top of the next ingame_imgui_frame(), before any window
-// here is opened.
+// Deferred actions -- turn_off_menu() / packet sends / anything heavy must
+// never run from inside an active ImGui window's Begin()/End() scope.
+// Requested from a widget callback, applied at the very top of the next
+// ingame_imgui_frame(), before any window here is opened. (FeDeferredQueue,
+// docs/refactor/ingame-gui/10-maintainability-refactors.md §3.)
 // ---------------------------------------------------------------------------
-void (*s_pending)(void) = nullptr;
+FeDeferredQueue s_deferred;
 
-void request_deferred(void (*fn)(void))
-{
-    s_pending = fn;
-}
-
-void apply_deferred(void)
-{
-    if (s_pending != nullptr)
-    {
-        void (*fn)(void) = s_pending;
-        s_pending = nullptr;
-        fn();
-    }
-}
+void request_deferred(void (*fn)(void)) { s_deferred.push(fn); }
+void apply_deferred(void)               { s_deferred.drain(); }
 
 // ---------------------------------------------------------------------------
 // Once-per-game-turn HUD view-model cache (§3.1). The in-game GUI's derived
@@ -410,7 +400,18 @@ void event_box_button_column(float icon_h)
     // sprite_idx+1 when not pressed; the *_act frame is a bright
     // near-white "pressed" highlight (found live: "icons are all white").
     ImGui::BeginGroup();
-    if (FeGuiPanelIconButton("##evt_zoom", GPS_message_message_btn_show_std,
+    // gui_go_to_event() (frontend.cpp) zooms to event->mappos_x/y with no
+    // validity check at all -- (0,0) is the documented "no target" state
+    // display_objectives_with_icon() (frontend.cpp) leaves an Objective
+    // event in when it's raised with no x/y (the common case: a plain
+    // narrative objective, not tied to a map location), not a real corner
+    // of the map. Zooming there put the camera at the map's literal
+    // origin (live-tested: "clicking on objective event marker, the view
+    // moves to the bottom of the map") -- hide the button instead of
+    // zooming somewhere meaningless.
+    const struct Event *ev = &kfx_sim_state.event[my_visible_event_idx];
+    const bool has_target = (ev->mappos_x != 0) || (ev->mappos_y != 0);
+    if (has_target && FeGuiPanelIconButton("##evt_zoom", GPS_message_message_btn_show_std,
                              get_string(GUIStr_ZoomToArea), icon_h))
         request_deferred(do_zoom_to_event);
     if (FeGuiPanelIconButton("##evt_close", GPS_message_message_btn_accept_std,
@@ -422,9 +423,27 @@ void event_box_button_column(float icon_h)
 void textinfo_frame(void)
 {
     ImGuiIO &io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y - 10.0f),
-                            ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.42f, io.DisplaySize.y * 0.17f), ImGuiCond_Always);
+    // GUI_POSITION Bottom (docs/refactor/ingame-gui/11-horizontal-layout.md):
+    // this box is the same kind of thing region C's message queue is (a
+    // notification with text) -- it belongs *in* region C, not floating
+    // full-width above the whole strip (that read as disconnected from the
+    // HUD, live-tested). hud_layout_frame() already ran this frame (from
+    // ingame_panel_frame(), which runs before this switch -- see
+    // ingame_imgui_frame()). Can overlap the message queue if both are
+    // showing at once -- rare (an open event box while a taunt scrolls in),
+    // not handled specially yet.
+    if (keeperfx_ui_config.hud_position == 3) // HudPos_Bottom
+    {
+        const HudRect &r = hud_layout_current().region[HudRegion_Messages];
+        ImGui::SetNextWindowPos(ImVec2(r.x0, r.y0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(r.w(), r.h()), ImGuiCond_Always);
+    }
+    else
+    {
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y - 10.0f),
+                                ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+        ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.42f, io.DisplaySize.y * 0.17f), ImGuiCond_Always);
+    }
     ImGui::Begin("##IngameEventBox", nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings);
 
@@ -503,7 +522,7 @@ extern "C" void ingame_options_back_to_launcher(void)
 
 extern "C" TbBool ingame_imgui_menu_active(MenuID menu_id)
 {
-    return (RendererImGuiEnabled() && game_is_running() && menu_is_migrated(menu_id)) ? 1 : 0;
+    return (!ingame_gui_use_classic_hud() && game_is_running() && menu_is_migrated(menu_id)) ? 1 : 0;
 }
 
 extern "C" TbBool ingame_imgui_wants_mouse(void)
@@ -512,12 +531,12 @@ extern "C" TbBool ingame_imgui_wants_mouse(void)
     // cheat boxes): world clicks under them must be suppressed, but only
     // while the pointer is actually over one. WantCaptureMouse reflects
     // last frame's windows -- a one-frame lag, harmless for a static box.
-    return (RendererImGuiEnabled() && game_is_running() && ImGui::GetIO().WantCaptureMouse) ? 1 : 0;
+    return (!ingame_gui_use_classic_hud() && game_is_running() && ImGui::GetIO().WantCaptureMouse) ? 1 : 0;
 }
 
 extern "C" TbBool ingame_imgui_modal_active(void)
 {
-    if (!RendererImGuiEnabled() || !game_is_running())
+    if (ingame_gui_use_classic_hud() || !game_is_running())
         return 0;
     // The topmost turned-on monopoly menu owns input. Walk the menu stack
     // from the top down: if the first monopoly menu found is a migrated
@@ -548,7 +567,7 @@ extern "C" void ingame_imgui_frame(void)
     // s_pending's comment.
     apply_deferred();
 
-    if (!RendererImGuiEnabled() || !game_is_running())
+    if (ingame_gui_use_classic_hud() || !game_is_running())
         return;
 
     // Collapse the settings sub-view whenever the launcher itself is gone

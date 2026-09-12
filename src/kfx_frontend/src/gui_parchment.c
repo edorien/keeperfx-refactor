@@ -19,6 +19,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "renderer/RendererManager.h"
+#include "config_keeperfx.h" // ingame_gui_use_classic_hud
 #include "gui_parchment.h"
 #include "front_landview.h"
 
@@ -952,7 +953,7 @@ void redraw_parchment_view(void)
   // Under ImGui, ingame_parchment_frame() redirects this raster (parchment
   // paper + overhead map + zoom box) into a dynamic texture and composites
   // it + a crisp level name itself.
-  const TbBool imgui_hud = RendererImGuiEnabled();
+  const TbBool imgui_hud = !ingame_gui_use_classic_hud();
   if (!imgui_hud)
   {
     draw_map_parchment();

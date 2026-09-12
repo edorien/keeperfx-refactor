@@ -14,7 +14,6 @@ static IRenderer*   s_active_renderer = nullptr;
 static RendererType s_active_type     = RENDERER_INVALID;
 static unsigned char s_draw_colour = 0;
 static unsigned short s_draw_flags = 0;
-static TbBool s_imgui_enabled = 0;
 static RendererImGuiFrameFn s_imgui_frame_fn = nullptr;
 
 static void noop_draw_slab_background_immediate(long pos_x, long pos_y, long width, long height) {}
@@ -177,16 +176,6 @@ void RendererRestoreFramebufferTarget(TbPixel *previous_target)
 TbBool RendererScheduleScreenshot(const char* path, int fmt)
 {
     return (s_active_renderer != nullptr) ? s_active_renderer->ScheduleScreenshot(path, fmt) : 0;
-}
-
-TbBool RendererImGuiEnabled(void)
-{
-    return s_imgui_enabled;
-}
-
-void RendererSetImGuiEnabled(TbBool enabled)
-{
-    s_imgui_enabled = enabled;
 }
 
 void RendererSetImGuiDemoVisible(TbBool visible)

@@ -129,6 +129,7 @@ TbBool play_description_speech(LevelNumber lvnum, short play_good);
 void check_mouse_scroll(void);
 void update_velocity(void);
 void update_ensigns_visibility(void);
+LevelNumber get_next_singleplayer_level_for_landview(void);
 
 extern char level_name[88];
 // frontend_backup_palette moved to kfx_render's vidmode.h (stage 13.3) --

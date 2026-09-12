@@ -39,6 +39,25 @@ struct Tones {
 };
 const Tones &tones();
 
+// State-signal + bar-fill colours -- the accents layered on top of the
+// relief material by the HUD cell / bar code (frontgui_ingame_tabcontent.cpp,
+// frontgui_ingame_panel.cpp). One place to retune, alongside `Tones`.
+// docs/refactor/ingame-gui/10-maintainability-refactors.md §4.
+struct Accents {
+    unsigned int text;      // primary label
+    unsigned int subtext;   // secondary / dim label
+    unsigned int border;    // resting cell outline
+    unsigned int disabled;  // greyed content
+    unsigned int sel;       // selected (gold rim)
+    unsigned int hover;     // hovered (red rim)
+    unsigned int have;      // "already own one" dot (green)
+    unsigned int hotkey;    // ability hotkey number (yellow)
+    unsigned int bar_good;  // capacity / xp / cooldown-ready fill
+    unsigned int bar_warn;  // anger / mid health
+    unsigned int bar_bad;   // low health / sell "$"
+};
+const Accents &accents();
+
 // Linear blend of two packed colours (through float space).
 unsigned int mix(unsigned int a, unsigned int b, float t);
 

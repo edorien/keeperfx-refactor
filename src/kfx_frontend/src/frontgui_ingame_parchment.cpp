@@ -2,7 +2,8 @@
 #include "frontgui_ingame_parchment.h"
 
 #include "frontgui_style.h"
-#include "renderer/RendererManager.h" // RendererImGuiEnabled, dynamic textures, framebuffer swap
+#include "frontgui_offscreen.h"       // FeOffscreenTarget -- parchment raster capture
+#include "renderer/RendererManager.h" // dynamic textures
 
 #include "globals.h"
 #include "bflib_basics.h"
@@ -10,6 +11,7 @@
 #include "bflib_video.h"              // LbGraphicsScreen*, LbScreen*GraphicsWindow, TbPixel
 #include "gui_parchment.h"            // draw_map_parchment, draw_2d_map, draw_zoom_box, load_parchment_file, get_map_level_name
 #include "player_data.h"              // get_my_player, PVM_ParchmentView
+#include "config_keeperfx.h"          // ingame_gui_use_classic_hud
 
 #include "post_inc.h"
 
@@ -26,7 +28,7 @@ std::vector<TbPixel> s_pixels;
 
 extern "C" TbBool ingame_parchment_active(void)
 {
-    if (!RendererImGuiEnabled())
+    if (ingame_gui_use_classic_hud())
         return false;
     const struct PlayerInfo *player = get_my_player();
     return (player != nullptr && player->view_mode == PVM_ParchmentView);
@@ -40,7 +42,7 @@ extern "C" TbBool ingame_parchment_active(void)
 // screen.
 void ingame_parchment_frame(void)
 {
-    if (!RendererImGuiEnabled())
+    if (ingame_gui_use_classic_hud())
         return;
     const struct PlayerInfo *player = get_my_player();
     if (player == nullptr || player->view_mode != PVM_ParchmentView)
@@ -64,18 +66,13 @@ void ingame_parchment_frame(void)
 
     s_pixels.assign((size_t)w * (size_t)h, TbPixel{ 0, 0, 0, 255 });
 
-    TbGraphicsWindow grwnd;
-    LbScreenStoreGraphicsWindow(&grwnd);
-    TbPixel *prev = RendererSwapFramebufferTarget(s_pixels.data(), (uint32_t)w, (uint32_t)h);
-    LbScreenSetGraphicsWindow(0, 0, w, h);
-
-    load_parchment_file();
-    draw_map_parchment();
-    draw_2d_map();
-    draw_zoom_box();
-
-    RendererRestoreFramebufferTarget(prev);
-    LbScreenLoadGraphicsWindow(&grwnd);
+    {
+        FeOffscreenTarget cap(s_pixels.data(), w, h);
+        load_parchment_file();
+        draw_map_parchment();
+        draw_2d_map();
+        draw_zoom_box();
+    }
     RendererUpdateDynamicTexture(s_tex, s_pixels.data(), w, h);
 
     const ImGuiIO &io = ImGui::GetIO();

@@ -36,6 +36,14 @@ struct LandPreviewPanel {
     long drag_last_x; /**< Screen-space mouse position as of the last drag step, for computing the per-frame delta. */
     long drag_last_y;
     LevelNumber highlighted_lvnum; /**< SINGLEPLAYER_NOTSTARTED if none -- the detail panel should show the campaign's own description in that case. */
+    // Set by land_preview_load() when a campaign overview just loaded, to
+    // the campaign's "next" playable level (get_next_singleplayer_level_for_landview(),
+    // front_landview.c); consumed once by land_preview_maintain() (which
+    // knows the real on-screen rect + zoom, load() doesn't) to centre the
+    // initial view on that level's ensign, then reset to
+    // SINGLEPLAYER_NOTSTARTED. Doesn't apply on later browsing (dragging,
+    // clicking another level) -- only the just-loaded state.
+    LevelNumber pending_center_lvnum;
     TbBool loaded;
     // Whether land_preview_draw overlays level ensigns on top of the
     // backdrop. Land selection loads a *campaign* overview image

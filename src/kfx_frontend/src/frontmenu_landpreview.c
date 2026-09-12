@@ -446,6 +446,12 @@ TbBool land_preview_load(struct LandPreviewPanel *panel, LevelNumber target_lvnu
     panel->units_per_px = 16;
     panel->dragging = false;
     panel->highlighted_lvnum = SINGLEPLAYER_NOTSTARTED;
+    // Only the campaign-overview picture (show_ensigns) has ensign
+    // positions worth centring on -- a specific level's own land_view
+    // image (show_ensigns == false) has none (struct LandPreviewPanel's
+    // own show_ensigns comment).
+    panel->pending_center_lvnum = show_ensigns
+        ? get_next_singleplayer_level_for_landview() : SINGLEPLAYER_NOTSTARTED;
     panel->show_ensigns = show_ensigns;
     panel->minimap_mode = minimap_mode;
     panel->loaded = true;
@@ -524,6 +530,23 @@ void land_preview_maintain(struct GuiButton *gbtn)
     }
 
     panel->units_per_px = land_preview_compute_units_per_px(rect_w, rect_h);
+
+    // One-shot: land_preview_load() flagged a level to centre on but
+    // didn't know the real rect/zoom yet (this function runs every frame
+    // with both) -- consume it once, here, before the general clamp below
+    // (which would otherwise just re-clamp the stale (0,0) default).
+    if (panel->pending_center_lvnum != SINGLEPLAYER_NOTSTARTED)
+    {
+        struct LevelInformation *centre_lvinfo = get_level_info(panel->pending_center_lvnum);
+        if (centre_lvinfo != NULL)
+        {
+            long visible_w = rect_w * 16 / panel->units_per_px;
+            long visible_h = rect_h * 16 / panel->units_per_px;
+            panel->screen_shift_x = centre_lvinfo->ensign_x - visible_w / 2;
+            panel->screen_shift_y = centre_lvinfo->ensign_y - visible_h / 2;
+        }
+        panel->pending_center_lvnum = SINGLEPLAYER_NOTSTARTED;
+    }
     land_preview_clamp_shift(panel, rect_w, rect_h);
 
     long mouse_x = GetMouseX();

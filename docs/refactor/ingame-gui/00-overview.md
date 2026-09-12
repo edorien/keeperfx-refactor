@@ -47,12 +47,20 @@ Nothing below has to be rebuilt — stage 4 (`../renderer/04-imgui-gui-foundatio
 - **The deferred-action pattern** (`frontgui_screens.cpp`'s `s_pending_*`) for "don't call heavy
   state transitions from inside an active ImGui window" — the in-game menus transition player
   state and send packets from click handlers, so this pattern transfers directly.
-- **The `-classicmenu` / `CLASSIC_MENU` toggle + `Clo_ClassicMenu` override.** Already parsed,
-  already gates ImGui globally. **Decided: the in-game migration rides this same flag** — no
-  `-classicgui` sibling. One switch takes a session entirely to the ImGui GUI or entirely to the
-  classic sprite GUI, frontend and HUD together, so both paths ship in one binary and any
-  regression is one flag away from a workaround and one run away from a bisect. Per-`GMnu_*`
-  opt-in (§4.2) is still how the migration lands incrementally; the flag is not per-menu.
+- **The `-classicmenu` / `CLASSIC_MENU` toggle + `Clo_ClassicMenu` override.** Rode this flag for
+  the whole migration (frontend and in-game HUD together) as the bisect-and-workaround safety net
+  above described. **Retired 2026-09-12**, once the frontend menus and the in-game HUD were both
+  confirmed working live and had nothing left to fall back to as a *session-wide* switch. The
+  frontend's legacy sprite menus are gone outright — every `FeSt_*` `state_is_migrated()` marks is
+  ImGui-only now, no toggle at all. The in-game HUD's legacy sprite renderer stayed, on purpose (a
+  deliberate live-tested request, not a leftover) — it just moved to a *much* narrower switch:
+  `GUI_ICON_PACK`'s reserved `"CLASSIC"` value (alongside `"NONE"`,
+  `config_settingschema.c`'s `ensure_gui_icon_pack_enum()`), read by
+  `ingame_gui_use_classic_hud()` (`config_keeperfx.h`/`.c`). Every in-game HUD draw call that used
+  to check `RendererImGuiEnabled()` (itself retired — `RendererSoftware::PresentFrame()`'s ImGui
+  pipeline is unconditional now) checks that instead; nothing outside the in-game HUD reads it.
+  Per-`GMnu_*` opt-in (§4.2) is still how the migration itself landed incrementally; this note is
+  only about the on/off switch, not the menu-by-menu rollout.
 - **Dynamic textures from raw pixel data** — `RendererCreateDynamicTexture()` /
   `UpdateDynamicTexture()` / `DestroyDynamicTexture()` (`RendererManager.h`), used by the land
   preview panel and the ImGui cursor. The minimap (§4.4) needs exactly this.
@@ -423,8 +431,10 @@ phase that first needs them, not up front.
 
 ## 7. Phasing — index
 
-Each phase independently shippable; un-migrated menus keep the sprite path; `-classicmenu` forces
-everything back. Same discipline as `../renderer/04-imgui-gui-foundation.md` §7. **Each phase has
+Each phase independently shippable; un-migrated menus keep the sprite path. `-classicmenu` is
+retired (§1) -- `GUI_ICON_PACK=CLASSIC`/`ingame_gui_use_classic_hud()` forces the in-game HUD back
+to the sprite path now; nothing forces the frontend back, since it has no sprite path left. Same
+phase discipline as `../renderer/04-imgui-gui-foundation.md` §7. **Each phase has
 its own doc** with the code-level investigation, entanglements, checklist and open questions —
 written up front for the near phases, scaffolded (goal + what to investigate on arrival) for the
 later ones whose shape depends on earlier outcomes.
@@ -439,16 +449,29 @@ later ones whose shape depends on earlier outcomes.
 | 5 | [06-tab-content-panels.md](06-tab-content-panels.md) — **all five tab bodies landed 2026-09-07** — `GMnu_ROOM` / `SPELL` / `TRAP` / `CREATURE` / `QUERY` in `frontgui_ingame_tabcontent.{h,cpp}`, drawn inside the sidebar frame's own window (no z-order seam), config-driven grids (no array mutation, no 2nd page), ImGui-drawn cells + vector-font `?`/`$`. Remaining: scroll-on-overflow, per-turn cache, packet-parity ftest rows, retiring `update_*_tab_to_config` + `GMnu_ROOM2`/`SPELL2`/`TRAP2`. `GMnu_SPELL_LOST` → Phase 6. | 4 |
 | 6 | [07-first-person-hud.md](07-first-person-hud.md) — **in progress 2026-09-07** — shared `creature_query` panel (ABILITIES/STATS, top-down + possession) + `GMnu_SPELL_LOST` landed in `frontgui_ingame_tabcontent.cpp`; legacy 4-page nav neutered; possession needs no extra frame work (`GMnu_MAIN` stays on). Remaining: instance-click-to-cast, passenger-vs-control diff, interactive verification. | 5 |
 | 7 | [08-parchment-map.md](08-parchment-map.md) — **functionally complete 2026-09-07** — `frontgui_ingame_parchment.{h,cpp}`: the parchment view (paper + overhead map + zoom box + level name) captured to a dynamic texture and composited full-screen by ImGui; sidebar hidden, cursor via the screen-owned path, dead fade branch removed. Remaining (low priority): ImGui-native paper/frame, zoom box as its own element. | 5 |
-| 8 | [09-relief-and-emboss-pass.md](09-relief-and-emboss-pass.md) — **in progress 2026-09-07** — cosmetic-only procedural relief for the flat ImGui sidebar chrome. `frontgui_ingame_relief.{h,cpp}` helper set (`relief::` bevel / plateau / well / boss / groove_h / ring (per-vertex gradient) / edge_frame / mottle, one shared `Tones`) landed; surfaces 1–6 applied (panel body, minimap bezel, tab strip channel + plinths, nav buttons, tab-content cells/bars, event markers). Remaining: query/possession bespoke bits, chamfered corners. No gameplay/layout/input change. | 4, 5, 6 |
+| 8 | [09-relief-and-emboss-pass.md](09-relief-and-emboss-pass.md) — **landed 2026-09-08** — procedural relief skin for the ImGui sidebar (`frontgui_ingame_relief.{h,cpp}`: `relief::` bevel / plateau / face / well / well_circle / well_tri / boss / groove / groove_h / ring / edge_frame + domain-warped-sine marble, one shared `Tones` @ rgb 60,44,12). Applied across every surface + the main-menu list bg. Also: full-screen 3D under the HUD (no `status_panel_width` inset), Tab/Ctrl+Tab hides the HUD, new "GUI" options tab + live `UI_FONT` picker (`fxdata/font/` scan). | 4, 5, 6 |
+| 9 | [10-maintainability-refactors.md](10-maintainability-refactors.md) — **§2–§8 landed 2026-09-08, §6/§7 landed 2026-09-11** — post-first-pass structural cleanup, no behaviour change: one `FeDeferredQueue` (§3), named tab-content layout constants (§5), shared `fe_noise.h` (§2), one HUD colour source (§4), scoped offscreen-capture RAII (§8), one interactive-cell + bar primitive (§6), `tabcontent.cpp` split into cells/grids/creature (§7). Same commit added the first behaviour change since Phase 8: `GUI_POSITION` (Left/Right, GUI options tab) — the sidebar mirrors onto the right screen edge, recomputed live in `frontgui_ingame_panel.cpp` rather than baked into legacy menu creation. | 0–8 |
+| 10 | [11-horizontal-layout.md](11-horizontal-layout.md) — **planning, 2026-09-11** — the third `GUI_POSITION` value (`Bottom`), wiring up `frontgui_hud_layout.h`'s long-stubbed `HudLayout_HorizontalBottom`: minimap+nav / tab-headers+2×8-grid / message-queue+horizontal-event-markers as three regions along a bottom strip, a special cropped-portrait creature cell, and a possession-view proposal. Structural prerequisite identified: region-scoped rects instead of one whole-panel rect. Several open questions flagged, not yet answered. | 9 |
+| 11 | [12-png-icon-overrides.md](12-png-icon-overrides.md) — **first landing, 2026-09-11** — user PNG icon packs (`fxdata/gui/<pack>/`) overriding room/power/trap/creature/ability icons, the static job/tendency/bar/battle/confirm/launcher icons, and the procedural marble panel background, selected live from a new `GUI_ICON_PACK` GUI-tab setting mirroring `UI_FONT`'s `fxdata/font/` scan pattern verbatim. New `frontgui_ingame_icon_overrides.{h,cpp}` module (plain RGBA8 via `spng`); every call site wired with an override-or-legacy fallback. Deferred (documented, not dropped): colorized tab icons, the ~20 Stats-page icons. Build/layering/ftest-verified + smoke-tested with a throwaway pack; not yet visually confirmed in a live session. | 9 |
+| 12 | [13-minimal-layout.md](13-minimal-layout.md) — **first landing, 2026-09-12** — the third `HudPanelLayout` (`Minimal`, `GUI_POSITION` value 4, `hud_position_type[]`): no persistent panel, just a floating corner minimap+gold+event cluster (`MINIMAP_CORNER`, upper-left/upper-right, default upper-left) and a free-floating Room/Spell/Trap/Creature/Query button cluster (diagonally opposite corner, icons only, no plinth chrome) that toggles a pop-up panel — click again or a different button to close/swap it, world clicks never dismiss it (multi-click panel↔3D workflows). Pop-up reuses the vertical layout's own size and the message-box's plain `WindowBg` (no procedural marble); content reuses the vertical layout's grid/panel functions unchanged, including `creature_query_panel()` for possession (flagged as needing its own follow-up pass). Build/layering/ftest-verified across both corners; not yet visually confirmed in a live session. | 9 |
 
-**Later, separately — retire the toggle** and delete the legacy `frontmenu_ingame_*` sprite draw
-paths, once every phase has shipped and stabilised. Deliberate, not automatic.
+**Later, separately — retire the toggle**, once every phase has shipped and stabilised. Deliberate,
+not automatic. **Done 2026-09-12** -- with a change from the original plan: the frontend's legacy
+sprite menus were deleted outright, but the in-game HUD's `frontmenu_ingame_*` sprite draw paths
+were kept live, live-tested request, moved onto `GUI_ICON_PACK=CLASSIC` instead of deleted. §8's
+"Toggle" decision has the detail.
 
 ---
 
 ## 8. Decisions on record
 
 - **Toggle: `-classicmenu`, one flag for frontend + HUD together.** No `-classicgui` sibling. §1.
+  **Retired 2026-09-12**: the frontend's legacy sprite menus are gone outright (no toggle needed --
+  `frontend_imgui_screen_active()` no longer has a global switch to AND against, only its per-`FeSt_*`
+  `state_is_migrated()` table). The in-game HUD kept its legacy sprite renderer available, by
+  request, but as a per-session *style* choice on the existing `GUI_ICON_PACK` setting (reserved
+  `"CLASSIC"` value) rather than a command-line switch -- `ingame_gui_use_classic_hud()`
+  (`config_keeperfx.h`/`.c`) is what every in-game HUD draw call now checks.
 - **Pause menu: 4-button launcher (Save/Load/Options/Quit), Options reuses the frontend
   `frontgui_options_frame()` window** with a schema context-availability gate. Video/sound
   sub-menus retire into schema rows. §2.3.

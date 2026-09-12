@@ -1,5 +1,6 @@
 #include "pre_inc.h"
 #include "frontgui_ingame_relief.h"
+#include "fe_noise.h" // fe::fbm -- marble surface pass
 #include <imgui.h>
 #include <imgui_internal.h> // ImDrawListSharedData::TexUvWhitePixel -- per-vertex-colour annulus
 #include <cmath>
@@ -44,34 +45,6 @@ ImU32 ring_shade(unsigned int base, unsigned int hi, unsigned int lo, float k)
     return col_lerp(base, lo, std::pow(-k, 0.90f) * 0.88f);
 }
 
-// --- cheap deterministic value noise, for the marble surface pass -------
-float m_hash(int x, int y)
-{
-    unsigned int h = (unsigned int)x * 374761393u + (unsigned int)y * 668265263u;
-    h = (h ^ (h >> 13)) * 1274126177u;
-    h ^= h >> 16;
-    return (float)(h & 0xFFFFu) * (1.0f / 65535.0f);
-}
-
-float m_vnoise(float x, float y)
-{
-    const float fx = std::floor(x), fy = std::floor(y);
-    const int xi = (int)fx, yi = (int)fy;
-    const float xf = x - fx, yf = y - fy;
-    const float u = xf * xf * (3.0f - 2.0f * xf);
-    const float v = yf * yf * (3.0f - 2.0f * yf);
-    const float a = m_hash(xi, yi),     b = m_hash(xi + 1, yi);
-    const float c = m_hash(xi, yi + 1), d = m_hash(xi + 1, yi + 1);
-    return a + (b - a) * u + (c - a) * v + (a - b + d - c) * u * v;
-}
-
-float m_fbm(float x, float y)
-{
-    return 0.6f  * m_vnoise(x, y)
-         + 0.3f  * m_vnoise(x * 2.1f + 5.2f, y * 2.1f + 1.3f)
-         + 0.15f * m_vnoise(x * 4.3f + 9.1f, y * 4.3f + 7.7f);
-}
-
 } // namespace
 
 const Tones &tones()
@@ -93,6 +66,24 @@ const Tones &tones()
         /* mottle_dk   */ IM_COL32(  6,   3,   0, 255),
     };
     return T;
+}
+
+const Accents &accents()
+{
+    static const Accents A = {
+        /* text     */ IM_COL32(238, 226, 198, 255),
+        /* subtext  */ IM_COL32(210, 190, 140, 255),
+        /* border   */ IM_COL32( 92,  70,  42, 255),
+        /* disabled */ IM_COL32(255, 255, 255, 110),
+        /* sel      */ IM_COL32(255, 219, 102, 255),
+        /* hover    */ IM_COL32(220,  62,  40, 255),
+        /* have     */ IM_COL32(120, 200, 120, 255),
+        /* hotkey   */ IM_COL32(255, 235, 120, 255),
+        /* bar_good */ IM_COL32( 96, 194, 235, 255),
+        /* bar_warn */ IM_COL32(210,  90,  60, 255),
+        /* bar_bad  */ IM_COL32(220,  60,  50, 255),
+    };
+    return A;
 }
 
 unsigned int mix(unsigned int a, unsigned int b, float t)
@@ -273,7 +264,7 @@ void mottle(ImDrawList *dl, const ImVec2 &a, const ImVec2 &b)
         for (float x = x0; x < x1; x += cell)
         {
             const float px = x - a.x, py = y - a.y;
-            const float warp = m_fbm(px * ns, py * ns) - 0.4f;
+            const float warp = fe::fbm(px * ns, py * ns) - 0.4f;
             const float m = std::sin(freq * (px + py * 0.4f + amp * warp)); // -1..1
             const float t = 0.5f + 0.5f * m;
             const float lightv = t * t * t;                     // veins
