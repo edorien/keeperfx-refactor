@@ -122,6 +122,8 @@
 #include "front_highscore.h"
 #include "front_lvlstats.h"
 #include "game_callbacks.h"
+#include "editor_callbacks.h" // docs/refactor/editor/01-entry-and-editor-session.md
+#include "kfx_editor.h"
 #include "front_fmvids.h"
 #include "thing_stats.h"
 #include "thing_physics.h"
@@ -1114,6 +1116,18 @@ static void game_callbacks_set_high_score_entry(const char *name)
     snprintf(high_score_entry, sizeof(high_score_entry), "%s", name);
 }
 
+// docs/refactor/editor/01-entry-and-editor-session.md §0/F11 -- kfx_editor
+// ranks above kfx_apploop, so it can't register its own ImGui-frame
+// callback the way FrontendImGuiFrame itself is registered just below;
+// main.cpp (the composition root, the one file allowed to #include every
+// layer) wraps the single existing callback instead. editor_frame() no-ops
+// unless editor_is_active().
+static void app_imgui_frame(void)
+{
+    FrontendImGuiFrame();
+    editor_frame();
+}
+
 /**
  * Displays 'legal' screens, intro and initializes basic game data.
  * If true is returned, then all files needed for startup were loaded,
@@ -1302,7 +1316,7 @@ short setup_game(void)
   // registered once as the RendererImGuiFrameFn callback so kfx_platform's
   // PresentFrame can submit it without calling up into kfx_frontend
   // directly.
-  RendererSetImGuiFrameCallback(&FrontendImGuiFrame);
+  RendererSetImGuiFrameCallback(&app_imgui_frame);
   FeStyleSheetSetVisible((start_params.debug_flags & DFlg_ImGuiStyleSheet) != 0);
   // Found live during Phase D testing: raw SDL motion events snap ImGui's
   // cursor to the window centre whenever the game's own grab-warp mouse
@@ -1614,6 +1628,15 @@ short setup_game(void)
       &get_intralvl_next_level, &clear_intralvl_next_level,
   };
   set_game_callbacks(&game_callbacks_impl);
+  // docs/refactor/editor/01-entry-and-editor-session.md §4 -- the one
+  // inbound edge kfx_apploop needs into kfx_editor (which it can't
+  // #include directly, ranked below it): the hand-off from "sim loaded
+  // and paused" to "editor session active" once
+  // startup_local_game_for_editor()'s coroutine finishes.
+  static const struct EditorCallbacks editor_callbacks_impl = {
+      &editor_open,
+  };
+  set_editor_callbacks(&editor_callbacks_impl);
   kfx_config_state.gui_blink_rate = keeperfx_ui_config.gui_blink_rate;
   kfx_config_state.neutral_flash_rate = keeperfx_ui_config.neutral_flash_rate;
   creature_status_size = keeperfx_ui_config.creature_status_size;

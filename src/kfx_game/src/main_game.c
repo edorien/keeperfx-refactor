@@ -373,6 +373,21 @@ short complete_level(struct PlayerInfo *player)
 
 short default_loc_player = 0;
 
+// docs/refactor/editor/01-entry-and-editor-session.md §5 -- armed by
+// editor_request_blank_map(), consumed once by init_level() below.
+static TbBool s_editor_blank_map_pending = false;
+static MapSlabCoord s_editor_blank_map_w = 0;
+static MapSlabCoord s_editor_blank_map_h = 0;
+static long s_editor_blank_map_texture = 0;
+
+void editor_request_blank_map(MapSlabCoord tiles_x, MapSlabCoord tiles_y, long texture_set)
+{
+    s_editor_blank_map_pending = true;
+    s_editor_blank_map_w = tiles_x;
+    s_editor_blank_map_h = tiles_y;
+    s_editor_blank_map_texture = texture_set;
+}
+
 static TbBool init_level(void)
 {
     SYNCDBG(6,"Starting");
@@ -440,7 +455,21 @@ static TbBool init_level(void)
     LevelNumber level = get_selected_level_number();
     level_load_time_phase(LevelLoadTime_Data);
     TbBool script_preloaded = preload_script(level);
-    if (!load_map_file(level))
+    // docs/refactor/editor/01-entry-and-editor-session.md §5 -- New Map:
+    // a one-shot request armed by editor_request_blank_map() builds a
+    // fresh blank map instead of reading `level` from disk. Everything
+    // else below (navigation, player init, ...) runs unchanged either way.
+    TbBool map_loaded;
+    if (s_editor_blank_map_pending)
+    {
+        map_loaded = create_blank_map(level, s_editor_blank_map_w, s_editor_blank_map_h, s_editor_blank_map_texture);
+        s_editor_blank_map_pending = false;
+    }
+    else
+    {
+        map_loaded = load_map_file(level);
+    }
+    if (!map_loaded)
     {
         net_callbacks->create_frontend_error_box(15000, "Map content is missing or incompatible.");
         JUSTMSG("Unable to load level %u from %s", level, campaign.name);
@@ -653,6 +682,72 @@ static CoroutineLoopState startup_network_game_tail(CoroutineLoop *context)
     post_init_players();
     post_init_packets();
     set_selected_level_number(0);
+
+#ifdef FUNCTESTING
+    set_flag(start_params.functest_flags, FTF_LevelLoaded);
+#endif
+
+    return CLS_CONTINUE;
+}
+
+/******************************************************************************/
+
+static CoroutineLoopState startup_local_game_for_editor_tail(CoroutineLoop *context);
+
+// docs/refactor/editor/01-entry-and-editor-session.md §4 -- "one player,
+// zombie keepers, optionally-trimmed post-init, optionally-paused". Mirrors
+// startup_network_game()'s local-game half above, minus the CPU-keeper /
+// network-players branching an editor session never needs.
+void startup_local_game_for_editor(CoroutineLoop *context, LevelNumber lvnum, TbBool suspend, TbBool trim_post_init)
+{
+    SYNCDBG(0,"Starting up editor session for level %lu", (unsigned long)lvnum);
+    stop_streamed_samples();
+    my_player_number = default_loc_player;
+    set_selected_level_number(lvnum);
+    if (!init_level()) {
+        coroutine_clear(context, true);
+        return;
+    }
+    kfx_sim_state.game_kind = GKind_LocalGame;
+    init_players_local_game();
+    setup_count_players(); // It is reset by init_level
+    int args[COROUTINE_ARGS] = {trim_post_init, suspend};
+    coroutine_add_args(context, &startup_local_game_for_editor_tail, args);
+}
+
+static CoroutineLoopState startup_local_game_for_editor_tail(CoroutineLoop *context)
+{
+    TbBool trim_post_init = coroutine_args(context)[0];
+    TbBool suspend = coroutine_args(context)[1];
+    SYNCDBG(5,"Setting up uninitialized players as zombie players");
+    setup_zombie_players();
+    if (trim_post_init)
+    {
+        // §4's trimmed post_init_level(): keep just what correct rendering
+        // needs, drop lua_on_game_start (arbitrary user Lua),
+        // create_transferred_creatures_on_level and generation-speed setup.
+        init_traps();
+        init_all_creature_states();
+        init_keepers_map_exploration();
+    }
+    else
+    {
+        // Playtest (§6): run the same full startup a normal level gets.
+        post_init_level();
+    }
+    post_init_players();
+    post_init_packets();
+    set_selected_level_number(0);
+    // docs/refactor/editor/01-entry-and-editor-session.md §3, revised after
+    // live testing: simulation_suspended, not GOF_Paused -- the latter also
+    // blocks get_packet_control_mouse_clicks() (front_input.c) from
+    // generating any click packet at all, which an editor session needs
+    // (world clicks are how tools actually place/build). editor_open()
+    // (kfx_editor) re-asserts this every frame once the session is active;
+    // set here too so the sim is already frozen for the brief window
+    // between this coroutine step finishing and editor_open() running.
+    if (suspend)
+        kfx_sim_state.simulation_suspended = true;
 
 #ifdef FUNCTESTING
     set_flag(start_params.functest_flags, FTF_LevelLoaded);

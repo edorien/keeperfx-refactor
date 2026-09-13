@@ -51,6 +51,23 @@ void reset_script_timers_and_flags(void);
 void clear_complete_game(void);
 void init_seeds();
 TbBool startup_saved_packet_game(void);
+
+// docs/refactor/editor/01-entry-and-editor-session.md §4/§5 -- the one
+// sanctioned new kfx_game function for the in-game level editor: one
+// player, zombie keepers, optionally-trimmed post-init, optionally-paused.
+// Coroutine-staged like startup_network_game() above (kfx_apploop's
+// `case FeSt_START_EDITOR:` adds its steps to the same loop). When
+// new_map is set, editor_request_blank_map() below is called first so
+// init_level() builds a fresh blank map instead of loading lvnum from
+// disk.
+void startup_local_game_for_editor(CoroutineLoop *context, LevelNumber lvnum,
+    TbBool suspend, TbBool trim_post_init);
+
+// Arms a one-shot "build a blank map" request that the next
+// startup_local_game_for_editor()/init_level() call consumes instead of
+// loading the requested level number from disk. See create_blank_map()
+// (kfx_sim, lvl_filesdk1.h).
+void editor_request_blank_map(MapSlabCoord tiles_x, MapSlabCoord tiles_y, long texture_set);
 /******************************************************************************/
 #ifdef __cplusplus
 }

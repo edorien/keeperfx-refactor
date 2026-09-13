@@ -1208,6 +1208,11 @@ TbBool player_place_trap_without_check_at(MapSubtlCoord stl_x, MapSubtlCoord stl
         return false;
     }
     traptng->mappos.z.val = get_thing_height_at(traptng, &traptng->mappos);
+    // create_trap() already primed previous_mappos to its *input* pos (see
+    // that function's own comment), but the z-correction above moves mappos
+    // again without re-syncing it -- same two-step pattern as
+    // create_owned_special_digger()/PckA_EditorPlaceObject.
+    traptng->previous_mappos = traptng->mappos;
     traptng->trap.revealed = 0;
     struct Dungeon* dungeon = get_players_num_dungeon(plyr_idx);
     if (free)

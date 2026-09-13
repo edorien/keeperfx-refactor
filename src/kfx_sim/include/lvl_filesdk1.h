@@ -48,6 +48,13 @@ long convert_old_column_file(LevelNumber lv_num);
 
 TbBool load_map_file(LevelNumber lvnum);
 
+// docs/refactor/editor/01-entry-and-editor-session.md §5 -- builds a fresh,
+// editable blank map (earth interior, rock border, neutral ownership) at
+// lvnum instead of reading one from disk. Called from kfx_game's
+// init_level() in place of load_map_file() when a blank-map request is
+// pending (see main_game.c's editor_request_blank_map()).
+TbBool create_blank_map(LevelNumber lvnum, MapSlabCoord tiles_x, MapSlabCoord tiles_y, long texture_set);
+
 void load_map_string_data(struct GameCampaign *campgn, LevelNumber lvnum, short fgroup);
 void free_level_strings_data();
 /******************************************************************************/

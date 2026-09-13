@@ -420,6 +420,14 @@ struct KfxSimState {
     unsigned short computer_chat_flags;
     char loaded_swipe_idx;
     TbBool heart_lost_display_message;
+
+    /* docs/refactor/editor/01-entry-and-editor-session.md §3 -- a neutral
+       "force GOF_Paused and don't let anything lift it" flag, not an
+       "editor_mode" flag: the in-game level editor is its first user, but
+       nothing here names the editor, so a later feature (demo scrubbing, a
+       replay inspector) can reuse it. Blob-safe like every other field in
+       this struct (survives the save/resync/reset memcpy's). */
+    TbBool simulation_suspended;
 };
 
 #pragma pack()
@@ -493,6 +501,17 @@ static inline LevelNumber get_level_number(void)
     if (lvnum <= 0)
         lvnum = get_loaded_level_number();
     return lvnum;
+}
+
+// docs/refactor/editor/01-entry-and-editor-session.md §3 -- read side of
+// simulation_suspended. game_session_loop.cpp's per-turn block already
+// gates on GOF_Paused directly (that's the actual freeze); this accessor
+// is for callers that want to know *why* the sim is paused (was it forced
+// suspended, vs. a plain user pause) without reaching into operation_flags
+// themselves.
+static inline TbBool simulation_is_suspended(void)
+{
+    return kfx_sim_state.simulation_suspended;
 }
 /******************************************************************************/
 #ifdef __cplusplus

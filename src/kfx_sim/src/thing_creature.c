@@ -4924,6 +4924,21 @@ struct Thing *create_creature(struct Coord3d *pos, ThingModel model, PlayerNumbe
     crtng->mappos.x.val = pos->x.val;
     crtng->mappos.y.val = pos->y.val;
     crtng->mappos.z.val = pos->z.val;
+    // Found live via the in-game editor (docs/refactor/editor/
+    // 02-editing-toolbox.md): update_thing_interpolation() (thing_list.c,
+    // called once per creature per real game turn) is what normally
+    // primes previous_mappos from (0,0,0) to the thing's actual position
+    // right after creation -- on a *frozen* sim (simulation_suspended),
+    // no turn ever runs, so a creature placed there keeps
+    // previous_mappos == (0,0,0) forever and the renderer, interpolating
+    // from that degenerate baseline, never draws it (it exists in every
+    // other sense -- immediately visible on the minimap/overview, no
+    // errors creating it). Priming it here, once, at creation, is what
+    // update_thing_interpolation() would do on the creature's first real
+    // turn anyway -- correct regardless of whether the sim is frozen, and
+    // avoids a one-frame origin-snap even in normal (non-frozen) play.
+    crtng->previous_mappos = crtng->mappos;
+    clear_flag(crtng->state_flags, TF1_Teleported);
     crtng->creation_turn = get_gameturn();
     cctrl->joining_age = 17 + THING_RANDOM(crtng, 13);
     cctrl->blood_type = THING_RANDOM(crtng, BLOOD_TYPES_COUNT);
@@ -5056,6 +5071,11 @@ struct Thing *create_owned_special_digger(MapCoord x, MapCoord y, PlayerNumber o
     thing->mappos.x.val = pos.x.val;
     thing->mappos.y.val = pos.y.val;
     thing->mappos.z.val = pos.z.val;
+    // create_creature() already primed previous_mappos (see its own
+    // comment), but only to the *initial* pos this function passed it
+    // (z=0) -- the height-corrected mappos just set above needs the same
+    // re-sync, or previous_mappos is left mismatched on Z.
+    thing->previous_mappos = thing->mappos;
     remove_first_creature(thing);
     set_first_creature(thing);
     return thing;

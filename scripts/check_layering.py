@@ -70,6 +70,12 @@ LIBRARY_ORDER = [
     "kfx_frontend",
     "kfx_script",
     "kfx_apploop",
+    # docs/refactor/editor/00-overview.md §5.1 -- the in-game level editor's
+    # own library. Ranked immediately below app_entry (the highest of any
+    # kfx_* library): it may depend on everything below it; nothing below
+    # depends on it back. Its only inbound edge is main.cpp (app_entry),
+    # which already includes every layer as the composition root.
+    "kfx_editor",
     "app_entry",
 ]
 RANK = {lib: i for i, lib in enumerate(LIBRARY_ORDER)}

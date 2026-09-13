@@ -185,9 +185,34 @@ enum FrontendMenuStates {
   FeSt_CAMPAIGN_INTRO,
   FeSt_MAPPACK_SELECT,
   FeSt_MP_MAPPACK_SELECT,
+  // docs/refactor/editor/01-entry-and-editor-session.md §2 -- the in-game
+  // level editor's ImGui-only project browser (New/Open/Back) and its
+  // transient "start the session" state, mirroring the
+  // FeSt_LEVEL_SELECT -> FeSt_START_KPRLEVEL pair. No classic-menu
+  // (`-classicmenu`) equivalent -- the editor requires the ImGui menu.
+  FeSt_EDITOR,
+  FeSt_START_EDITOR,
   // Special testing states
   FeSt_FONT_TEST          = 255,
 };
+
+// docs/refactor/editor/01-entry-and-editor-session.md §2/§4 -- the hand-off
+// from the FeSt_EDITOR browser to kfx_apploop's `case FeSt_START_EDITOR:`
+// (game_session_loop.cpp), which reads these to call
+// startup_local_game_for_editor(). Plain frontend-internal globals, not
+// KfxFrontendState fields -- transient for the one frame between the
+// browser click and apploop consuming them, so they have no business in
+// that struct's save-game/resync blob (mirrors net_service_index_selected's
+// own reasoning, not save_game_slot's -- that one really is persisted).
+extern LevelNumber editor_pending_lvnum;
+extern TbBool editor_pending_is_new;
+extern MapSlabCoord editor_pending_new_map_w;
+extern MapSlabCoord editor_pending_new_map_h;
+extern long editor_pending_new_map_texture;
+
+// New Map's scratch level number until Save (phase 3) assigns it a real
+// slot -- see docs/refactor/editor/00-overview.md O2/F4.
+#define EDITOR_SCRATCH_LEVEL_NUMBER 900001
 
 enum IngameButtonDesignationIDs {
     BID_INFO_TAB = BID_DEFAULT+1,

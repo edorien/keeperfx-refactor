@@ -82,6 +82,7 @@
 #include "game_loop.h"
 #include "timer.h"
 #include "main_game.h"
+#include "editor_callbacks.h" // docs/refactor/editor/01-entry-and-editor-session.md -- case FeSt_START_EDITOR
 #include "game_lifecycle.h"
 #include "moonphase.h"
 #include "kfx_frontend_state.h"
@@ -136,7 +137,15 @@ void update(void)
     }
     player = get_my_player();
 
-    if (!flag_is_set(kfx_sim_state.operation_flags,GOF_Paused))
+    // docs/refactor/editor/01-entry-and-editor-session.md §3 -- simulation_suspended
+    // checked here directly, not just via editor_frame()'s GOF_Paused
+    // re-assertion: process_packets() above can clear GOF_Paused within
+    // this same call (a queued PckA_TogglePause) before this gate runs,
+    // letting one full turn (creatures take a step) through before
+    // editor_frame() reasserts the flag on the next frame's render. Found
+    // live: "each unpause allows creatures to move". simulation_suspended
+    // is untouched by PckA_TogglePause, so it can't race the same way.
+    if (!flag_is_set(kfx_sim_state.operation_flags,GOF_Paused) && !kfx_sim_state.simulation_suspended)
     {
         for (int i = 1; i < EVENTS_COUNT; i++) {
             kfx_sim_state.event[i].flags &= ~EvF_BtnFalling;
@@ -899,6 +908,23 @@ static TbBool wait_at_frontend(void)
           set_gui_visible(false);
           clear_flag(kfx_sim_state.operation_flags, GOF_ShowPanel);
           break;
+    case FeSt_START_EDITOR:
+          // docs/refactor/editor/01-entry-and-editor-session.md §2/§4 --
+          // editor_pending_* (frontend.h) were stashed by the FeSt_EDITOR
+          // browser (frontgui_editorbrowser_frame). startup_local_game_for_editor
+          // is a kfx_game function (below kfx_apploop, no header violation);
+          // the coroutine always runs to completion synchronously below for
+          // a local game (no network wait), so editor_callbacks->request_open()
+          // right after coroutine_process() sees a fully loaded, paused sim.
+          my_player_number = default_loc_player;
+          kfx_sim_state.game_kind = GKind_LocalGame;
+          clear_flag(kfx_sim_state.system_flags, GSF_NetworkActive);
+          player = get_my_player();
+          player->is_active = 1;
+          if (editor_pending_is_new)
+              editor_request_blank_map(editor_pending_new_map_w, editor_pending_new_map_h, editor_pending_new_map_texture);
+          startup_local_game_for_editor(&loop, editor_pending_lvnum, /*suspend=*/true, /*trim_post_init=*/true);
+          break;
     }
 
     coroutine_add(&loop, &set_not_has_quit);
@@ -907,6 +933,10 @@ static TbBool wait_at_frontend(void)
     {
         frontend_set_state(FeSt_INITIAL);
         return false;
+    }
+    if (prev_state == FeSt_START_EDITOR)
+    {
+        editor_callbacks->request_open(editor_pending_lvnum, editor_pending_is_new);
     }
     return true;
 }

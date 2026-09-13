@@ -123,6 +123,7 @@ namespace {
             case FeSt_NET_SERVICE:
             case FeSt_NET_SESSION:
             case FeSt_NET_START:
+            case FeSt_EDITOR:
                 return true;
             default:
                 return false;
@@ -1380,6 +1381,44 @@ namespace {
 
     // --- Phase F: Main Menu, Level Stats, network flow, error overlay ---
 
+    // docs/refactor/editor/01-entry-and-editor-session.md §1 -- "Tools"
+    // opens a small modal with one entry (Editor) plus Back, rather than
+    // jumping straight there, so future tools (map-pack manager, packet-
+    // demo browser, ...) have a home in the same modal later. Same
+    // FeOpenModal/FeBeginModal/FeEndModal pattern as
+    // draw_pending_action_confirm_modal() above -- a static "should this be
+    // open" flag, (re)opened every frame it's true, closed via
+    // ImGui::CloseCurrentPopup() on either button.
+    bool s_tools_modal_open = false;
+
+    void draw_tools_modal()
+    {
+        if (!s_tools_modal_open)
+            return;
+        FeOpenModal("FeToolsModal");
+        bool open = FeBeginModal("FeToolsModal");
+        if (open)
+        {
+            FeHeading("Tools");
+            FeSeparator();
+            const ImVec2 btn_size(220, 0);
+            FeCenterNextItem(btn_size.x);
+            if (FeButton("Editor", btn_size))
+            {
+                s_tools_modal_open = false;
+                ImGui::CloseCurrentPopup();
+                request_frontend_state(FeSt_EDITOR);
+            }
+            FeCenterNextItem(btn_size.x);
+            if (FeButton("Back", btn_size))
+            {
+                s_tools_modal_open = false;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        FeEndModal(open);
+    }
+
     void frontgui_mainmenu_frame()
     {
         ImGuiIO &io = ImGui::GetIO();
@@ -1461,6 +1500,19 @@ namespace {
                 request_frontend_state((FrontendMenuState)next_state);
         }
 
+        // docs/refactor/editor/01-entry-and-editor-session.md §1 -- opens
+        // draw_tools_modal() (Editor / Back) rather than jumping straight
+        // to the editor, so future tools have a home in the same modal.
+        // Not routed through frontend_button_info[]/GUIStr_* like the
+        // buttons above -- these are net-new captions with no translation
+        // entry yet (they'd render as "untranslated <N>" until a lang
+        // pipeline regen), and this is a dev-tool entry point, not
+        // player-facing campaign content. Follow-up if/when the editor
+        // ships to players.
+        FeCenterNextItem(btn_size.x);
+        if (FeButton("Tools", btn_size))
+            s_tools_modal_open = true;
+
         FeSeparator();
 
         // Bottom row's three buttons are auto-sized (their width tracks the
@@ -1491,6 +1543,92 @@ namespace {
         ImGui::SameLine();
         if (FeButton(quit_label))
             request_frontend_state(FeSt_QUIT_GAME);
+
+        draw_tools_modal();
+
+        ImGui::End();
+    }
+
+    // docs/refactor/editor/01-entry-and-editor-session.md §2 -- the in-game
+    // level editor's project browser. New/Open both stash their target
+    // into the plain editor_pending_* globals (frontend.h -- see that
+    // header's own comment on why these aren't KfxFrontendState fields)
+    // and request FeSt_START_EDITOR; kfx_apploop's `case FeSt_START_EDITOR:`
+    // (game_session_loop.cpp) reads them back to call
+    // startup_local_game_for_editor(). Open Map lists campaign.freeplay_levels
+    // -- the same list Free Play uses -- rather than a dedicated "writable
+    // maps" enumeration; thumbnails (land_preview_build_minimap, F14) are
+    // phase-3 polish, not needed to open a map for editing.
+    void frontgui_editorbrowser_frame()
+    {
+        ImGuiIO &io = ImGui::GetIO();
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::Begin("##FeEditor", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
+
+        FeHeading("Editor");
+        FeSeparator();
+
+        const ImVec2 btn_size(260, 0);
+        FeCenterNextItem(btn_size.x);
+        if (FeButton("New Map", btn_size))
+        {
+            editor_pending_lvnum = EDITOR_SCRATCH_LEVEL_NUMBER;
+            editor_pending_is_new = true;
+            editor_pending_new_map_w = 85;
+            editor_pending_new_map_h = 85;
+            editor_pending_new_map_texture = 0;
+            request_frontend_state(FeSt_START_EDITOR);
+        }
+
+        if ((campaign.freeplay_levels_count > 0) || (campaign.single_levels_count > 0))
+        {
+            FeSeparator();
+            // FeBeginListBox, not FeBeginScrollArea -- every other fixed-row
+            // select list in this file (freeplay_level_list, campaign_list,
+            // ...) uses this inside an AlwaysAutoResize window; the
+            // BeginChild-based scroll areas are only ever used in fixed-size
+            // windows elsewhere (frontgui_options_frame, in-game overlays).
+            // Found live: FeBeginScrollArea's child window inside an
+            // AlwaysAutoResize parent left the Editor browser a black,
+            // unresponsive screen.
+            //
+            // Single-player campaign levels are listed here too (not just
+            // freeplay_levels) so a known-good level (e.g. the campaign's
+            // map00001) can be opened as a diagnostic baseline against a
+            // blank New Map -- same editor session path either way.
+            bool open = FeBeginListBox("##FeEditorOpenList", ImVec2(btn_size.x, 200));
+            if (open)
+            {
+                for (unsigned long i = 0; i < campaign.single_levels_count; i++)
+                {
+                    char label[32];
+                    snprintf(label, sizeof(label), "Open Level %lu", (unsigned long)campaign.single_levels[i]);
+                    if (FeListRow(label, false))
+                    {
+                        editor_pending_lvnum = campaign.single_levels[i];
+                        editor_pending_is_new = false;
+                        request_frontend_state(FeSt_START_EDITOR);
+                    }
+                }
+                for (unsigned long i = 0; i < campaign.freeplay_levels_count; i++)
+                {
+                    char label[32];
+                    snprintf(label, sizeof(label), "Open Map %lu", (unsigned long)campaign.freeplay_levels[i]);
+                    if (FeListRow(label, false))
+                    {
+                        editor_pending_lvnum = campaign.freeplay_levels[i];
+                        editor_pending_is_new = false;
+                        request_frontend_state(FeSt_START_EDITOR);
+                    }
+                }
+            }
+            FeEndListBox(open);
+        }
+
+        FeSeparator();
+        FeCenterNextItem(btn_size.x);
+        if (FeButton("Back", btn_size))
+            request_frontend_state(FeSt_MAIN_MENU);
 
         ImGui::End();
     }
@@ -1957,6 +2095,7 @@ void FrontendImGuiFrame(void)
         case FeSt_NET_SERVICE:    frontgui_netservice_frame(); break;
         case FeSt_NET_SESSION:    frontgui_netsession_frame(); break;
         case FeSt_NET_START:      frontgui_netstart_frame(); break;
+        case FeSt_EDITOR:         frontgui_editorbrowser_frame(); break;
         default: break;
     }
 

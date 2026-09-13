@@ -1519,6 +1519,97 @@ TbBool load_map_file(LevelNumber lvnum)
     return result;
 }
 
+// docs/refactor/editor/01-entry-and-editor-session.md §5 -- "New Map".
+//
+// Builds the map exactly the way load_map_slab_file() + load_level_file()'s
+// own tail build a *real* one, rather than through place_slab_type_on_map()
+// (the terrain cheat/editor brush's live-mutation entry point): assign
+// every slab's kind as plain data first (mirroring load_map_slab_file()'s
+// own `slb->kind = n` loop), derive columns from those kinds via
+// place_single_slab_type_on_map() (the doc's own gap analysis names this
+// as the safe "rebuild columns from slabset config" primitive -- it does
+// no navigation/ceiling work itself), then run the same
+// initialise_map_collides/health/extra_slab_info + reinitialise_map_rooms/
+// ceiling_init/init_keys tail load_level_file() runs once over the whole,
+// already-consistent map.
+//
+// Found live (SIGABRT inside ceiling_partially_recompute_heights, backtrace
+// through create_blank_map <- place_slab_type_on_map_f): place_slab_type_on_map()
+// additionally calls update_blocks_around_slab() -> update_blocks_in_area()
+// -> navigation triangulation + a *partial* ceiling recompute for the area
+// around each just-painted slab -- correct for a single edit to an already-
+// finalized map (real gameplay's only use of it), but unsafe called
+// incrementally while the map has no ceiling/navigation data at all yet.
+// Building the whole map as data first and finalizing once, like a real
+// load does, avoids that code path entirely during construction.
+TbBool create_blank_map(LevelNumber lvnum, MapSlabCoord tiles_x, MapSlabCoord tiles_y, long texture_set)
+{
+    short fgroup = get_level_fgroup(lvnum);
+    set_map_size(tiles_x, tiles_y);
+    // clear_game()'s own clear_mapmap()/clear_slabs()/clear_columns() (main_game.c's
+    // init_level(), well before this function runs) sized their clearing loops off
+    // whatever kfx_sim_state.map_subtiles_x/map_tiles_x/y held *at that point* --
+    // the previously loaded level's dimensions, or 0 if none has loaded yet this
+    // process (e.g. going straight from launch to Tools -> Editor -> New Map, the
+    // exact sequence this was found under) -- not this map's just-set size. With
+    // nothing else in the load path re-clearing for the real size, subtiles/slabs/
+    // columns beyond whatever tiny rectangle got cleared earlier keep whatever data
+    // was already sitting in that (session-lifetime, not per-level) storage --
+    // explains the "invalid thing"/"can't find door" spam seen live (stale mapwho/
+    // attached-thing references) and is the leading suspect for the black viewport
+    // and unresponsive session reported alongside it. Re-clear now that the size is
+    // actually final.
+    clear_mapmap();
+    clear_slabs();
+    clear_columns();
+    init_whole_blocks();
+    load_slab_file();
+    init_columns();
+    kfx_config_state.texture_id = texture_set;
+    sim_feedback->load_texture_map_file(kfx_config_state.texture_id, lvnum, fgroup);
+    init_top_texture_to_cube_table();
+
+    // Every slab starts as SlbT_ROCK ("HARD" in the palette) -- solid,
+    // impenetrable, uniform. Not earth-with-a-rock-border: a blank map is
+    // a solid block the editor player carves, matching the original
+    // editor's own "New Map" starting state: nothing pre-dug, no assumed
+    // dig plan. Also sidesteps needing a border/interior distinction at
+    // all -- one slab kind, no earth-vs-rock adjacency cases to get wrong.
+    //
+    // Pass 1: every slab's kind + owner, as plain data (load_map_slab_file()'s
+    // own approach) -- place_single_slab_type_on_map()'s column/style
+    // derivation below inspects neighbouring slabs' kind, so every kind
+    // must already be final before pass 2 starts.
+    for (MapSlabCoord y = 0; y < tiles_y; y++)
+    {
+        for (MapSlabCoord x = 0; x < tiles_x; x++)
+        {
+            struct SlabMap *slb = get_slabmap_block(x, y);
+            slb->kind = SlbT_ROCK;
+            set_slab_owner(x, y, kfx_config_state.neutral_player_num);
+        }
+    }
+    // Pass 2: derive columns from the now-final slab kinds.
+    for (MapSlabCoord y = 0; y < tiles_y; y++)
+    {
+        for (MapSlabCoord x = 0; x < tiles_x; x++)
+        {
+            place_single_slab_type_on_map(SlbT_ROCK, x, y, kfx_config_state.neutral_player_num);
+        }
+    }
+
+    initialise_map_collides();
+    initialise_map_health();
+    initialise_extra_slab_info(lvnum);
+
+    reinitialise_map_rooms();
+    ceiling_init();
+    init_keys();
+
+    set_loaded_level_number(lvnum);
+    return true;
+}
+
 void free_level_strings_data()
 {
   // Resetting all values to empty strings

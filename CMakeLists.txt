@@ -183,6 +183,7 @@ target_include_directories(kfx_common_opts INTERFACE
     "${CMAKE_SOURCE_DIR}/src/kfx_frontend/include"
     "${CMAKE_SOURCE_DIR}/src/kfx_script/include"
     "${CMAKE_SOURCE_DIR}/src/kfx_apploop/include"
+    "${CMAKE_SOURCE_DIR}/src/kfx_editor/include"
     "${CMAKE_SOURCE_DIR}/src"
     # ver_defs.h is configure_file()'d to the repo root (see above), not
     # under src/ -- this was a pre-existing latent gap (predates the
@@ -329,6 +330,7 @@ add_subdirectory(src/kfx_game)
 add_subdirectory(src/kfx_frontend)
 add_subdirectory(src/kfx_script)
 add_subdirectory(src/kfx_apploop)
+add_subdirectory(src/kfx_editor)
 
 # docs/refactor/testing/comprehensive/stage-05-coverage-tooling.md: the
 # whole local coverage workflow as one target -- `ctest` then

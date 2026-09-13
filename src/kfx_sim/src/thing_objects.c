@@ -142,6 +142,16 @@ struct Thing *create_object(const struct Coord3d *pos, ThingModel model, unsigne
     else
       thing->parent_idx = parent_idx;
     memcpy(&thing->mappos, pos, sizeof(struct Coord3d));
+    // Same fix as create_creature() (thing_creature.c) and the same root
+    // cause: nothing here primed previous_mappos, so a thing created while
+    // the sim is frozen (docs/refactor/editor/01-entry-and-editor-session.md
+    // §3, the in-game level editor) never gets it set at all and stays
+    // invisible in the 3D view despite existing in every other sense.
+    // Correct in normal (non-frozen) play too -- this is exactly what
+    // update_thing_interpolation() (thing_list.c) would set on the
+    // object's first real turn regardless.
+    thing->previous_mappos = thing->mappos;
+    clear_flag(thing->state_flags, TF1_Teleported);
     struct ObjectConfigStats* objst = get_object_model_stats(model);
     thing->clipbox_size_xy = objst->size_xy;
     thing->clipbox_size_z = objst->size_z;

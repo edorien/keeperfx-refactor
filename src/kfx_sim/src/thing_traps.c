@@ -1081,6 +1081,16 @@ struct Thing *create_trap(struct Coord3d *pos, ThingModel trpkind, PlayerNumber 
     thing->mappos.x.val = pos->x.val;
     thing->mappos.y.val = pos->y.val;
     thing->mappos.z.val = pos->z.val;
+    // Primes render interpolation for things created while the sim is
+    // frozen (the in-game editor) -- same fix create_creature()/
+    // create_object() needed: update_thing_interpolation() normally does
+    // this once per turn, which never runs for a thing created between
+    // turns, leaving it invisible in the 3D view despite existing
+    // logically. player_place_trap_without_check_at() corrects z via
+    // get_thing_height_at() right after this call, so this initial value
+    // (still pos->z.val, possibly a placeholder) gets re-synced there too.
+    thing->previous_mappos = thing->mappos;
+    clear_flag(thing->state_flags, TF1_Teleported);
     thing->next_on_mapblk = 0;
     thing->parent_idx = thing->index;
     thing->owner = plyr_idx;

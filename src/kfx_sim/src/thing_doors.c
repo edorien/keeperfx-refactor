@@ -121,6 +121,13 @@ struct Thing *create_door(struct Coord3d *pos, ThingModel tngmodel, unsigned cha
     doortng->mappos.x.val = pos->x.val;
     doortng->mappos.y.val = pos->y.val;
     doortng->mappos.z.val = 384;
+    // Primes render interpolation for things created while the sim is
+    // frozen (the in-game editor) -- same fix create_creature()/
+    // create_object()/create_trap() needed. Unlike those, a door's z is a
+    // fixed constant set just above, never corrected afterward, so this is
+    // the only sync point needed.
+    doortng->previous_mappos = doortng->mappos;
+    clear_flag(doortng->state_flags, TF1_Teleported);
     doortng->next_on_mapblk = 0;
     doortng->parent_idx = doortng->index;
     doortng->owner = plyr_idx;

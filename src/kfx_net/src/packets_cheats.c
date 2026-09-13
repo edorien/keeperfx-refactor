@@ -45,6 +45,7 @@
 #include "config_strings.h"
 #include "config_crtrmodel.h"
 #include "thing_objects.h"
+#include "thing_doors.h"
 #include "post_inc.h"
 
 extern void clear_input(struct Packet* packet);
@@ -682,7 +683,17 @@ TbBool packets_process_cheats(
                 snprintf(str, sizeof(str), "%s (%ld) %d %d (%u) %d %d (%d)", slab_cfgstats->code_name, slabmap_owner(slb), slb_x, slb_y, get_slab_number(slb_x, slb_y), stl_x, stl_y, get_subtile_number(stl_x, stl_y));
                 sim_feedback->targeted_message_add(MsgType_Blank, 0, plyr_idx, 1, str);
             }
-            if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
+            // docs/refactor/editor/02-editing-toolbox.md §2.2 -- drag
+            // painting. Originally PCtr_LBtnRelease-only (a single tile
+            // per click, matching the classic cheat menu's own behaviour);
+            // also firing on PCtr_LBtnHeld lets holding the button down
+            // and dragging across the map paint every tile the cursor
+            // passes over, like a normal paint-tool brush, without pulling
+            // in room placement's separate roomspace-mark/cost/undo
+            // machinery (§2.2's own fuller "mark rectangle, apply once"
+            // design is still future work -- this is the simpler
+            // continuous-paint half of it).
+            if (((pckt->control_flags & (PCtr_LBtnRelease | PCtr_LBtnHeld)) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
             {
                 if (subtile_is_room(stl_x, stl_y))
                 {
@@ -695,6 +706,77 @@ TbBool packets_process_cheats(
                 {
                     ustate->cheatselection.chosen_terrain_kind = SlbT_WALLDRAPE + GAME_RANDOM(5);
                 }
+            }
+            unset_packet_control(pckt, PCtr_LBtnRelease);
+            break;
+        }
+        case PSt_EditorFill:
+        {
+            // docs/refactor/editor/02-editing-toolbox.md §2.3 -- reuses
+            // the same chosen_terrain_kind/chosen_player selection the
+            // Terrain tool's palette already sets (no new selection state
+            // needed); release-only, not held -- one fill per click, not
+            // one per subtile crossed while dragging.
+            player->render_roomspace = create_box_roomspace(player->render_roomspace, 1, 1, slb_x, slb_y);
+            tag_cursor_blocks_place_terrain(plyr_idx, stl_x, stl_y);
+            if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
+            {
+                PlayerNumber id = (slab_kind_has_no_ownership(ustate->cheatselection.chosen_terrain_kind)) ? kfx_config_state.neutral_player_num : ustate->cheatselection.chosen_player;
+                set_packet_action(pckt, PckA_EditorFloodFill, ustate->cheatselection.chosen_terrain_kind, id, 0, 0);
+            }
+            unset_packet_control(pckt, PCtr_LBtnRelease);
+            break;
+        }
+        case PSt_EditorPlaceObject:
+            // docs/refactor/editor/02-editing-toolbox.md §2.6 -- no
+            // placement dispatch here on purpose: kfx_editor sends
+            // PckA_EditorPlaceObject directly once it sees a world click,
+            // since the chosen object model has nowhere to live in
+            // CheatSelection (F17) for this switch to read back. Just the
+            // usual cursor-highlight, so hovering shows the same
+            // solid/non-solid feedback other placement tools give.
+            player->render_roomspace = create_box_roomspace(player->render_roomspace, 1, 1, slb_x, slb_y);
+            tag_cursor_blocks_place_thing(plyr_idx, stl_x, stl_y);
+            break;
+        case PSt_EditorPlaceTrap:
+        {
+            // docs/refactor/editor/02-editing-toolbox.md §2.7 -- free
+            // placement (no workshop-stock check) for whichever owner the
+            // bottom bar has selected -- ustate->chosen_trap_kind is set by
+            // the picker via PckA_CheatSwitchTrap. No occupancy/validity
+            // gate yet (matches Objects' own first-slice scope: bare
+            // click-to-place, refinements deferred) -- traps don't have
+            // Doors' create_door() out-of-bounds risk on a bad position, so
+            // there's nothing here that *must* be checked before placing.
+            player->render_roomspace = create_box_roomspace(player->render_roomspace, 1, 1, slb_x, slb_y);
+            tag_cursor_blocks_place_trap(plyr_idx, stl_x, stl_y, ustate->chosen_trap_kind);
+            if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
+            {
+                set_packet_action(pckt, PckA_EditorPlaceTrap, ustate->chosen_trap_kind, ustate->cheatselection.chosen_player, 0, 0);
+            }
+            unset_packet_control(pckt, PCtr_LBtnRelease);
+            break;
+        }
+        case PSt_EditorPlaceDoor:
+        {
+            // Doors need at least one real validity check before placing,
+            // unlike Traps: create_door() indexes doorst->slbkind[orient]
+            // with whatever find_door_angle() returns, and that's -1 (an
+            // out-of-bounds read, not just a visual glitch) unless this
+            // slab is SlbT_CLAIMED and owned by the chosen owner -- see
+            // find_door_angle()'s own doc-quoted rule ("only on the
+            // selected player's claimed floor, between two walls"). Check
+            // it here against the *chosen* owner (thing_doors.h), not
+            // tag_cursor_blocks_place_door()'s own plyr_idx-based check,
+            // which also drags in fog-of-war/is_my_player_number gating
+            // that doesn't make sense for an editor session placing on
+            // behalf of an arbitrary owner.
+            player->render_roomspace = create_box_roomspace(player->render_roomspace, 1, 1, slb_x, slb_y);
+            allowed = (find_door_angle(stl_x, stl_y, ustate->cheatselection.chosen_player) != -1);
+            tag_cursor_blocks_place_door(plyr_idx, stl_x, stl_y);
+            if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0) && allowed)
+            {
+                set_packet_action(pckt, PckA_EditorPlaceDoor, ustate->chosen_door_kind, ustate->cheatselection.chosen_player, 0, 0);
             }
             unset_packet_control(pckt, PCtr_LBtnRelease);
             break;
@@ -840,6 +922,21 @@ TbBool process_player_global_cheats_packet_action(PlayerNumber plyr_idx, struct 
             ustate->cheatselection.chosen_experience_level = pckt->actn_par1;
             return false;
         }
+      case PckA_CheatSwitchTrap:
+        {
+            // docs/refactor/editor/02-editing-toolbox.md §2.7 -- writes the
+            // same chosen_trap_kind the classic workshop PSt_PlaceTrap
+            // dispatch reads (UserState, not CheatSelection -- no F17 gap
+            // here), unconditionally, same shape as the CheatSwitch* cases
+            // above.
+            ustate->chosen_trap_kind = pckt->actn_par1;
+            return false;
+        }
+      case PckA_CheatSwitchDoor:
+        {
+            ustate->chosen_door_kind = pckt->actn_par1;
+            return false;
+        }
         case PckA_CheatAllDoors:
         {
             make_available_all_doors(plyr_idx);
@@ -938,6 +1035,66 @@ TbBool process_player_global_cheats_packet_action(PlayerNumber plyr_idx, struct 
   }
 }
 
+// docs/refactor/editor/02-editing-toolbox.md §2.3 -- 4-connected flood
+// fill from a seed slab across contiguous slabs of the *seed's own*
+// original kind, bounded by the map and refusing to cross into rooms
+// (matches the original editor's own flood-fill rule). Iterative BFS with
+// static (not stack-allocated, not recursive) queue/visited buffers sized
+// to the largest possible map, so a large flood can't stack-overflow.
+static void editor_flood_fill_terrain(MapSlabCoord seed_x, MapSlabCoord seed_y, SlabKind target_kind, PlayerNumber owner)
+{
+    static MapSlabCoord queue_x[MAX_TILES_X * MAX_TILES_Y];
+    static MapSlabCoord queue_y[MAX_TILES_X * MAX_TILES_Y];
+    static TbBool visited[MAX_TILES_X * MAX_TILES_Y];
+    memset(visited, 0, sizeof(visited));
+
+    struct SlabMap *seed_slb = get_slabmap_block(seed_x, seed_y);
+    if (slabmap_block_invalid(seed_slb) || (seed_slb->kind == target_kind))
+        return; // nothing to flood, or already the target kind
+    if (subtile_is_room(slab_subtile(seed_x, 1), slab_subtile(seed_y, 1)))
+        return; // never flood starting from a room
+    SlabKind source_kind = seed_slb->kind;
+
+    long head = 0, tail = 0;
+    queue_x[tail] = seed_x;
+    queue_y[tail] = seed_y;
+    tail++;
+    visited[seed_y * kfx_sim_state.map_tiles_x + seed_x] = true;
+
+    static const int dx[4] = {1, -1, 0, 0};
+    static const int dy[4] = {0, 0, 1, -1};
+    while (head < tail)
+    {
+        MapSlabCoord x = queue_x[head];
+        MapSlabCoord y = queue_y[head];
+        head++;
+
+        place_slab_type_on_map(target_kind, slab_subtile(x, 0), slab_subtile(y, 0), owner, 0);
+
+        for (int i = 0; i < 4; i++)
+        {
+            MapSlabCoord nx = x + dx[i];
+            MapSlabCoord ny = y + dy[i];
+            if ((nx < 0) || (nx >= kfx_sim_state.map_tiles_x) || (ny < 0) || (ny >= kfx_sim_state.map_tiles_y))
+                continue;
+            long idx = (long)ny * kfx_sim_state.map_tiles_x + nx;
+            if (visited[idx])
+                continue;
+            visited[idx] = true;
+            struct SlabMap *nslb = get_slabmap_block(nx, ny);
+            if (slabmap_block_invalid(nslb) || (nslb->kind != source_kind))
+                continue;
+            if (subtile_is_room(slab_subtile(nx, 1), slab_subtile(ny, 1)))
+                continue; // original refuses to flood rooms
+            if (tail >= MAX_TILES_X * MAX_TILES_Y)
+                continue; // defensive -- area-capped at the whole map anyway
+            queue_x[tail] = nx;
+            queue_y[tail] = ny;
+            tail++;
+        }
+    }
+}
+
 TbBool process_players_dungeon_control_cheats_packet_action(PlayerNumber plyr_idx, struct Packet* pckt)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
@@ -967,17 +1124,107 @@ TbBool process_players_dungeon_control_cheats_packet_action(PlayerNumber plyr_id
             do_slab_efficiency_alteration(slb_x, slb_y);
             break;
         }
+        case PckA_EditorFloodFill:
+        {
+            x = (pckt->pos_x);
+            y = (pckt->pos_y);
+            stl_x = coord_subtile(x);
+            stl_y = coord_subtile(y);
+            slb_x = subtile_slab(stl_x);
+            slb_y = subtile_slab(stl_y);
+            editor_flood_fill_terrain(slb_x, slb_y, pckt->actn_par1, pckt->actn_par2);
+            break;
+        }
+        case PckA_EditorPlaceObject:
+        {
+            // docs/refactor/editor/02-editing-toolbox.md §2.6. Sent by
+            // kfx_editor directly (see PSt_EditorPlaceObject's own
+            // comment) with the target position in actn_par1/actn_par2
+            // (full int32 range -- NOT the packet's own pos_x/pos_y, which
+            // are per-turn scratch that's already been reset by the time
+            // this render-phase-originated action is processed; found live
+            // via JUSTMSG diagnostics -- "no object appears", packet always
+            // showed MapCoordsValid=0 pos=(0,0)) and model/owner in
+            // actn_par3/actn_par4 (int16_t is plenty for those, unlike a
+            // max-size map's subtile position).
+            pos.x.val = pckt->actn_par1;
+            pos.y.val = pckt->actn_par2;
+            pos.z.val = 0;
+            ThingModel model = pckt->actn_par3;
+            PlayerNumber owner = pckt->actn_par4;
+            thing = create_object(&pos, model, owner, -1);
+            if (!thing_is_invalid(thing))
+            {
+                // Found live: nothing appeared. pos.z.val was left at the
+                // placeholder 0 above (world floor, not *this* position's
+                // actual floor height) and never corrected afterward --
+                // the exact same gap PckA_CheatMakeCreature had before its
+                // own fix, just missing here on the first pass. Same fix:
+                // correct z from the real thing's own clipbox once it
+                // exists, same as create_owned_special_digger() and the
+                // now-fixed PckA_CheatMakeCreature both do.
+                thing->mappos.z.val = get_thing_height_at(thing, &thing->mappos);
+                if (thing_in_wall_at(thing, &thing->mappos))
+                {
+                    move_creature_to_nearest_valid_position(thing);
+                }
+                // create_object() already primes previous_mappos to its
+                // *input* pos (see that function's own comment), but both
+                // the z-correction and move_creature_to_nearest_valid_position()
+                // above can move mappos again without re-syncing it -- same
+                // two-step pattern as create_owned_special_digger().
+                thing->previous_mappos = thing->mappos;
+            }
+            break;
+        }
+        case PckA_EditorPlaceTrap:
+        {
+            // §2.7. Unlike PckA_EditorPlaceObject, safe to read the
+            // packet's own pos_x/pos_y here -- this is sent by
+            // PSt_EditorPlaceTrap's dispatch (packets_cheats.c's
+            // per-work-state switch above), which runs from within
+            // input() itself, before exchange_packets() resets the
+            // packet for the next turn.
+            x = (pckt->pos_x);
+            y = (pckt->pos_y);
+            stl_x = coord_subtile(x);
+            stl_y = coord_subtile(y);
+            player_place_trap_without_check_at(stl_x, stl_y, pckt->actn_par2, pckt->actn_par1, true);
+            break;
+        }
+        case PckA_EditorPlaceDoor:
+        {
+            x = (pckt->pos_x);
+            y = (pckt->pos_y);
+            stl_x = coord_subtile(x);
+            stl_y = coord_subtile(y);
+            player_place_door_without_check_at(stl_x, stl_y, pckt->actn_par2, pckt->actn_par1, true);
+            break;
+        }
         case PckA_CheatMakeCreature:
         {
             x = (pckt->pos_x);
             y = (pckt->pos_y);
             pos.x.val = x;
             pos.y.val = y;
+            // Found live via the in-game editor: pos.z.val was never set
+            // here (unlike create_owned_special_digger()'s own z.val = 0
+            // before its first create_creature() call), so the creature
+            // landed at whatever this stack slot's leftover value from an
+            // earlier case in this same switch happened to be -- usually
+            // "close enough" to be unnoticed in normal cheat-menu use, but
+            // undefined, and capable of placing the creature well outside
+            // the visible floor height entirely. Same two-step fix
+            // create_owned_special_digger() already uses: create at a
+            // known z, then correct it from the real thing's own clipbox.
+            pos.z.val = 0;
             PlayerNumber id = pckt->actn_par2;
             unsigned char exp = pckt->actn_par2 >> 8;
             thing = create_creature(&pos, pckt->actn_par1, id);
             if (!thing_is_invalid(thing))
             {
+                thing->mappos.z.val = get_thing_height_at(thing, &thing->mappos);
+                thing->previous_mappos = thing->mappos;
                 set_creature_level(thing, exp);
             }
             break;

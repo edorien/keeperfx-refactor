@@ -459,6 +459,14 @@ int skip_high_score_screen;
 int load_game_scroll_offset;
 unsigned char video_gamma_correction;
 
+// docs/refactor/editor/01-entry-and-editor-session.md §2 -- see frontend.h's
+// own comment on why these are plain globals, not KfxFrontendState fields.
+LevelNumber editor_pending_lvnum = 0;
+TbBool editor_pending_is_new = false;
+MapSlabCoord editor_pending_new_map_w = 85;
+MapSlabCoord editor_pending_new_map_h = 85;
+long editor_pending_new_map_texture = 0;
+
 // *** SPRITES ***
 // font_sprites/frontend_font/button_sprites/winfont moved to kfx_render's
 // vidmode.h (stage 13.3, docs/refactor/stage-13-enforce-and-document.md).
@@ -2877,8 +2885,11 @@ void frontend_shutdown_state(FrontendMenuState pstate)
     case FeSt_MP_MAPPACK_SELECT:
         turn_off_menu(GMnu_MP_MAPPACK_SELECT);
         break;
+    case FeSt_EDITOR: // ImGui-only browser (§1) -- no classic menu to turn off
+        break;
     case FeSt_START_KPRLEVEL:
     case FeSt_START_MPLEVEL:
+    case FeSt_START_EDITOR:
     case FeSt_QUIT_GAME:
     case FeSt_LOAD_GAME:
     case FeSt_INTRO:
@@ -2981,6 +2992,11 @@ FrontendMenuState frontend_setup_state(FrontendMenuState nstate)
       case FeSt_OUTRO:
       case FeSt_PACKET_DEMO:
       case FeSt_START_MPLEVEL:
+      case FeSt_START_EDITOR:
+          break;
+      case FeSt_EDITOR:
+          // ImGui-only browser (§1) -- no classic menu, no GMnu_* to turn on.
+          set_pointer_graphic_menu();
           break;
       case FeSt_STORY_POEM:
       case FeSt_STORY_BIRTHDAY:
@@ -3100,6 +3116,8 @@ static const char * menu_state_str(FrontendMenuState state)
         case FeSt_CAMPAIGN_INTRO: return "FeSt_CAMPAIGN_INTRO";
         case FeSt_MAPPACK_SELECT: return "FeSt_MAPPACK_SELECT";
         case FeSt_MP_MAPPACK_SELECT: return "FeSt_MP_MAPPACK_SELECT";
+        case FeSt_EDITOR: return "FeSt_EDITOR";
+        case FeSt_START_EDITOR: return "FeSt_START_EDITOR";
         case FeSt_FONT_TEST: return "FeSt_FONT_TEST";
     }
     return "unknown";
@@ -3343,6 +3361,11 @@ void frontend_input(void)
         break;
     case FeSt_LEVEL_STATS:
         if (!frontend_imgui_screen_active(FeSt_LEVEL_STATS))
+            get_gui_inputs(0);
+        input_consumed = frontscreen_end_input(false);
+        break;
+    case FeSt_EDITOR:
+        if (!frontend_imgui_screen_active(FeSt_EDITOR))
             get_gui_inputs(0);
         input_consumed = frontscreen_end_input(false);
         break;
@@ -3692,6 +3715,7 @@ short frontend_draw(void)
     case FeSt_NET_SERVICE:
     case FeSt_NET_SESSION:
     case FeSt_NET_START:
+    case FeSt_EDITOR:
         // docs/refactor/renderer/05-imgui-owned-menu-backdrop.md Phase D:
         // the backdrop used to stay on the software path even when
         // migrated (§3.3 point 2/§3.4 of the other doc) -- only draw_gui()
@@ -3938,9 +3962,12 @@ void frontend_update(short *finish_menu)
         break;
     case FeSt_START_KPRLEVEL:
     case FeSt_START_MPLEVEL:
+    case FeSt_START_EDITOR:
     case FeSt_LOAD_GAME:
     case FeSt_PACKET_DEMO:
         *finish_menu = 1;
+        break;
+    case FeSt_EDITOR:
         break;
     case FeSt_QUIT_GAME:
         *finish_menu = 1;
@@ -4104,6 +4131,11 @@ FrontendMenuState get_menu_state_when_back_from_substate(FrontendMenuState subst
     case FeSt_FEDEFINE_KEYS:
         return FeSt_FEOPTIONS;
     case FeSt_CREDITS:
+        return FeSt_MAIN_MENU;
+    case FeSt_EDITOR:
+        // §2's "Back -> FeSt_MAIN_MENU" -- same generic Esc/right-click
+        // "go back" path frontscreen_end_input() uses for every other
+        // browser reached straight from the main menu.
         return FeSt_MAIN_MENU;
     default:
         return FeSt_MAIN_MENU;
@@ -4326,6 +4358,7 @@ TbBool should_use_delta_time_on_menu(void)
         case FeSt_LAND_VIEW:
         case FeSt_NETLAND_VIEW:
         case FeSt_TORTURE:
+        case FeSt_EDITOR:
             return true;
         default:
             return false;
