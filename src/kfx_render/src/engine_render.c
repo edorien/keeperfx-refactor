@@ -86,22 +86,13 @@ extern "C" {
 
 enum QKinds {
     QK_PolygonStandard = 0,
-    QK_PolygonSimple,
-    QK_PolyMode0,
-    QK_PolyMode4,
-    QK_TrigMode2,
-    QK_PolyMode5,
-    QK_TrigMode3,
-    QK_TrigMode6,
-    QK_RotableSprite, // 8
     QK_PolygonNearFP,
-    QK_BasicPolygon,
     QK_JontySprite,
     QK_CreatureShadow,
     QK_SlabSelector,
     QK_CreatureStatus,
     QK_TextureQuad,
-    QK_FloatingGoldText, // 16
+    QK_FloatingGoldText,
     QK_RoomFlagBottomPole,
     QK_JontyISOSprite,
     QK_RoomFlagStatusBox,
@@ -127,115 +118,6 @@ struct BucketKindPolygonStandard {
     struct PolyPoint vertex_third;
 };
 
-struct BucketKindPolygonSimple {
-    struct BasicQ b;
-    unsigned short block;
-    struct PolyPoint vertex_first;
-    struct PolyPoint vertex_second;
-    struct PolyPoint vertex_third;
-};
-
-struct BucketKindPolyMode0 {
-    struct BasicQ b;
-    unsigned char colour;
-    unsigned short vertex_first_x;
-    unsigned short vertex_first_y;
-    unsigned short vertex_second_x;
-    unsigned short vertex_second_y;
-    unsigned short vertex_third_x;
-    unsigned short vertex_third_y;
-};
-
-struct BucketKindPolyMode4 {
-    struct BasicQ b;
-    unsigned char colour;
-    unsigned short vertex_first_x;
-    unsigned short vertex_first_y;
-    unsigned short vertex_second_x;
-    unsigned short vertex_second_y;
-    unsigned short vertex_third_x;
-    unsigned short vertex_third_y;
-    unsigned char texture_vertex_first;
-    unsigned char texture_vertex_second;
-    unsigned char texture_vertex_third;
-};
-
-struct BucketKindTrigMode2 {
-    struct BasicQ b;
-    unsigned short vertex_first_x;
-    unsigned short vertex_first_y;
-    unsigned short vertex_second_x;
-    unsigned short vertex_second_y;
-    unsigned short vertex_third_x;
-    unsigned short vertex_third_y;
-    unsigned char texture_u_first;
-    unsigned char texture_v_first;
-    unsigned char texture_u_second;
-    unsigned char texture_v_second;
-    unsigned char texture_u_third;
-    unsigned char texture_v_third;
-};
-
-struct BucketKindPolyMode5 {
-    struct BasicQ b;
-    unsigned short vertex_first_x;
-    unsigned short vertex_first_y;
-    unsigned short vertex_second_x;
-    unsigned short vertex_second_y;
-    unsigned short vertex_third_x;
-    unsigned short vertex_third_y;
-    unsigned char texture_u_first;
-    unsigned char texture_v_first;
-    unsigned char texture_u_second;
-    unsigned char texture_v_second;
-    unsigned char texture_u_third;
-    unsigned char texture_v_third;
-    unsigned char texture_w_first;
-    unsigned char texture_w_second;
-    unsigned char texture_w_third;
-};
-
-struct BucketKindTrigMode3 {
-    struct BasicQ b;
-    unsigned short vertex_first_x;
-    unsigned short vertex_first_y;
-    unsigned short vertex_second_x;
-    unsigned short vertex_second_y;
-    unsigned short vertex_third_x;
-    unsigned short vertex_third_y;
-    unsigned char texture_u_first;
-    unsigned char texture_v_first;
-    unsigned char texture_u_second;
-    unsigned char texture_v_second;
-    unsigned char texture_u_third;
-    unsigned char texture_v_third;
-};
-
-struct BucketKindTrigMode6 {
-    struct BasicQ b;
-    unsigned short vertex_first_x;
-    unsigned short vertex_first_y;
-    unsigned short vertex_second_x;
-    unsigned short vertex_second_y;
-    unsigned short vertex_third_x;
-    unsigned short vertex_third_y;
-    unsigned char texture_u_first;
-    unsigned char texture_v_first;
-    unsigned char texture_u_second;
-    unsigned char texture_v_second;
-    unsigned char texture_u_third;
-    unsigned char texture_v_third;
-    unsigned char texture_w_first;
-    unsigned char texture_w_second;
-    unsigned char texture_w_third;
-};
-
-struct BucketKindRotableSprite {
-    struct BasicQ b;
-    long clip_flags;
-    long depth_fade;
-};
-
 struct BucketKindPolygonNearFP {
     struct BasicQ b;
     unsigned char subtype;
@@ -246,14 +128,6 @@ struct BucketKindPolygonNearFP {
     struct XYZ coordinate_first;
     struct XYZ coordinate_second;
     struct XYZ coordinate_third;
-};
-
-struct BucketKindBasicUnk10 {
-    struct BasicQ b;
-    unsigned char color_value;
-    struct PolyPoint vertex_first;
-    struct PolyPoint vertex_second;
-    struct PolyPoint vertex_third;
 };
 
 struct BucketKindJontySprite {  // BasicQ type 11,18
@@ -4424,7 +4298,6 @@ static void do_a_plane_of_engine_columns_perspective(long stl_x, long stl_y, lon
 
 static void do_a_gpoly_gourad_tr(struct EngineCoord *ec1, struct EngineCoord *ec2, struct EngineCoord *ec3, short textr_id, int a5)
 {
-    //BucketKindPolygonStandard in this function could also be BucketKindPolygonSimple or BucketKindBasicUnk10 idk all 3 pretty similar
     int z;
     struct BucketKindPolygonStandard *current_polygon_bucket;
     int bucket_index;
@@ -4490,7 +4363,6 @@ static void do_a_gpoly_gourad_tr(struct EngineCoord *ec1, struct EngineCoord *ec
 
 static void do_a_gpoly_unlit_tr(struct EngineCoord *ec1, struct EngineCoord *ec2, struct EngineCoord *ec3, short textr_id)
 {
-    //BucketKindPolygonStandard in this function could also be BucketKindPolygonSimple or BucketKindBasicUnk10 idk all 3 pretty similar
     int z;
     struct BucketKindPolygonStandard *current_polygon_bucket;
     int bucket_index;
@@ -4538,7 +4410,6 @@ static void do_a_gpoly_unlit_tr(struct EngineCoord *ec1, struct EngineCoord *ec2
 
 static void do_a_gpoly_unlit_bl(struct EngineCoord *ec1, struct EngineCoord *ec2, struct EngineCoord *ec3, short textr_id)
 {
-    //BucketKindPolygonStandard in this function could also be BucketKindPolygonSimple or BucketKindBasicUnk10 idk all 3 pretty similar
     int z;
     struct BucketKindPolygonStandard *current_polygon_bucket;
     int bucket_index;
@@ -4584,7 +4455,6 @@ static void do_a_gpoly_unlit_bl(struct EngineCoord *ec1, struct EngineCoord *ec2
 
 static void do_a_gpoly_gourad_bl(struct EngineCoord *ec1, struct EngineCoord *ec2, struct EngineCoord *ec3, short textr_id, int a5)
 {
-    //BucketKindPolygonStandard in this function could also be BucketKindPolygonSimple or BucketKindBasicUnk10 idk all 3 pretty similar
     int z;
     struct BucketKindPolygonStandard *current_polygon_bucket;
     int zdiv16;
@@ -6795,16 +6665,7 @@ static void display_drawlist(void) // Draws isometric and 1st person view. Not f
     union {
         struct BasicQ *b;
         struct BucketKindPolygonStandard *polygonStandard;
-        struct BucketKindPolygonSimple *polygonSimple;
-        struct BucketKindPolyMode0 *polyMode0;
-        struct BucketKindPolyMode4 *polyMode4;
-        struct BucketKindTrigMode2 *trigMode2;
-        struct BucketKindPolyMode5 *polyMode5;
-        struct BucketKindTrigMode3 *trigMode3;
-        struct BucketKindTrigMode6 *trigMode6;
-        struct BucketKindRotableSprite *rotableSprite;
         struct BucketKindPolygonNearFP *polygonNearFP;
-        struct BucketKindBasicUnk10 *basicUnk10;
         struct BucketKindJontySprite *jontySprite;
         struct BucketKindCreatureShadow *creatureShadow;
         struct BucketKindSlabSelector *slabSelector;
@@ -6814,9 +6675,6 @@ static void display_drawlist(void) // Draws isometric and 1st person view. Not f
         struct BucketKindRoomFlag *roomFlag;
     } item;
     long bucket_num;
-    struct PolyPoint point_a;
-    struct PolyPoint point_b;
-    struct PolyPoint point_c;
     SYNCDBG(9,"Starting");
     render_problems = 0;
     kfx_render_state.thing_pointed_at = 0;
@@ -6834,117 +6692,8 @@ static void display_drawlist(void) // Draws isometric and 1st person view. Not f
                 vec_map = block_ptrs[item.polygonStandard->block];
                 draw_gpoly(&item.polygonStandard->vertex_first, &item.polygonStandard->vertex_second, &item.polygonStandard->vertex_third);
                 break;
-            case QK_PolygonSimple: // Possibly unused
-                vec_mode = VM_SolidColor;
-                vec_shade = (int)clamp(((item.polygonSimple->vertex_third.S + item.polygonSimple->vertex_second.S + item.polygonSimple->vertex_first.S)/3) >> 16, 0, 63);
-                vec_map = block_ptrs[item.polygonSimple->block];
-                trig(&item.polygonSimple->vertex_first, &item.polygonSimple->vertex_second, &item.polygonSimple->vertex_third);
-                break;
-            case QK_PolyMode0: // Possibly unused
-                vec_mode = VM_FlatColor;
-                vec_colour = expand_indexed_pixel((uint8_t)clamp(item.polyMode0->colour, 0, 255), RendererGetActivePalette());
-                point_a.X = item.polyMode0->vertex_first_x;
-                point_a.Y = item.polyMode0->vertex_first_y;
-                point_b.X = item.polyMode0->vertex_second_x;
-                point_b.Y = item.polyMode0->vertex_second_y;
-                point_c.X = item.polyMode0->vertex_third_x;
-                point_c.Y = item.polyMode0->vertex_third_y;
-                draw_gpoly(&point_a, &point_b, &point_c);
-                break;
-            case QK_PolyMode4: // Possibly unused
-                vec_mode = VM_QuadFlatColor;
-                vec_colour = expand_indexed_pixel((uint8_t)clamp(item.polyMode4->colour, 0, 255), RendererGetActivePalette());
-                point_a.X = item.polyMode4->vertex_first_x;
-                point_a.Y = item.polyMode4->vertex_first_y;
-                point_b.X = item.polyMode4->vertex_second_x;
-                point_b.Y = item.polyMode4->vertex_second_y;
-                point_c.X = item.polyMode4->vertex_third_x;
-                point_c.Y = item.polyMode4->vertex_third_y;
-                point_a.S = item.polyMode4->texture_vertex_first << 16;
-                point_b.S = item.polyMode4->texture_vertex_second << 16;
-                point_c.S = item.polyMode4->texture_vertex_third << 16;
-                draw_gpoly(&point_a, &point_b, &point_c);
-                break;
-            case QK_TrigMode2: // Possibly unused
-                vec_mode = VM_TriangularGouraud;
-                point_a.X = item.trigMode2->vertex_first_x;
-                point_a.Y = item.trigMode2->vertex_first_y;
-                point_b.X = item.trigMode2->vertex_second_x;
-                point_b.Y = item.trigMode2->vertex_second_y;
-                point_c.X = item.trigMode2->vertex_third_x;
-                point_c.Y = item.trigMode2->vertex_third_y;
-                point_a.U = item.trigMode2->texture_u_first << 16;
-                point_a.V = item.trigMode2->texture_v_first << 16;
-                point_b.U = item.trigMode2->texture_u_second << 16;
-                point_b.V = item.trigMode2->texture_v_second << 16;
-                point_c.U = item.trigMode2->texture_u_third << 16;
-                point_c.V = item.trigMode2->texture_v_third << 16;
-                trig(&point_a, &point_b, &point_c);
-                break;
-            case QK_PolyMode5: // Possibly unused
-                vec_mode = VM_QuadTextured;
-                point_a.X = item.polyMode5->vertex_first_x;
-                point_a.Y = item.polyMode5->vertex_first_y;
-                point_b.X = item.polyMode5->vertex_second_x;
-                point_b.Y = item.polyMode5->vertex_second_y;
-                point_c.X = item.polyMode5->vertex_third_x;
-                point_c.Y = item.polyMode5->vertex_third_y;
-                point_a.U = item.polyMode5->texture_u_first << 16;
-                point_a.V = item.polyMode5->texture_v_first << 16;
-                point_b.U = item.polyMode5->texture_u_second << 16;
-                point_b.V = item.polyMode5->texture_v_second << 16;
-                point_c.U = item.polyMode5->texture_u_third << 16;
-                point_c.V = item.polyMode5->texture_v_third << 16;
-                point_a.S = item.polyMode5->texture_w_first << 16;
-                point_b.S = item.polyMode5->texture_w_second << 16;
-                point_c.S = item.polyMode5->texture_w_third << 16;
-                draw_gpoly(&point_a, &point_b, &point_c);
-                break;
-            case QK_TrigMode3: // Possibly unused
-                vec_mode = VM_TriangularTexture;
-                point_a.X = item.trigMode3->vertex_first_x;
-                point_a.Y = item.trigMode3->vertex_first_y;
-                point_b.X = item.trigMode3->vertex_second_x;
-                point_b.Y = item.trigMode3->vertex_second_y;
-                point_c.X = item.trigMode3->vertex_third_x;
-                point_c.Y = item.trigMode3->vertex_third_y;
-                point_a.U = item.trigMode3->texture_u_first << 16;
-                point_a.V = item.trigMode3->texture_v_first << 16;
-                point_b.U = item.trigMode3->texture_u_second << 16;
-                point_b.V = item.trigMode3->texture_v_second << 16;
-                point_c.U = item.trigMode3->texture_u_third << 16;
-                point_c.V = item.trigMode3->texture_v_third << 16;
-                trig(&point_a, &point_b, &point_c);
-                break;
-            case QK_TrigMode6: // Possibly unused
-                vec_mode = VM_TriangularTextured;
-                point_a.X = item.trigMode6->vertex_first_x;
-                point_a.Y = item.trigMode6->vertex_first_y;
-                point_b.X = item.trigMode6->vertex_second_x;
-                point_b.Y = item.trigMode6->vertex_second_y;
-                point_c.X = item.trigMode6->vertex_third_x;
-                point_c.Y = item.trigMode6->vertex_third_y;
-                point_a.U = item.trigMode6->texture_u_first << 16;
-                point_a.V = item.trigMode6->texture_v_first << 16;
-                point_b.U = item.trigMode6->texture_u_second << 16;
-                point_b.V = item.trigMode6->texture_v_second << 16;
-                point_c.U = item.trigMode6->texture_u_third << 16;
-                point_c.V = item.trigMode6->texture_v_third << 16;
-                point_a.S = item.trigMode6->texture_w_first << 16;
-                point_b.S = item.trigMode6->texture_w_second << 16;
-                point_c.S = item.trigMode6->texture_w_third << 16;
-                trig(&point_a, &point_b, &point_c);
-                break;
-            case QK_RotableSprite: // Possibly unused
-                // draw_map_who did nothing
-                break;
             case QK_PolygonNearFP: // 'Near' textured polygons (closer to camera) in 1st person view
                 draw_subdivided_near_polygon(item.polygonNearFP);
-                break;
-            case QK_BasicPolygon:
-                vec_mode = VM_FlatColor;
-                vec_colour = expand_indexed_pixel((uint8_t)clamp(item.basicUnk10->color_value, 0, 255), RendererGetActivePalette());
-                draw_gpoly(&item.basicUnk10->vertex_first, &item.basicUnk10->vertex_second, &item.basicUnk10->vertex_third);
                 break;
             case QK_JontySprite: // All creatures and things in isometric and 1st person view
                 draw_jonty_mapwho(item.jontySprite);
@@ -7230,16 +6979,7 @@ static void display_fast_drawlist(struct Camera *cam) // Draws frontview only. N
         struct BasicQ *b;
         // Unused in display_fast_drawlist()
         struct BucketKindPolygonStandard *polygonStandard;
-        struct BucketKindPolygonSimple *polygonSimple;
-        struct BucketKindPolyMode0 *polyMode0;
-        struct BucketKindPolyMode4 *polyMode4;
-        struct BucketKindTrigMode2 *trigMode2;
-        struct BucketKindPolyMode5 *polyMode5;
-        struct BucketKindTrigMode3 *trigMode3;
-        struct BucketKindTrigMode6 *trigMode6;
-        struct BucketKindRotableSprite *rotableSprite;
         struct BucketKindPolygonNearFP *polygonNearFP;
-        struct BucketKindBasicUnk10 *basicUnk10;
         struct BucketKindCreatureShadow *creatureShadow;
         // Used
         struct BucketKindJontySprite *jontySprite;

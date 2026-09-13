@@ -1,5 +1,13 @@
 # Stage 3 — GPU acceleration
 
+> **Superseded (2026-09-13).** This document has been merged into
+> [`gpu-v2/03-gpu-renderer.md`](gpu-v2/03-gpu-renderer.md), which is now the single source of
+> truth for this stage — it carries this file's Phase A/B material and risk list forward
+> unchanged, plus a detailed Phase C design informed by
+> [`docs/merge-checks/opengl-renderer-review.md`](../../merge-checks/opengl-renderer-review.md)
+> (a review of an external attempt at the same GPU world-view renderer problem). Read that
+> document instead; this file is kept for history and is not being updated further.
+
 Status: **Phase A landed** (with stage 2 — see below); **Phase B substantially overtaken by
 stage 4 for the frontend, re-scoped around what's left**; Phase C unchanged (still a separately
 scoped stretch goal).

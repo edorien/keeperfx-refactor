@@ -34,7 +34,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <excpt.h>
-#include <imagehlp.h>
 #include <dbghelp.h>
 #include <psapi.h>
 #endif
@@ -120,6 +119,34 @@ void ctrl_handler(int sig_id)
 }
 
 #if defined(_WIN32)
+// Structured-exception codes used by the two C++ runtimes this project ships builds for to
+// implement `throw` (both raise via RaiseException(), not a hardware fault -- there is no
+// EXCEPTION_* constant for either in <winnt.h>). #define, not a const DWORD: this file is C, and
+// a switch's case labels need a real compile-time constant expression, not just a const-qualified one.
+#define MSVC_CXX_EXCEPTION 0xe06d7363u // 0xE0 + 'msc', a throw from an MSVC-built module
+#define GCC_CXX_EXCEPTION  0x20474343u // 'GCC' + 1, a throw from a GCC/mingw-built module
+
+// Names the module which owns an address, without the directory part, and how far into it the
+// address sits. Returns false when the address belongs to no loaded module. Uses
+// GetModuleHandleEx() rather than _backtrace()'s own SymGetModuleBase()-based lookup so it works
+// standalone, before (or even if) SymInitialize() below succeeds.
+static bool module_name_of(const void *address, char *name, size_t name_size, uintptr_t *offset)
+{
+    HMODULE module = NULL;
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            (LPCSTR)address, &module) || (module == NULL)) {
+        return false;
+    }
+    char module_path[MAX_PATH];
+    if (GetModuleFileNameA(module, module_path, sizeof(module_path)) == 0) {
+        return false;
+    }
+    const char *base_name = strrchr(module_path, '\\');
+    snprintf(name, name_size, "%s", (base_name != NULL) ? (base_name + 1) : module_path);
+    *offset = (uintptr_t)address - (uintptr_t)module;
+    return true;
+}
+
 static void
 _backtrace(int depth , LPCONTEXT context)
 {
@@ -333,6 +360,29 @@ static LONG CALLBACK ctrl_handler_w32(LPEXCEPTION_POINTERS info)
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
         LbErrorLog("Attempt of integer division by zero.\n");
         break;
+    case MSVC_CXX_EXCEPTION:
+    case GCC_CXX_EXCEPTION:
+    {
+        const char *kind = (info->ExceptionRecord->ExceptionCode == MSVC_CXX_EXCEPTION)
+            ? "MSVC runtime" : "GCC runtime";
+        char module[MAX_PATH];
+        uintptr_t offset = 0;
+        // A MSVC throw's exception address always lands inside KERNELBASE (it's raised from
+        // inside RaiseException() itself, not the throw site) -- but its third parameter is the
+        // ThrowInfo block, which is static data belonging to the module that compiled the throw.
+        // GCC/mingw's exceptions raise from the real throw site directly, so the plain
+        // exception-address lookup below already names the right module for those.
+        if ((info->ExceptionRecord->ExceptionCode == MSVC_CXX_EXCEPTION)
+         && (info->ExceptionRecord->NumberParameters >= 3)
+         && module_name_of((const void *)info->ExceptionRecord->ExceptionInformation[2], module, sizeof(module), &offset)) {
+            LbErrorLog("C++ exception thrown (%s), from %s.\n", kind, module);
+        } else if (module_name_of((const void *)info->ExceptionRecord->ExceptionAddress, module, sizeof(module), &offset)) {
+            LbErrorLog("C++ exception thrown (%s), at %s+0x%lx.\n", kind, module, (unsigned long)offset);
+        } else {
+            LbErrorLog("C++ exception thrown (%s), module unknown.\n", kind);
+        }
+        break;
+    }
     default:
         LbErrorLog("Failure code %lx received.\n",info->ExceptionRecord->ExceptionCode);
         break;

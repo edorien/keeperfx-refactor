@@ -69,6 +69,14 @@
 unsigned short engine_remap_texture_blocks(long stl_x, long stl_y, unsigned short tex_id);
 /******************************************************************************/
 int parchment_loaded;
+// Dedicated storage for the low-res parchment background -- previously this
+// loaded straight into poly_pool (the render engine's shared bucket-allocation
+// scratch pool), which is reused every frame by the bucket renderer. Nothing
+// guarantees poly_pool's contents survive from this one-time load to the next
+// time parchment_copy_background_at() reads it back, so borrowing it here was
+// a latent aliasing hazard. hires_parchment doesn't have this problem: it's
+// given its own storage by the gui_load_files_640[] table (vidmode_data.cpp).
+static unsigned char lores_parchment[320*200];
 /******************************************************************************/
 void load_parchment_file(void)
 {
@@ -81,6 +89,7 @@ void load_parchment_file(void)
 void reload_parchment_file(TbBool hires)
 {
   char *fname;
+  long result;
   if (hires)
   {
 #ifdef SPRITE_FORMAT_V2
@@ -88,7 +97,7 @@ void reload_parchment_file(TbBool hires)
 #else
       fname = prepare_file_path(FGrp_StdData,"gmap64.raw");
 #endif
-      LbFileLoadAt(fname, hires_parchment);
+      result = LbFileLoadAt(fname, hires_parchment);
   } else
   {
 #ifdef SPRITE_FORMAT_V2
@@ -96,9 +105,14 @@ void reload_parchment_file(TbBool hires)
 #else
       fname = prepare_file_path(FGrp_StdData,"gmap32.raw");
 #endif
-      LbFileLoadAt(fname, poly_pool);
+      result = LbFileLoadAt(fname, lores_parchment);
   }
-  parchment_loaded = 1;
+  // Only latch "loaded" on success -- LbFileLoadAt() already ERRORLOGs the
+  // failure with the filename; leaving parchment_loaded at 0 lets the next
+  // load_parchment_file() call (re-entering the map screen) retry, instead of
+  // permanently serving whatever stale/uninitialized data the buffer holds.
+  if (result != -1)
+      parchment_loaded = 1;
 }
 
 long get_parchment_background_area_rect(struct TbRect *bkgnd_area)
@@ -178,7 +192,7 @@ TbBool parchment_copy_background_at(const struct TbRect *bkgnd_area, int units_p
     {
         img_width = 320;
         img_height = 200;
-        srcbuf = poly_pool;
+        srcbuf = lores_parchment;
         shift = 5;
     } else
     {
